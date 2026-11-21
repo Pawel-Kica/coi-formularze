@@ -38,8 +38,9 @@ _EXISTING = re.compile(
 )
 # One-value-or-the-other pairs that are a yes/no question in disguise.
 _YES_NO = {"tak", "nie", "jest", "brak", "posiadam", "nie posiadam", "dotyczy", "nie dotyczy", "wynika", "nie wynika"}
-# Longer values are sentences (statements, clauses), not dictionary items.
+# Longer values (not counting "(...)" explanations) are sentences, statements or clauses, not dictionary items.
 MAX_VALUE_CHARS = 120
+_PAREN = re.compile(r"\([^()]*\)")
 # Catch-all options; a list needs 2 real values besides them.
 _CATCH_ALL = re.compile(r"^(inn[aeyi]|inne|pozostał[aey]|other)\b")
 # Blank fields whose answer is free text, never a closed set.
@@ -108,7 +109,7 @@ def filter_candidates(candidates: list[dict], text: str, threshold: float = THRE
             why = "to pytanie Tak/Nie"
         elif values and len(real) < 2:
             why = "lista ma mniej niż 2 wartości"
-        elif any(len(v) > MAX_VALUE_CHARS for v in values):
+        elif any(len(_PAREN.sub("", v).strip()) > MAX_VALUE_CHARS for v in values):
             why = "wartości to całe zdania (oświadczenia), nie pozycje słownika"
         elif missing := [v for v in values if not _value_on_paper(v, text, threshold)]:
             why = f"wartości nie ma na formularzu: {missing[:3]}"

@@ -150,3 +150,10 @@ def test_sentence_values_are_statements_not_items():
     long = "Oświadczam, że przydomowa oczyszczalnia ścieków objęta niniejszym zgłoszeniem oczyszcza ścieki z własnego gospodarstwa domowego lub rolnego"
     kept, dropped = filter_candidates([cand("Statusy", "Oświadczenie", "Oświadczam", [long, long + " w aglomeracji"])], long + " w aglomeracji")
     assert kept == [] and "całe zdania" in dropped[0]
+
+
+def test_parenthetical_explanation_does_not_make_a_sentence():
+    v = "nowa deklaracja (w przypadku zmiany danych będących podstawą ustalenia wysokości należnej opłaty za gospodarowanie odpadami komunalnymi)"
+    text = f"Okoliczności: pierwsza deklaracja {v} korekta deklaracji"
+    kept, _ = filter_candidates([cand("Okoliczności", "Okoliczności", "Okoliczności:", ["pierwsza deklaracja", v, "korekta deklaracji"])], text)
+    assert len(kept) == 1
