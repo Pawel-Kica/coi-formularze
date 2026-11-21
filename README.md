@@ -18,7 +18,7 @@ Wymagane: Python 3.14+, [uv](https://docs.astral.sh/uv/), [Ollama](https://ollam
 
 ```bash
 ollama pull qwen3:30b-a3b-instruct-2507-q4_K_M   # model z LLM_MODEL
-cp .env.example .env                              # uzupełnij JWT_SECRET i AUTH_PASSWORD
+cp .env.example .env                              # logowanie: AUTH_ENABLED=1 + JWT_SECRET i AUTH_PASSWORD
 uv sync
 uv run uvicorn app.api:app --port 8000
 ```
@@ -36,7 +36,6 @@ Obraz: oficjalny `python:3.14.10-alpine3.24` (wszystkie zależności mają gotow
 ```bash
 docker build -t coi-formularze:0.1.0 .
 docker run --rm -p 8000:8000 \
-  -e JWT_SECRET="$(openssl rand -hex 32)" -e AUTH_PASSWORD=haslo \
   -e LLM_BASE_URL=http://host.docker.internal:11434/v1 \
   --add-host=host.docker.internal:host-gateway \
   coi-formularze:0.1.0
@@ -45,7 +44,7 @@ docker run --rm -p 8000:8000 \
 Całość razem z Ollamą (serwer Linux; GPU NVIDIA opcjonalnie, patrz komentarz w `docker-compose.yml`):
 
 ```bash
-cp .env.example .env    # JWT_SECRET i AUTH_PASSWORD są wymagane
+cp .env.example .env    # z logowaniem (AUTH_ENABLED=1) uzupełnij JWT_SECRET i AUTH_PASSWORD
 docker compose up -d --build
 ```
 
@@ -58,6 +57,7 @@ Zmienne środowiskowe albo plik `.env` (wzór: `.env.example`).
 | Zmienna | Domyślnie | Opis |
 |---|---|---|
 | `MAX_FILE_SIZE_MB` | `10` | Maksymalny rozmiar pliku (MiB) |
+| `AUTH_ENABLED` | `0` | `0` = API otwarte, strony bez logowania (na razie domyślnie). `1` = każde wywołanie wymaga tokenu `Bearer` JWT, strony pokazują logowanie |
 | `JWT_SECRET` | brak | Klucz podpisu tokenów, min. 32 znaki. Wymagany w produkcji; lokalnie bez niego API losuje klucz na czas życia procesu (z ostrzeżeniem w logu) |
 | `JWT_ALGORITHM` | `HS256` | Algorytm podpisu (z `JWT_JWKS_URL` np. `RS256`) |
 | `JWT_ISSUER` | `coi-formularze` | Wymagane `iss` w tokenie |
@@ -82,8 +82,11 @@ Zmienne środowiskowe albo plik `.env` (wzór: `.env.example`).
 
 ## REST API
 
+Kolumna „Autoryzacja” dotyczy `AUTH_ENABLED=1`; przy domyślnym `0` wszystko działa bez tokenu.
+
 | Metoda i ścieżka | Autoryzacja | Opis |
 |---|---|---|
+| `GET /api/auth/config` | brak | `{"enabled": true \| false}`, czy wymagany jest token (`AUTH_ENABLED`); strony pytają o to przed pokazaniem logowania |
 | `POST /api/auth/token` | brak | `username` i `password` (JSON lub formularz) → `{access_token, token_type, expires_in}` |
 | `POST /api/forms/convert` | `Bearer` JWT | Jeden plik w polu `file` (multipart) → JSON COI, bez żadnej otoczki. Z `?evidence=1` → `{"coi": ..., "evidence": {id elementu: {"source": "paper" \| "model" \| "code", "quote": cytat z papieru, "page": ...}}}` (tego używa edytor na stronie) |
 | `POST /api/forms/check` | `Bearer` JWT | JSON COI (np. po poprawkach urzędnika) → `{"problems": [{"id": id elementu lub null, "message": opis po polsku, "detail": reguła}]}`; pusta lista = gotowe do importu, te same reguły co przy konwersji |
@@ -92,6 +95,10 @@ Zmienne środowiskowe albo plik `.env` (wzór: `.env.example`).
 | `GET /docs` | brak | OpenAPI / Swagger UI (przycisk „Authorize” loguje loginem i hasłem) |
 
 ```bash
+# AUTH_ENABLED=0 (domyślnie): bez tokenu
+curl -X POST http://localhost:8000/api/forms/convert -F "file=@wniosek.pdf" -o wniosek.json
+
+# AUTH_ENABLED=1: najpierw token
 TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/token \
   -H 'Content-Type: application/json' -d '{"username": "admin", "password": "haslo"}' | jq -r .access_token)
 
@@ -104,7 +111,7 @@ Błędy zawsze jako JSON `{"detail": "..."}`:
 | Kod | Kiedy |
 |---|---|
 | 400 | zła nazwa pliku, pusty plik, brak pola `file` albo więcej niż jeden plik |
-| 401 | brak, zły lub wygasły token; zły login lub hasło |
+| 401 | brak, zły lub wygasły token; zły login lub hasło (tylko z `AUTH_ENABLED=1`) |
 | 413 | plik większy niż `MAX_FILE_SIZE_MB` |
 | 415 | nieobsługiwane rozszerzenie albo zawartość niezgodna z rozszerzeniem |
 | 422 | nie udało się odczytać formularza |

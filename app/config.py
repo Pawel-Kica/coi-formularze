@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     # Upload
     max_file_size_mb: float = 10
 
+    # Auth switch: off (default for now) = open API and no login on the pages; 1 = JWT required.
+    auth_enabled: bool = False
     # Auth: the API issues its own JWTs for AUTH_USERNAME/AUTH_PASSWORD, signed with JWT_SECRET.
     # With JWT_JWKS_URL set, tokens come from an external identity provider instead
     # (local login is off and JWT_ALGORITHM must be asymmetric, e.g. RS256).

@@ -1,4 +1,5 @@
-"""JWT auth. By default the API is its own token issuer (login + password from config,
+"""JWT auth, switched by AUTH_ENABLED (default off = open API, every request passes as
+"anonymous"; on = a valid Bearer token is required). When on, by default the API is its own token issuer (login + password from config,
 tokens signed with JWT_SECRET). Setting JWT_JWKS_URL plugs in an external identity
 provider: tokens are then verified against its published keys instead.
 """
@@ -15,7 +16,8 @@ from fastapi.security import OAuth2PasswordBearer
 from app.config import settings
 
 # OAuth2 password flow, so the "Authorize" button in /docs works out of the box.
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
+# auto_error=False: a missing token is decided in current_user, so open mode needs no header.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
 
 
 def local_login_enabled() -> bool:
@@ -54,8 +56,18 @@ def _verification_key(token: str):
     return settings.jwt_secret.get_secret_value()
 
 
-def current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> str:
-    """FastAPI dependency: the `sub` of a valid Bearer token, 401 otherwise."""
+def _unauthorized() -> HTTPException:
+    return HTTPException(
+        status.HTTP_401_UNAUTHORIZED, "Nieprawidłowy lub wygasły token.", headers={"WWW-Authenticate": "Bearer"}
+    )
+
+
+def current_user(token: Annotated[str | None, Depends(oauth2_scheme)]) -> str:
+    """FastAPI dependency: "anonymous" with AUTH_ENABLED off, else the `sub` of a valid Bearer token, 401 otherwise."""
+    if not settings.auth_enabled:
+        return "anonymous"
+    if not token:
+        raise _unauthorized()
     try:
         claims = jwt.decode(
             token,
@@ -68,9 +80,5 @@ def current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> str:
     except jwt.PyJWKClientConnectionError:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Serwer tożsamości jest niedostępny.")
     except jwt.PyJWTError:
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED,
-            "Nieprawidłowy lub wygasły token.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise _unauthorized()
     return claims["sub"]

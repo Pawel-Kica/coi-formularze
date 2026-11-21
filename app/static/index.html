@@ -124,7 +124,7 @@
 </header>
 
 <main id="main" class="login">
-  <section class="card" id="login" aria-labelledby="login-title">
+  <section class="card" id="login" aria-labelledby="login-title" hidden>
     <h2 id="login-title">Zaloguj się</h2>
     <form id="login-form">
       <label for="username">Login</label>
@@ -298,7 +298,8 @@ function showScreens() {
   const loggedIn = Boolean(state.token);
   $("#main").classList.toggle("login", !loggedIn);
   $("#login").hidden = loggedIn;
-  $("#upload").hidden = $("#result").hidden = $("#logout").hidden = !loggedIn;
+  $("#logout").hidden = !loggedIn || state.open;
+  $("#upload").hidden = $("#result").hidden = !loggedIn;
 }
 
 function logout(reason = "") {
@@ -865,7 +866,12 @@ $("#dicts-download").addEventListener("click", () => saveDicts(state.selected, s
   select = (item) => { selectItem(item); renderDicts(item); };
 }
 
-showScreens();
+// AUTH_ENABLED off on the server: no login form, requests go without a real token.
+fetch("/api/auth/config").then((r) => r.json()).then(({ enabled }) => {
+  if (!enabled) Object.assign(state, { open: true, token: "open" });
+}).catch(() => {}).finally(() => {
+  showScreens();
+});
 loadHistory();
 </script>
 </body>

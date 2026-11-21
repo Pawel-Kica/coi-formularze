@@ -83,7 +83,16 @@ def test_login_disabled_without_password(client, monkeypatch):
 
 
 def test_missing_token(client):
+    assert client.get("/api/auth/config").json() == {"enabled": True}
     assert upload(client, {}, "a.pdf", PDF).status_code == 401
+
+
+def test_open_mode_needs_no_token(client, monkeypatch):
+    monkeypatch.setattr(settings, "auth_enabled", False)
+    assert client.get("/api/auth/config").json() == {"enabled": False}
+    response = upload(client, {}, "a.pdf", PDF)
+    assert response.status_code == 200 and response.json() == COI
+    assert upload(client, {"Authorization": "Bearer garbage"}, "a.pdf", PDF).status_code == 200
 
 
 @pytest.mark.parametrize(

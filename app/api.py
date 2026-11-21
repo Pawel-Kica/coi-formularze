@@ -56,6 +56,12 @@ _FILE_BODY = _body(
 )
 
 
+@app.get("/api/auth/config", tags=["auth"])
+async def auth_config() -> dict:
+    """Whether a token is required (AUTH_ENABLED); the pages skip the login form when it is not."""
+    return {"enabled": settings.auth_enabled}
+
+
 @app.post("/api/auth/token", openapi_extra=_CREDENTIALS_BODY, tags=["auth"])
 async def login(request: Request) -> Token:
     """Exchange the configured login and password (JSON or form) for a Bearer JWT."""

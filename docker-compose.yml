@@ -12,8 +12,10 @@ services:
         required: false
     environment:
       LLM_BASE_URL: http://ollama:11434/v1
-      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
-      AUTH_PASSWORD: ${AUTH_PASSWORD:?set AUTH_PASSWORD in .env}
+      # Login is off by default (AUTH_ENABLED=0); with AUTH_ENABLED=1 set JWT_SECRET and AUTH_PASSWORD in .env.
+      AUTH_ENABLED: ${AUTH_ENABLED:-0}
+      JWT_SECRET: ${JWT_SECRET:-}
+      AUTH_PASSWORD: ${AUTH_PASSWORD:-}
     depends_on:
       ollama:
         condition: service_healthy
