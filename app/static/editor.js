@@ -178,6 +178,8 @@ function edTyping(fn) {
   ed.version++;
   edRerender();
   edStatus();
+  const loc = ed.sel && edFind(ed.sel), title = $(".ed-title");  // the panel is not redrawn (focus stays), its heading follows the label
+  if (loc && title) title.textContent = (loc.kind === "title" ? cfg.title : loc.kind === "tab" ? loc.tab.title : labelOf(loc.el)) || "(bez tytułu)";
   clearTimeout(ed.timer);
   ed.timer = setTimeout(edFlush, 500);
 }
@@ -549,10 +551,13 @@ function edPanel() {
   const loc = ed.sel ? edFind(ed.sel) : null;
   if (ed.sel && !loc) ed.sel = null;
   const note = ed.note ? h("p", {class: "ed-note", role: "status"}, ed.note) : null;
+  const sameElement = ed.panelFor === ed.sel;  // focus returns to a control only on the element it belonged to:
+  ed.panelFor = ed.sel;                        // after "Usuń pole" it must not land on the section's "Usuń sekcję"
   body.replaceChildren(note || "", ...(loc ? edElementPanel(loc) : edHelpPanel()));
   edStatus();
   if (ed.focusLabel) { ed.focusLabel = false; const l = $("[data-k=label]", body); if (l) { l.focus(); l.select(); } }
-  else if (focusKey) $(`[data-k="${CSS.escape(focusKey)}"]`, body)?.focus();
+  else if (focusKey && sameElement) $(`[data-k="${CSS.escape(focusKey)}"]`, body)?.focus({preventScroll: Boolean(note)});
+  if (note) $("#edPanel").scrollTop = 0;  // the note says what just happened (e.g. after "Usuń" at the bottom of the panel)
 }
 
 function edHelpPanel() {
@@ -598,8 +603,8 @@ function edElementPanel(loc) {
   if (!edEditable(loc)) {
     if (edAddressee(loc)) out.push(...edAddresseeControls(loc.el));
     else if (edConsents(loc)) out.push(...edConsentControls(loc.el));
-    else out.push(h("p", {class: "ed-readonly"}, "Tego elementu nie edytujesz: stronę „" + loc.tab.title + "” buduje kod według Standardów COI " +
-      "(dane z rejestrów, kontakt i zgody, strona końcowa), tak samo dla każdej e-usługi. Z papieru pochodzą tu tylko adresat i oświadczenia: te poprawisz."));
+    else out.push(h("p", {class: "ed-readonly"}, "Tę stronę buduje kod według Standardów COI, taka sama w każdej e-usłudze. " +
+      "Poprawisz na takich stronach tylko to, co jest z papieru: adresata wniosku i oświadczenia."));
     return out;
   }
   if (loc.kind === "title") out.push(edRow("Tytuł e-usługi", edInput(cfg.title || "", "label", v => { cfg.title = v; }),
@@ -728,7 +733,7 @@ function edOptionsControls(f) {
 function edConditionControls(loc) {
   const target = loc.el, single = edSingleCondition(target), text = condText(target);
   const triggers = edTriggers(loc);
-  const box = h("div", {class: "ed-row ed-cond-box"}, h("span", {class: "ed-label"}, "Kiedy pokazać"));
+  const box = h("div", {class: "ed-row ed-cond-box"}, h("span", {class: "ed-label"}, "Kiedy widoczne"));
   const shown = single && triggers.some(t => t.f === single.field);
   if (text && !shown) box.append(h("p", {class: "ed-hint"}, `Teraz: widoczne, gdy ${text}. Wybór poniżej zastąpi ten warunek.`));
   const groups = new Map();
@@ -736,7 +741,7 @@ function edConditionControls(loc) {
     if (!groups.has(t.tab)) groups.set(t.tab, []);
     groups.get(t.tab).push(t);
   }
-  const fieldSel = h("select", {"data-k": "condfield", "aria-label": "Pokaż, gdy pole"}, h("option", {value: ""}, "zawsze widoczne"),
+  const fieldSel = h("select", {"data-k": "condfield", "aria-label": "Zależy od pola"}, h("option", {value: ""}, "nie zależy, zawsze widoczne"),
     [...groups].map(([tab, list]) => h("optgroup", {label: tab.title}, list.map(t => h("option", {value: t.f.id}, `${labelOf(t.f)} (${t.section.title || t.section.techName})`)))));
   fieldSel.value = shown ? single.field.id : "";
   fieldSel.addEventListener("change", () => {
@@ -744,14 +749,14 @@ function edConditionControls(loc) {
     edChange(() => edSetCondition(target, trig || null, trig ? optionsOf(trig)[0] : null),
       trig ? "Ustawiono warunek. Wybierz opcję, przy której element ma się pokazać." : "Usunięto warunek: element jest zawsze widoczny.");
   });
-  box.append(h("div", {class: "ed-cond-line"}, h("span", {}, "Pokaż, gdy"), fieldSel));
+  box.append(h("div", {class: "ed-cond-line"}, h("span", {}, "Zależy od"), fieldSel));
   if (shown) {
     const opts = optionsOf(single.field).map(o => [o, o]);
     if (!opts.some(([o]) => o === single.option)) opts.push([single.option, `${single.option} (tej opcji już nie ma)`]);
     const optSel = edSelectBox(opts, single.option, "condopt",
       v => edChange(() => edSetCondition(target, single.field, v)));
-    optSel.setAttribute("aria-label", "ma wartość");
-    box.append(h("div", {class: "ed-cond-line"}, h("span", {}, "ma wartość"), optSel));
+    optSel.setAttribute("aria-label", "Widoczne, gdy wybrano");
+    box.append(h("div", {class: "ed-cond-line"}, h("span", {}, "gdy wybrano"), optSel));
   }
   if (!triggers.length) box.append(h("p", {class: "ed-hint"}, "W formularzu nie ma pola wyboru z opcjami, od którego mógłby zależeć ten element."));
   return box;
@@ -888,6 +893,7 @@ body.editmode .tech{display:none}
 .ed-add:hover{border-color:#0052a5;background:#f3f7fc}
 .ed-add-section{margin-top:1rem;background:#fff}
 .ed-dot{color:#b3261e;font-size:12px;margin-left:.15rem}
+body.editmode .stepper li{display:flex;align-items:center}
 @media (max-width:760px){
   body.editmode{padding-right:0;padding-bottom:55vh}
   #edPanel{top:auto;left:0;width:auto;height:55vh;border-left:0;border-top:1px solid #c5ccd6}

@@ -480,13 +480,14 @@ function renderFiles() {
       li.append(pick, del);
       item.row = { li, pick, status, err };
     }
-    item.row.err.textContent = item.status === "error" || item.status === "interrupted" ? item.error : "";
+    // the selected row keeps to its status word: the pane next to it has the error text and the seconds
+    item.row.err.textContent = (item.status === "error" || item.status === "interrupted") && item !== state.selected ? item.error : "";
     if (list.children[index] !== item.row.li) list.insertBefore(item.row.li, list.children[index] ?? null);
     const seconds = Math.round((Date.now() - item.started) / 1000);
     item.row.pick.setAttribute("aria-pressed", String(item === state.selected));
     const fix = item.status === "done" && item.problems?.length > 0; // edited into a state that breaks the COI rules
     item.row.status.className = `status ${fix ? "error" : item.status}`;
-    item.row.status.textContent = item.status === "working" ? `${STATUS.working}… ${seconds} s` : fix ? "Do poprawy" : STATUS[item.status];
+    item.row.status.textContent = item.status === "working" ? `${STATUS.working}…${item === state.selected ? "" : ` ${seconds} s`}` : fix ? "Do poprawy" : STATUS[item.status];
   }
   $("#history-empty").hidden = state.items.length > 0;
   $("#clear").hidden = state.items.length === 0;
@@ -513,6 +514,7 @@ window.addEventListener("drop", (event) => {
 function select(item) {
   const changed = item !== state.selected;
   state.selected = item;
+  if (changed && item?.status !== "done") state.view = "preview"; // a file still in the works opens in the preview when it is ready
   renderFiles();
   $("#result-empty").hidden = Boolean(item);
   $("#panes").hidden = !item;
@@ -630,6 +632,7 @@ for (const button of document.querySelectorAll(".switch button")) {
     state.view = button.dataset.view;
     if (state.selected) renderNote(state.selected);
     showView();
+    updateActions();
     if (state.view === "json" && state.selected?.status === "done") renderTree(); // shows the edits too
     if ((was === "edit") !== (state.view === "edit")) sendPreview(); // the iframe switches edit mode on or off
   });
@@ -652,15 +655,17 @@ function sendPreview(select) {
 
 // --- editor ("Edytuj"): the iframe sends every change, we save it and check it with the real COI rules ---
 
-function exportable(item) { return item.status === "done" && !(item.problems?.length > 0); }
+// Ready to download: finished, the newest edit checked (item.checking), and no rules problems.
+function exportable(item) { return item.status === "done" && !item.checking && !(item.problems?.length > 0); }
 
-// Download, copy and the status next to them follow the selected item; problems block the export.
+// Download, copy and the status next to them follow the selected item; problems (or a check still running) block the export.
 function updateActions() {
-  const item = state.selected, done = item?.status === "done", blocked = done && !exportable(item);
-  $("#download").disabled = $("#copy").disabled = !done || blocked;
+  const item = state.selected, done = item?.status === "done", bad = done && item.problems?.length > 0;
+  $("#download").disabled = $("#copy").disabled = !done || !exportable(item);
   const status = $("#edit-status");
-  status.className = blocked ? "bad" : "muted";
-  status.textContent = blocked ? `Do poprawy: ${item.problems.length}. Otwórz „Edytuj”.` : ""; // why "Pobierz JSON" is off; the editor panel lists the problems
+  status.className = bad ? "bad" : "muted";
+  // why "Pobierz JSON" is off; inside "Edytuj" the editor panel already says it and lists the problems
+  status.textContent = bad && state.view !== "edit" ? `Do poprawy: ${item.problems.length}. Otwórz „Edytuj”.` : "";
   renderFiles();
 }
 
@@ -677,8 +682,9 @@ window.addEventListener("message", (event) => {
   const item = state.docItem;
   if (data.doc !== state.doc || !item || item.deleted) return; // an edit of a document no longer shown
   if (data.type === "coi-edit") {
-    Object.assign(item, { result: JSON.parse(data.json), evidence: data.evidence, edited: true });
+    Object.assign(item, { result: JSON.parse(data.json), evidence: data.evidence, edited: true, checking: true });
     persist(item);
+    if (item === state.selected) updateActions(); // no download of a change the rules have not seen yet
     clearTimeout(checkTimer);
     checkTimer = setTimeout(() => checkRules(item, data.version), 250);
   }
@@ -701,7 +707,7 @@ async function checkRules(item, version) {
     return;
   }
   if (state.lastCheck?.doc !== doc || state.lastCheck.version !== version) return; // a newer edit is being checked
-  item.problems = problems;
+  Object.assign(item, { problems, checking: false });
   persist(item);
   if (doc === state.doc) $("#preview-frame").contentWindow.postMessage({ type: "coi-problems", problems, version, doc }, location.origin);
   if (item === state.selected) updateActions();

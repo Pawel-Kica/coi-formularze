@@ -587,7 +587,7 @@ function notesOf(f, kind, standard) {
   if (ev?.source === "paper" && ev.quote) {
     out.push(quoteLine("Z papieru", ev.quote));
     if (kind === "section" && (f.repeatingSectionGrid || []).some(c => evidence[c.field.id]?.source === "code"))
-      out.push(h("p", {class: "src"}, "Pola adresu w tej sekcji układa kod według Standardów COI (słowniki krajów i TERYT)."));
+      out.push(h("p", {class: "src"}, "Pola adresu w tej sekcji układa kod według Standardów COI."));
   } else if (ev && !standard) {
     const text = {clerk: "Dodane w edytorze, bez cytatu z papieru.", code: "Dodane przez kod według Standardów COI, bez cytatu z papieru.",
       model: kind === "tab" ? "Stronę ułożył model, grupując sekcje. Cytaty są przy polach." : "Sekcję ułożył model, grupując pola. Cytaty są przy polach."}[ev.source];
@@ -625,6 +625,8 @@ function dependentsOf(f) {
 // "Edytuj" next to an element: asks the upload page to open the click editor on it (embedded preview only).
 // Standard pages are built by code and stay as they are, except what came from the paper: the addressee and the statements.
 function fixButton(f, kind, standard) {
+  // a section that only wraps one field and has no condition of its own: the field's "Edytuj" is enough
+  if (kind === "section" && (f.repeatingSectionGrid || []).length === 1 && !condText(f) && fixButton(f.repeatingSectionGrid[0].field, "field", standard)) return false;
   const editable = standard ? kind === "field" && (ADDRESSEE_FIELDS.includes(f.techName) || f.type === "CONSENT_SECTION")
     : !(kind === "field" && evidence[f.id]?.source === "code"); // address-block fields: the section's "Edytuj" reaches them
   return EMBED && editable && h("button", {type: "button", class: "fix", "aria-label": `Edytuj: ${labelOf(f)}`,
@@ -641,12 +643,20 @@ function ghostOf(f, kind, standard) {
   return h("p", {class: "ghost"}, fixButton(f, kind, standard), h("strong", {}, `${what} „${labelOf(f)}”. `), `Pokaże się, gdy ${ct}.`);
 }
 
+// The one line under the heading of a standard page: code built it, and what on it (if anything) is from the paper.
+function standardNote(tab) {
+  const fields = tab.questions.flatMap(q => (q.field.repeatingSectionGrid || []).map(c => c.field));
+  const paper = [fields.some(f => ADDRESSEE_FIELDS.includes(f.techName) && evidence[f.id]?.source === "paper") && "adresat wniosku",
+    fields.some(f => (evidence[f.id]?.consent_quotes || []).some(Boolean)) && "oświadczenia"].filter(Boolean);
+  return "Strona standardowa COI, buduje ją kod." + (paper.length ? ` Z papieru: ${paper.join(" i ")}.` : "");
+}
+
 // The line under the form title: what the green quotes are, and how many elements have one.
 function renderLegend() {
   const n = Object.values(evidence).filter(e => e.source === "paper" && e.quote).length;
   $("#legend").replaceChildren(...(!hasEvidence()
     ? ["Ten plik nie ma cytatów z papieru (wczytany JSON albo starszy wynik). Wgraj formularz ponownie, aby je zobaczyć."]
-    : [`Z papieru: ${n} ${plural(n, ["element", "elementy", "elementów"])}, pod każdym jest dosłowny cytat z formularza.`]));
+    : [`Z papieru: ${n} ${plural(n, ["element", "elementy", "elementów"])}, pod każdym jest dosłowny cytat z formularza. Strony i sekcje bez cytatu tylko grupują pola.`]));
 }
 // Polish plural: plural(3, ["pole", "pola", "pól"]) -> "pola".
 const plural = (n, [one, few, many]) => n === 1 ? one : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? few : many;
@@ -1035,8 +1045,7 @@ function renderPage() {
   const tab = pages[pageIdx], last = pageIdx === pages.length - 1;
   const status = h("p", {class: "status", role: "status"});
   const page = $("#page");
-  const standard = isStandard(tab) && hasEvidence() && h("p", {class: "src"}, "Strona ze Standardów COI: buduje ją kod, taka sama w każdej e-usłudze. " +
-    "Z papieru pochodzą tu tylko adresat wniosku i oświadczenia.");
+  const standard = isStandard(tab) && hasEvidence() && h("p", {class: "src"}, standardNote(tab));
   page.replaceChildren(
     h("h2", {id: "pageHeading", tabindex: "-1"}, tab.title),
     ...[standard, ...notesOf(tab, "tab", isStandard(tab))].filter(Boolean),
@@ -1048,7 +1057,7 @@ function renderPage() {
     h("span", {class: "spacer"}),
     pageIdx > 0 && h("button", {type: "button", class: "btn-outline", onclick: () => go(pageIdx - 1)}, "Wstecz"),
     last ? h("button", {type: "button", class: "btn send", onclick: () => {
-             status.textContent = showMissing(validateAll()) ? "" : "To jest podgląd: wniosek jest kompletny, ale nigdzie go nie wysłano.";
+             status.textContent = showMissing(validateAll()) ? "" : "To jest podgląd: wniosek jest kompletny, ale nie został wysłany.";
            }}, "Wyślij wniosek")
          : h("button", {type: "button", class: "btn", onclick: () => go(pageIdx + 1)}, "Dalej")),
     status);
@@ -1191,7 +1200,7 @@ function showMissing(errs) {
   };
   box.className = "errsum";
   box.setAttribute("role", "status");
-  box.append(h("p", {}, h("strong", {}, "To jest podgląd: wniosku nigdzie nie wysłano. "),
+  box.append(h("p", {}, h("strong", {}, "To jest podgląd: wniosek nie został wysłany. "),
       `Obywatel musiałby jeszcze uzupełnić ${errs.length} ${plural(errs.length, ["pole", "pola", "pól"])}.`),
     h("details", {}, h("summary", {}, "Pokaż te pola"),
       h("ul", {}, errs.map(e => h("li", {}, h("a", {href: "#", onclick: ev => { ev.preventDefault(); open(e); }},
@@ -1239,7 +1248,7 @@ if (EMBED) {
     const step = same ? pageIdx : 0;
     const edited = same && $(".ed-sel")?.dataset.fid; // back from the editor: the element that was being fixed
     // otherwise the element at the top of the screen keeps its place (the two layouts differ, raw scroll would not)
-    const top = same && !edited && [...$("#page").querySelectorAll("[data-fid]")].find(x => x.getBoundingClientRect().top >= 0);
+    const top = same && !edited && [...$("#page").querySelectorAll("[data-fid]")].find(x => x.getClientRects().length && x.getBoundingClientRect().top >= 0);
     const anchor = top && scrollY > 0 ? {id: top.dataset.fid, at: top.getBoundingClientRect().top} : null;
     if (!same) kept = null;
     else if (!document.body.classList.contains("editmode")) kept = answers;
