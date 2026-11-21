@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # COI Cyfryzacja Formularzy API. Only the official python Alpine image (every locked dependency
 # has a musl wheel), dependencies from uv.lock, Tesseract OCR with Polish and OSD data, non-root.
 # Build arg LIBREOFFICE=1 adds LibreOffice (DOC/DOCX/ODS/XLS/XLSX -> PDF), needed only by
@@ -32,6 +31,6 @@ ENV PATH="/app/.venv/bin:$PATH" PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
     HOME=/tmp HISTORY_DB=/tmp/history.sqlite3
 USER 10001:10001
 EXPOSE 8000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=9)"]
 CMD ["uvicorn", "app.api:app", "--host", "0.0.0.0", "--port", "8000"]

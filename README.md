@@ -20,7 +20,7 @@ flowchart LR
 Model rozumie papier, kod pilnuje formatu COI. Model zwraca tylko krótki plan formularza, a wszystko po nim jest deterministycznym kodem z testami (`uv run pytest`). Całość skleja `app/pipeline.py`, REST jest w `app/api.py`.
 
 1. **Upload** (`app/upload.py`): plik trafia strumieniowo do pamięci; limit rozmiaru liczony w trakcie odczytu, kontrola nazwy, rozszerzenia i sygnatury bajtów. Przy `AUTH_ENABLED=1` wymagany token JWT (`app/security.py`).
-2. **Ekstrakcja** (`app/extract/`): plik → znormalizowany tekst. PDF przez PDFium (`pypdfium2`), a strony bez warstwy tekstu albo z fontami bez mapy Unicode idą do OCR. DOC czyta własny parser formatu Word 97, DOCX `python-docx` (z nagłówkami i stopkami), XLSX/XLS/ODS `openpyxl`, `xlrd` i własny czytnik ODS. Skany JPG/PNG czyta Tesseract (`pol`) po obróbce: obrót (OSD), prostowanie, wykropkowania wymazane przed OCR i oddane w tekście jako `____`, kratki jako `[ ]`. `normalize.py` sprawia, że ten sam formularz w każdym formacie daje ten sam tekst. Opcjonalnie (`LLM_VISION=1`, model wizyjny) model dostaje też obrazy stron PDF i JPG/PNG.
+2. **Ekstrakcja** (`app/extract/`): plik → znormalizowany tekst. PDF przez PDFium (`pypdfium2`), a strony bez warstwy tekstu albo z fontami bez mapy Unicode idą do OCR. DOC czyta własny parser formatu Word 97, DOCX własny czytnik OOXML (z polami tekstowymi, numeracją list, przypisami, nagłówkami i stopkami), XLSX/XLS/ODS `openpyxl`, `xlrd` i własny czytnik ODS. Skany JPG/PNG czyta Tesseract (`pol`) po obróbce: obrót (OSD), prostowanie, wykropkowania wymazane przed OCR i oddane w tekście jako `____`, kratki jako `[ ]`. `normalize.py` sprawia, że ten sam formularz w każdym formacie daje ten sam tekst. Opcjonalnie (`LLM_VISION=1`, model wizyjny) model dostaje też obrazy stron PDF i JPG/PNG.
 3. **Plan od modelu** (`app/llm/planner.py`, klient `app/llm/client.py`): dwa wywołania, odpowiedź wymuszona schematem JSON. Przebieg 1: struktura (strony, sekcje, pola z typami i opcjami, oświadczenia, adresat, kto może składać wniosek i czy przez pełnomocnika). Przebieg 2: warunki pokazania pól i sekcji; model widzi listę pól z ich cytatami, a schemat dopuszcza tylko istniejące pola i opcje. Każdy element planu niesie `quote`, dosłowny cytat z papieru. Kontrakt planu: `app/plan.py`.
 4. **Filtr cytatów i naprawy** (`app/quotes.py`, `app/repair.py`): element, którego cytatu nie ma na papierze, wypada (dopasowanie rozmyte `rapidfuzz`, próg 90, dla tekstu z OCR 85); wypadają też pola strony „Dane”, które kod buduje sam, i warunki bez oparcia w papierze (pole zostaje). Naprawy bez modelu: lista wyboru z opcją spoza papieru staje się polem tekstowym, pytanie wyboru zadane dwa razy zostaje raz, a adres do korespondencji dostaje pytanie Tak/Nie, gdy papier mówi „inny niż”.
 5. **Builder** (`app/builder/`): plan → pełna konfiguracja COI, bez modelu: UUID, `techName`, siatka, strony ze Standardów COI (Dane z rejestru MLPZ, Kontakt i zgody, strona końcowa), warunki `SHOW` w JSONata, walidatory, słowniki, sekcje powtarzalne. Zależności to warunki `SHOW` na polach i sekcjach; warunkowe przejścia między stronami realizujemy warunkami na sekcjach, bo schemat COI nie ma warunku na stronie ani na linku flow. Builder zwraca też mapę dowodów: id elementu → cytat z papieru albo informacja, że element dodał kod.
@@ -42,7 +42,7 @@ uv sync
 uv run uvicorn app.api:app --port 8000
 ```
 
-Ollama powinna mieć okno kontekstu co najmniej 32k tokenów (najdłuższy formularz ma 16 stron): `OLLAMA_CONTEXT_LENGTH=32768 ollama serve` (compose ustawia to sam).
+Ollama powinna mieć okno kontekstu co najmniej 32k tokenów (najdłuższy formularz ma 16 stron): `OLLAMA_CONTEXT_LENGTH=32768 ollama serve` (kontener `ollama` z compose ma to ustawione).
 
 Strona: http://localhost:8000, dokumentacja OpenAPI: http://localhost:8000/docs. Testy: `uv run pytest`.
 
@@ -55,7 +55,7 @@ Obraz API (`Dockerfile`):
 - Tesseract z danymi `pol` (tekst) i `osd` (wykrywanie obróconych skanów);
 - proces jako użytkownik bez uprawnień (UID 10001), tylko port 8000, `HEALTHCHECK` na `/health`, sekrety wyłącznie przy uruchomieniu (z `.env`, nigdy w obrazie).
 
-`docker-compose.yml` dokłada: system plików kontenera tylko do odczytu, `cap_drop: ALL`, `no-new-privileges`. Jedyne miejsce zapisu to `/tmp` w pamięci (tmpfs, 1 GB): pliki tymczasowe OCR i historia strony (`HISTORY_DB=/tmp/history.sqlite3`), która znika przy restarcie kontenera.
+`docker-compose.yml` (Docker Compose 2.24+) dokłada: system plików kontenera tylko do odczytu, `cap_drop: ALL`, `no-new-privileges`. Jedyne miejsce zapisu to `/tmp` w pamięci (tmpfs, 1 GB): pliki tymczasowe OCR i historia strony (`HISTORY_DB=/tmp/history.sqlite3`), która znika przy restarcie kontenera.
 
 ```bash
 cp .env.example .env          # opcjonalnie; z AUTH_ENABLED=1 uzupełnij JWT_SECRET i AUTH_PASSWORD
@@ -70,10 +70,9 @@ Skąd API bierze model (ustawiasz w `.env`):
 | Ollama w kontenerze (serwer Linux, GPU NVIDIA opcjonalnie, patrz komentarz w `docker-compose.yml`) | `LLM_BASE_URL=http://ollama:11434/v1` | `docker compose --profile ollama up -d --build` |
 | Eden AI (model z otwartymi wagami przez API zgodne z OpenAI) | `LLM_BACKEND=openai`, `LLM_BASE_URL=https://api.edenai.run/v3`, `LLM_MODEL=deepinfra/google/gemma-4-31B-it`, `EDENAI_API_KEY=...` | `docker compose up -d --build` |
 
-- Ollama na hoście potrzebuje modelu (`ollama pull qwen3:30b-a3b-instruct-2507-q4_K_M`) i kontekstu 32k (`OLLAMA_CONTEXT_LENGTH=32768`). Na Linuksie musi też słuchać nie tylko na `127.0.0.1`, bo kontener łączy się przez most Dockera: `OLLAMA_HOST=0.0.0.0`.
+- Ollama na hoście potrzebuje modelu (`ollama pull qwen3:30b-a3b-instruct-2507-q4_K_M`) i kontekstu 32k (`OLLAMA_CONTEXT_LENGTH=32768`). Na Linuksie musi też słuchać na adresie mostu Dockera, na który wskazuje `host-gateway`: `OLLAMA_HOST=172.17.0.1` (`0.0.0.0` też działa, ale wystawia Ollamę bez hasła na całą sieć).
 - Nie wpisuj do `.env` używanego z Dockerem `LLM_BASE_URL=http://localhost:...`: w kontenerze `localhost` to sam kontener.
 - Profil `ollama`: przy pierwszym starcie `ollama-pull` pobiera `LLM_MODEL` do wolumenu `ollama` (ponad 10 GB), do tego czasu `/health` pokazuje `"llm": "model_missing"`. Obraz `ollama/ollama` jest obrazem producenta i działa jako root; compose odbiera mu uprawnienia jądra (`cap_drop: ALL`, `no-new-privileges`).
-- `LIBREOFFICE=1` w `.env` (albo `docker build --build-arg LIBREOFFICE=1`) dokłada do obrazu LibreOffice, który zamienia DOC/DOCX/ODS/XLS/XLSX na PDF w trybie `PIPELINE=images` (obrazy stron zamiast tekstu). Domyślny obraz go nie ma: domyślna ścieżka czyta te formaty bibliotekami Pythona, a LibreOffice to kilkaset MB.
 
 Bez compose (Ollama na hoście):
 
@@ -163,18 +162,18 @@ Błędy zawsze jako JSON `{"detail": "..."}`:
 - Nazwa pliku: najwyżej 250 znaków, bez `; : > < / \ | ' * % $`.
 - Typ MIME ustalany z zawartości (sygnatury), musi pasować do rozszerzenia: PDF `%PDF`, DOC plik OLE2 ze strumieniem `WordDocument`, XLS plik OLE2 ze strumieniem `Workbook` (lub `Book`), DOCX/XLSX archiwum ZIP z `[Content_Types].xml` i katalogiem `word/` lub `xl/`, ODS archiwum z `mimetype` = `application/vnd.oasis.opendocument.spreadsheet`, JPEG `FF D8 FF`, PNG sygnatura PNG. Nagłówek `Content-Type` od klienta nie decyduje.
 - Rozmiar: liczony w trakcie strumieniowego odczytu, odczyt przerywany po przekroczeniu limitu (nie ufamy samemu `Content-Length`).
-- Pliki w pamięci: treść żądania trafia prosto do RAM, a `POST /api/forms/convert` niczego trwale nie zapisuje. Na dysk trafiają tylko pliki tymczasowe: OCR (`pytesseract` przekazuje obraz strony Tesseractowi przez plik w katalogu tymczasowym i zaraz go usuwa), a w trybie `PIPELINE=images` także konwersja LibreOffice w katalogu tymczasowym. Oryginał i wynik zapisuje dopiero strona `/` w swojej historii (`HISTORY_DB`); w Dockerze to `/tmp` w pamięci kontenera.
+- Pliki w pamięci: treść żądania trafia prosto do RAM, a `POST /api/forms/convert` niczego trwale nie zapisuje. Na dysk trafiają tylko pliki tymczasowe: OCR (`pytesseract` przekazuje obraz strony Tesseractowi przez plik w katalogu tymczasowym i zaraz go usuwa). Oryginał i wynik zapisuje dopiero strona `/` w swojej historii (`HISTORY_DB`); w Dockerze to `/tmp` w pamięci kontenera.
 
 ## Benchmark i wybór modelu
 
-Liczby z naszych pomiarów na 9 formularzach COI z zadania (każdy w kilku formatach: PDF, skan, Word), model lokalny `qwen3:30b-a3b-instruct-2507-q4_K_M` w Ollamie na Macu. Szczegóły i surowe notatki: `bench/MODELS.md`.
+Liczby z naszych pomiarów na 9 formularzach COI z zadania (każdy w kilku formatach: PDF, skan, Word), model lokalny `qwen3:30b-a3b-instruct-2507-q4_K_M` w Ollamie na Macu. Notatki z pomiarów i decyzji o modelu: `bench/MODELS.md`.
 
 **Jak mierzymy** (`uv run python -m bench.run_all`, ocena `bench/score.py`):
 - `gold=`: plan modelu porównany z wzorcowym planem formularza (`gold/plans/formN.json`, uzasadnienia w `gold/notes/`); średnia z pięciu miar: F1 pól, zgodność typów, zgodność opcji, odzysk warunków i zgodność strony „Dane” (kto składa wniosek). 1,0 = jak wzorzec.
 - `ref`: odzysk elementów z wzorcowych JSON-ów COI (formularze 1 i 5).
 - Do tego: czy JSON powstał, ile problemów z regułami COI, czas.
 
-**Wynik bazowy na 9 formularzach** (26 plików, tryb tekstowy, kod `7090c84`): 26/26 poprawnych JSON-ów, 0 problemów z regułami COI, średnio `gold=` **0,759** (PDF 0,795, skan PNG 0,724, DOCX 0,758).
+**Wynik bazowy na 9 formularzach** (26 plików, tryb tekstowy, kod `7090c84`, 2 pliki naraz na wspólnej Ollamie): 26/26 poprawnych JSON-ów, 0 problemów z regułami COI, średnio `gold=` **0,759** (PDF 0,795, skan PNG 0,724, DOCX 0,758).
 
 | Formularz | PDF | skan PNG | DOCX | Czas PDF / PNG / DOCX (s) |
 |---|---|---|---|---|
@@ -189,10 +188,10 @@ Liczby z naszych pomiarów na 9 formularzach COI z zadania (każdy w kilku forma
 | 9 | 0,603 | 0,557 | 0,752 | 422 / 414 / 285 |
 
 - Reguły po modelu dodane później (filtr warunków, naprawy w `app/repair.py`) na tych samych planach, bez nowego wywołania modelu: średnia 0,759 → **0,764**, precyzja warunków 0,585 → 0,606, żaden formularz nie spadł.
-- Wzorcowe JSON-y COI: `ref` 0,89 (formularz 1) i 0,88 (formularz 5). Wzorcowe plany przepuszczone przez nasz builder dają 1,00, więc różnica siedzi w planie od modelu, nie w kodzie.
+- Wzorcowe JSON-y COI (PDF, wcześniejszy przebieg): `ref` 0,89 (formularz 1) i 0,88 (formularz 5). Wzorcowe plany przepuszczone przez nasz builder dają 1,00, więc różnica siedzi w planie od modelu, nie w kodzie.
 - Formularze 1-7 (PDF) między kolejnymi poprawkami promptów i kodu: średnio 0,734 → 0,800.
-- Czas: formularze 1-7 to 20-156 s na plik, długie formularze 8 i 9 (do 16 stron) 263-469 s. Przy wspólnej Ollamie wyniki wahają się o około ±0,1 na formularz.
-- Ślepy test na 18 prawdziwych pustych formularzach urzędowych spoza zadania (dwóch sędziów Claude Opus porównuje starą i nową wersję w losowej kolejności): nowa wygrywa 9 razy, stara 1 raz, 8 remisów (identyczny wynik); błędy do poprawienia przez urzędnika 70 → 56 (-20%).
+- Czas: formularze 1-7 to 20-124 s na plik, długie formularze 8 i 9 (do 16 stron) 285-422 s. Przebiegi nie są w pełni powtarzalne: prawie identyczne prompty zmieniają wynik małego formularza nawet o około 0,2.
+- Reguły po modelu w ślepym teście na 18 prawdziwych pustych formularzach urzędowych spoza zadania (dwóch sędziów Claude Opus porównuje wynik bez reguł i z regułami w losowej kolejności): z regułami wygrywa 9 razy, bez nich 1 raz, 8 remisów (identyczny wynik); błędy do poprawienia przez urzędnika 70 → 56 (-20%). To zestaw, na którym reguły rozwijaliśmy, nie zestaw kontrolny.
 
 **Sufit modelu.** Te same prompty i ten sam tekst, ale plan pisze Claude Opus zamiast lokalnego modelu (pomiar diagnostyczny, nie produkt):
 
@@ -203,10 +202,10 @@ Liczby z naszych pomiarów na 9 formularzach COI z zadania (każdy w kilku forma
 | Formularz 8, PDF | 0,587 | 0,845 |
 | Formularz 9, PDF | 0,578 | 0,858 |
 
-Opus ma ten sam wynik na skanie i na PDF, więc OCR nie jest wąskim gardłem. Wąskim gardłem jest model: pipeline jest gotowy na mocniejszy model z otwartymi wagami, wystarczy zmienić `LLM_MODEL` (lokalnie albo przez `LLM_BACKEND=openai`). Uwaga: wzorcowe plany pisał Claude, więc Opus dzieli ich konwencje, a to jedna próba na przypadek.
+qwen na formularzu 9 to wcześniejszy przebieg, stąd inna liczba niż w tabeli bazowej. Na formularzu 7 Opus ma ten sam wynik na skanie i na PDF, więc tam OCR nie jest wąskim gardłem. Wąskim gardłem jest model: pipeline jest gotowy na mocniejszy model z otwartymi wagami, wystarczy zmienić `LLM_MODEL` (lokalnie albo przez `LLM_BACKEND=openai`). Uwaga: wzorcowe plany pisał Claude, więc Opus dzieli ich konwencje, a to jedna próba na przypadek.
 
-**Dlaczego `qwen3:30b-a3b-instruct-2507`:** model MoE z ok. 3 mld aktywnych parametrów, mieści się na laptopie i jest szybki. Na formularzu 4 prawie 3 razy szybszy od `qwen3:14b` (79 s wobec 229 s) przy lepszym planie (0,60 wobec 0,41). Model wizyjny `qwen3-vl:30b-a3b-instruct` przegrał sito na formularzach 1, 4, 5, 7 (PDF i skan): średnio `gold=` 0,77 z obrazami stron i 0,65 na samym tekście, wobec 0,84 obecnego modelu. Wymyślał pola i zamieniał wybór na pytania tak/nie, więc tekst z naszej ekstrakcji zostaje domyślnym wejściem. Na Edenie (9 formularzy, PDF i skany, koszt 0,43 $) najlepszy był `deepinfra/google/gemma-4-31B-it` (0,81, F1 warunków 0,75), zapasowy `deepinfra/Qwen/Qwen3.8-27B` dwa razy szybszy, ale 0,79 i słabszy na skanach.
+**Dlaczego `qwen3:30b-a3b-instruct-2507`:** model MoE z ok. 3 mld aktywnych parametrów, mieści się na laptopie i jest szybki. Na formularzu 4 prawie 3 razy szybszy od `qwen3:14b` (79 s wobec 229 s) przy lepszym planie (0,60 wobec 0,41). Model wizyjny `qwen3-vl:30b-a3b-instruct` przegrał sito na formularzach 1, 4, 5, 7 (PDF i skan): średnio `gold=` 0,77 z obrazami stron i 0,65 na samym tekście, wobec 0,84 obecnego modelu. Wymyślał pola i zamieniał wybór na pytania tak/nie, więc tekst z naszej ekstrakcji zostaje domyślnym wejściem. Na Edenie (9 formularzy, PDF i skany, koszt 0,43 $) najlepszy był `deepinfra/google/gemma-4-31B-it` (0,81, F1 warunków 0,75), zapasowy `deepinfra/Qwen/Qwen3.8-27B` dwa razy szybszy, ale 0,79 i słabszy na skanach. To inny zestaw plików i wcześniejsza wersja kodu, więc tych liczb nie porównujemy wprost z wynikiem bazowym.
 
 ## Licencje
 
-Wyłącznie open source bez copyleft: zależności Pythona na licencjach MIT, BSD, Apache-2.0, PSF i MIT-CMU (Pillow); `certifi` (zależność `httpx`) ma MPL-2.0, które obejmuje tylko jego własne pliki i nie wymaga publikacji naszego kodu. Tesseract: Apache-2.0, Ollama: MIT, modele Qwen3: Apache-2.0; LibreOffice (tylko w obrazie z `LIBREOFFICE=1`): MPL-2.0. Domyślnie model działa lokalnie (Ollama) i rozwiązanie nie korzysta z zewnętrznych API ani usług SaaS. Klient modelu mówi protokołem zgodnym z OpenAI, więc ten sam kod może użyć innego modelu o otwartych wagach na serwerze GPU albo u dostawcy (`LLM_BACKEND=openai`).
+Wyłącznie open source bez copyleft: zależności Pythona na licencjach MIT, BSD, Apache-2.0, PSF i MIT-CMU (Pillow); `certifi` (zależność `httpx`) ma MPL-2.0, które obejmuje tylko jego własne pliki i nie wymaga publikacji naszego kodu. Tesseract: Apache-2.0, Ollama: MIT, modele Qwen3: Apache-2.0. Domyślnie model działa lokalnie (Ollama) i rozwiązanie nie korzysta z zewnętrznych API ani usług SaaS. Klient modelu mówi protokołem zgodnym z OpenAI, więc ten sam kod może użyć innego modelu o otwartych wagach na serwerze GPU albo u dostawcy (`LLM_BACKEND=openai`).
