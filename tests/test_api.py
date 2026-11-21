@@ -14,7 +14,7 @@ from pydantic import SecretStr
 from app import pipeline
 from app.api import app
 from app.config import settings
-from app.upload import sniff_mime
+from app.upload import MIME_BY_EXTENSION, sniff_mime, validate_upload
 
 SECRET = "test-secret-" + "x" * 32
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
@@ -155,10 +155,17 @@ def test_unsupported_extension(client, auth, name):
         ("wniosek.docx", zipped(("[Content_Types].xml", b""), ("xl/workbook.xml", b""))),  # xlsx named docx
         ("arkusz.ods", zipped(("mimetype", b"application/vnd.oasis.opendocument.text"))),  # odt named ods
         ("stary.doc", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 600),  # broken OLE
+        ("stary.doc", zipped(("[Content_Types].xml", b""), ("xl/workbook.xml", b""))),  # xlsx named doc
     ],
 )
 def test_content_must_match_extension(client, auth, name, content):
     assert upload(client, auth, name, content).status_code == 415
+
+
+def test_doc_and_docx_are_one_format():
+    """COI forms 5 and 7 ship a .DOC that is really a DOCX: the spec's "DOC (.doc .docx)" lets it in."""
+    docx = zipped(("[Content_Types].xml", b""), ("word/document.xml", b""))
+    assert validate_upload("WNIOSEK.DOC", docx) == MIME_BY_EXTENSION[".docx"]
 
 
 def test_too_large(client, auth, monkeypatch):

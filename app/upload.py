@@ -26,6 +26,11 @@ MIME_BY_EXTENSION = {
     ".jpe": "image/jpeg",
     ".png": "image/png",
 }
+# The COI spec lists "DOC (.doc .docx)" as one format, and real gmina files mix them up
+# (forms 5 and 7 ship a .DOC that is really a DOCX), so either Word content passes for
+# either Word extension. The content must still be a real Word document.
+_WORD = {MIME_BY_EXTENSION[".doc"], MIME_BY_EXTENSION[".docx"]}
+ACCEPTED_MIMES = {ext: (_WORD if ext in (".doc", ".docx") else {mime}) for ext, mime in MIME_BY_EXTENSION.items()}
 MAX_FILENAME_LENGTH = 250
 FORBIDDEN_FILENAME_CHARS = frozenset(";:><\\/|'*%$")
 _MULTIPART_OVERHEAD = 64 * 1024  # room for boundaries and part headers on top of the file itself
@@ -168,14 +173,15 @@ def _sniff_zip(data: bytes) -> str | None:
 
 
 def validate_upload(filename: str, data: bytes) -> str:
-    """Check one uploaded form (name, extension, content matches extension); return its MIME type."""
+    """Check one uploaded form (name, extension, content matches extension); return its real MIME type."""
     extension = check_filename(filename)
     if not data:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Plik jest pusty.")
-    expected = MIME_BY_EXTENSION[extension]
-    if sniff_mime(data) != expected:
+    actual = sniff_mime(data)
+    if actual not in ACCEPTED_MIMES[extension]:
+        expected = " lub ".join(sorted(ACCEPTED_MIMES[extension]))
         raise HTTPException(
             status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             f"Zawartość pliku nie pasuje do rozszerzenia {extension} (oczekiwano {expected}).",
         )
-    return expected
+    return actual
