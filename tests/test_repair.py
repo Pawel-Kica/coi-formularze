@@ -118,13 +118,16 @@ def test_option_on_paper_is_lenient_about_inflection_and_strict_about_made_up_wo
     assert not option_on_paper("Umowa o dzieło", PAPER)
 
 
-def test_invented_options_go_and_a_select_of_mostly_invented_options_becomes_text():
+def test_invented_options_go_and_a_select_with_an_invented_option_becomes_text():
     radio = f("f5", "Rodzaj robót", "3. Rodzaj robót", FieldType.RADIO, ["Budowa nowej sieci", "Roboty inne niż wymienione", "Remont mostu"])
-    select = f("f6", "Źródło dochodu", "źródło dochodu", FieldType.SELECT, ["Emerytura", "Renta", "Pension", "Roboty"])
-    out, dropped = filter_plan(plan(sec("s1", [radio, select])), PAPER)
+    # mostly paper words, one made up: still a list the paper does not have (cutting it loses real answers)
+    select = f("f6", "Źródło dochodu", "źródło dochodu", FieldType.SELECT, ["Budowa sieci", "Roboty inne", "Pension"])
+    real = f("f7", "Rodzaj sieci", "3. Rodzaj robót", FieldType.SELECT, ["Budowa nowej sieci", "Roboty inne niż wymienione"])
+    out, dropped = filter_plan(plan(sec("s1", [radio, select, real])), PAPER)
     got = fields_of(out)
     assert got["f5"].options == ["Budowa nowej sieci", "Roboty inne niż wymienione"]
     assert got["f6"].type == FieldType.TEXT_FIELD and got["f6"].options == []
+    assert got["f7"].type == FieldType.SELECT and len(got["f7"].options) == 2
     assert sum(d.startswith("options:") for d in dropped) == 2
 
 

@@ -3,8 +3,9 @@
 `repair_plan(plan, text, threshold)` is called by `app.quotes.filter_plan` and fixes, in place,
 what the model tends to get wrong and the paper text can settle:
 - choice options that are not on the paper are dropped ("Tak" / "Nie" stay: questions made from a
-  conditional sentence have them by design) when at least two real ones remain; a SELECT with mostly
-  invented options becomes a TEXT_FIELD (the paper had a blank, the model made up a list);
+  conditional sentence have them by design) when at least two real ones remain; a SELECT with any
+  invented option becomes a TEXT_FIELD (the paper had a blank, the model made up a list, and a cut
+  list would lose real answers);
 - the same choice question asked twice (same options, quotes on the same paper line, same wording)
   is kept once, conditions move to the kept one;
 - an applicant's "Adres do korespondencji" section without a condition: when the paper says it is
@@ -58,7 +59,7 @@ def _clean_options(plan: Plan, text: str, notes: list[str]) -> None:
             invented = [o for o in f.options if o not in kept]
             if not invented:
                 continue
-            if f.type == FieldType.SELECT and len(invented) > len(kept):
+            if f.type == FieldType.SELECT:
                 notes.append(f"options: field {f.id} '{f.label}' SELECT -> TEXT_FIELD, options not on paper: {invented}")
                 f.type, f.options = FieldType.TEXT_FIELD, []
             elif len(kept) >= 2 or (kept and f.type == FieldType.CHECKBOX):
