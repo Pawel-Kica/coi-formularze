@@ -21,6 +21,8 @@ class Settings(BaseSettings):
 
     # Upload
     max_file_size_mb: float = 10
+    # Upload page history (app/history.py): SQLite file with every processed file and its result.
+    history_db: Path = Path(__file__).resolve().parent.parent / "history.sqlite3"
 
     # Auth switch: off (default for now) = open API and no login on the pages; 1 = JWT required.
     auth_enabled: bool = False
