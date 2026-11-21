@@ -4,7 +4,7 @@ Paweł's HackNation 2026 solution to the COI "Cyfryzacja Formularzy" task: a RES
 
 ## Hard rules
 - **NEVER call Eden AI or any external model API** (no runs, smoke tests or measurements) without Paweł's explicit OK for that specific run. `.env` holds no key; never open, print, log or commit `.env`.
-- The local Ollama model (`qwen3:30b-a3b-instruct-2507-q4_K_M`, `-np 1`) serves one request at a time and is shared by every thread, the dev server and benches: run small, expect queueing (a form takes 40-150 s).
+- The local Ollama model (`qwen3:30b-a3b-instruct-2507-q4_K_M`) has 2 parallel slots (32k context each) shared by every thread, the dev server and benches: run small, expect queueing beyond 2 requests (a form takes 40-150 s). Ollama runs as launchd agent `com.pawel.ollama` (log `~/Library/Logs/ollama.log`, restart `launchctl kickstart -k gui/$(id -u)/com.pawel.ollama`).
 - Shared working tree: other threads have uncommitted work here. Commit only your own paths (`git commit -- <paths>`), never `git stash`, `reset`, `checkout .` or rewrite others' hunks; re-read a file before editing it.
 - Commits: author Paweł Kica only, no Claude lines (the local `.git/hooks/commit-msg` strips them). Push to `main`.
 - Never delete files: `mv <path> /tmp/`.
