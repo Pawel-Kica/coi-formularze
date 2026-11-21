@@ -39,6 +39,7 @@ from app.builder.standard import (
     finish_page,
     own_filing,
 )
+from app.builder.texts import PHONE_HINT_TEXT
 from app.plan import Condition, FieldType, Plan, PlanField
 from app.text import ascii_fold, html_paragraphs
 
@@ -237,6 +238,8 @@ def _field(ctx: Ctx, f: PlanField, tech: str, section_tech: str, locs: dict[str,
                      validation=detect_validators(label) if type_ == "TEXT_FIELD" else [],
                      extra={"defaultValue": registry, "defaultValueType": "EXTERNAL_SYSTEM"})
     if type_ == "TEXT_FIELD":
+        if not desc and "telefon" in ascii_fold(label).lower():  # bonus VI: no phone validator in COI
+            desc = html_paragraphs(PHONE_HINT_TEXT)
         return field(ctx, type_, label, tech, description=desc, query=query,
                      validation=required + detect_validators(label))
     if type_ in ("RADIO", "CHECKBOX"):

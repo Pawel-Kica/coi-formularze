@@ -179,3 +179,26 @@ def test_helpers():
     assert detect_validators("Kod pocztowy") == ["ZIP_CODE"]
     assert detect_validators("Adres e-mail") == ["EMAIL"]
     assert detect_validators("Seria i numer dowodu osobistego") == ["SERIAL_NUMBER_ID_CARD"]
+
+
+PHONE_HINT = "Na przykład 600 700 800. Numer zagraniczny zacznij od kierunkowego, na przykład +49."
+
+
+def test_phone_hint_on_contact_and_phone_fields():  # bonus VI: COI has no phone validator
+    fields = [
+        PlanField(id="f1", label="Numer telefonu", type="TEXT_FIELD", quote="tel"),
+        PlanField(id="f2", label="Telefon kontaktowy", type="TEXT_FIELD", description="Podaj komórkę.", quote="t2"),
+        PlanField(id="f3", label="Numer działki", type="TEXT_FIELD", quote="dz"),
+        PlanField(id="f4", label="Telefonia: liczba linii", type="NUMBER", quote="l"),
+    ]
+    coi = build(_plan(fields))
+    assert check(coi) == []
+    t = by_tech(coi)
+    contact = t["numer_telefonu"]  # contact page wins the base techName
+    assert contact["description"] == f"<html><head></head><body><p>{PHONE_HINT}</p></body></html>"
+    assert contact["validation"] == [] and contact["defaultValue"] == "MLPZ.phoneNumber"
+    assert PHONE_HINT in t["numer_telefonu_2"]["description"]  # subject-page phone, empty description
+    assert t["numer_telefonu_2"]["validation"] == []
+    assert "Podaj komórkę." in t["telefon_kontaktowy"]["description"]  # the model's own hint stays
+    assert PHONE_HINT not in t["telefon_kontaktowy"]["description"]
+    assert t["numer_dzialki"]["description"] == "" and t["telefonia_liczba_linii"]["description"] == ""

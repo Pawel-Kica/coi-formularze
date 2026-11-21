@@ -24,3 +24,6 @@ REGISTRY_EXTRACT_DESC = (
     "<html><head></head><body><p>Dołącz aktualny odpis danych z Krajowego Rejestru Sądowego "
     "lub innego rejestru podmiotu, w którego imieniu składasz wniosek.</p></body></html>"
 )
+
+# Bonus VI: COI has no phone validator, so phone fields get a format hint instead.
+PHONE_HINT_TEXT = "Na przykład 600 700 800. Numer zagraniczny zacznij od kierunkowego, na przykład +49."

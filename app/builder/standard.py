@@ -42,7 +42,7 @@ def is_organ(addressee: str) -> bool:
 
 
 def _text(ctx, title, tech, *, required=False, extra_validators=(), default=None, registry=None,
-          read_only=False, query=None):
+          read_only=False, query=None, description=""):
     """TEXT_FIELD; `registry` is an EXTERNAL_SYSTEM source like "PESEL.name"."""
     extra = {}
     if registry:
@@ -50,7 +50,7 @@ def _text(ctx, title, tech, *, required=False, extra_validators=(), default=None
     elif default is not None:
         extra = {"defaultValue": default}
     validation = (["REQUIRED"] if required else []) + list(extra_validators)
-    return field(ctx, "TEXT_FIELD", title, ctx.tech(tech), validation=validation,
+    return field(ctx, "TEXT_FIELD", title, ctx.tech(tech), description=description, validation=validation,
                  read_only=read_only, query=query, extra=extra)
 
 
@@ -257,7 +257,8 @@ def dane_page(ctx: Ctx, plan: Plan) -> dict:
 def contact_page(ctx: Ctx, statements: list[Statement]) -> dict:
     """Second to last page: contact data + consent section (RODO + the paper's statements)."""
     contact = section(ctx, "Dane do kontaktu", ctx.tech("dane_do_kontaktu"), [
-        _text(ctx, "Numer telefonu", "numer_telefonu", registry="MLPZ.phoneNumber"),
+        _text(ctx, "Numer telefonu", "numer_telefonu", registry="MLPZ.phoneNumber",
+              description=html_paragraphs(texts.PHONE_HINT_TEXT)),
         _text(ctx, "Adres e-mail", "adres_e_mail", extra_validators=["EMAIL"], registry="MLPZ.email"),
     ], description=texts.CONTACT_DESC)  # fmt: skip
     consents = [{"description": texts.RODO_CONSENT, "required": True}]
