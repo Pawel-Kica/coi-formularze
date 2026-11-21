@@ -85,9 +85,10 @@ Zmienne środowiskowe albo plik `.env` (wzór: `.env.example`).
 | Metoda i ścieżka | Autoryzacja | Opis |
 |---|---|---|
 | `POST /api/auth/token` | brak | `username` i `password` (JSON lub formularz) → `{access_token, token_type, expires_in}` |
-| `POST /api/forms/convert` | `Bearer` JWT | Jeden plik w polu `file` (multipart) → JSON COI, bez żadnej otoczki |
+| `POST /api/forms/convert` | `Bearer` JWT | Jeden plik w polu `file` (multipart) → JSON COI, bez żadnej otoczki. Z `?evidence=1` → `{"coi": ..., "evidence": {id elementu: {"source": "paper" \| "model" \| "code", "quote": cytat z papieru, "page": ...}}}` (tego używa edytor na stronie) |
+| `POST /api/forms/check` | `Bearer` JWT | JSON COI (np. po poprawkach urzędnika) → `{"problems": [{"id": id elementu lub null, "message": opis po polsku, "detail": reguła}]}`; pusta lista = gotowe do importu, te same reguły co przy konwersji |
 | `GET /health` | brak | `{"status": "ok", "llm": "ok" \| "model_missing" \| "unreachable" \| "no_api_key", "llm_backend": ..., "llm_model": ...}` |
-| `GET /` | brak | Strona do wgrywania plików (kilka plików przetwarza po kolei, wynik jako drzewo JSON) |
+| `GET /` | brak | Strona do wgrywania plików (kilka plików przetwarza po kolei, wynik jako podgląd e-usługi albo drzewo JSON) z edytorem „Edytuj”: urzędnik klika element i poprawia go w panelu, przy każdym polu widzi cytat z papieru, a każdą zmianę sprawdzają reguły COI (z problemami nie pobierze JSON-a) |
 | `GET /docs` | brak | OpenAPI / Swagger UI (przycisk „Authorize” loguje loginem i hasłem) |
 
 ```bash

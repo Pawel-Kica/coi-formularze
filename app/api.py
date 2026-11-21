@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Annotated
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Body, Depends, FastAPI, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
@@ -16,11 +16,14 @@ from app import pipeline, review
 from app.dictionaries import propose as propose_dictionaries
 from app.config import settings
 from app.llm.client import health as llm_health
+from app.problems import explain
+from app.rules import check
 from app.security import authenticate, current_user, issue_token, local_login_enabled
 from app.upload import read_single_file, validate_upload
 
 INDEX_HTML = Path(__file__).parent / "static" / "index.html"
 PREVIEW_HTML = Path(__file__).parent / "static" / "preview.html"
+EDITOR_JS = Path(__file__).parent / "static" / "editor.js"
 
 app = FastAPI(
     title="COI Cyfryzacja Formularzy",
@@ -80,11 +83,20 @@ async def login(request: Request) -> Token:
     tags=["forms"],
     response_description="Konfiguracja e-usługi COI gotowa do importu",
 )
-async def convert(request: Request, _user: Annotated[str, Depends(current_user)]) -> JSONResponse:
-    """One blank form (multipart field `file`) in, the COI JSON out, nothing wrapped around it."""
+async def convert(
+    request: Request, _user: Annotated[str, Depends(current_user)], evidence: bool = False
+) -> JSONResponse:
+    """One blank form (multipart field `file`) in, the COI JSON out, nothing wrapped around it.
+
+    `?evidence=1` (the upload page's editor) wraps it instead: `{"coi": <COI JSON>, "evidence":
+    {<element id>: {"source": "paper" | "model" | "code", "quote", "page", ...}}}`, where each
+    element of the e-service came from (the quote from the paper for fields)."""
     filename, data = await read_single_file(request, settings.max_file_size_bytes)
     validate_upload(filename, data)
     try:
+        if evidence:
+            coi, ev = await run_in_threadpool(pipeline.convert_with_evidence, data, filename)
+            return JSONResponse({"coi": coi, "evidence": ev})
         coi = await run_in_threadpool(pipeline.convert, data, filename)
     except httpx.HTTPStatusError:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Model językowy zwrócił błąd.")
@@ -93,6 +105,13 @@ async def convert(request: Request, _user: Annotated[str, Depends(current_user)]
     except ValueError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Nie udało się odczytać formularza: {error}")
     return JSONResponse(coi)
+
+
+@app.post("/api/forms/check", tags=["forms"], response_description="Problemy z regułami COI, pusta lista = gotowe do importu")
+async def check_form(coi: Annotated[dict, Body()], _user: Annotated[str, Depends(current_user)]) -> dict:
+    """A COI JSON (e.g. after the clerk's edits) checked with the same rules as every convert result:
+    `{"problems": [{"id": <element id or null>, "message": <Polish>, "detail": <rules line>}]}`."""
+    return {"problems": explain(coi, await run_in_threadpool(check, coi))}
 
 
 @app.post(
@@ -135,6 +154,12 @@ async def index() -> FileResponse:
 async def preview() -> FileResponse:
     """E-service preview: renders a COI JSON the way a citizen sees it (bonus V)."""
     return FileResponse(PREVIEW_HTML)
+
+
+@app.get("/editor.js", include_in_schema=False)
+async def editor_js() -> FileResponse:
+    """Edit mode of /preview (the click editor on the upload page)."""
+    return FileResponse(EDITOR_JS, media_type="text/javascript")
 
 
 @app.exception_handler(Exception)

@@ -169,7 +169,7 @@ let cfg = null, pages = [], answers = {}, pageIdx = 0, visited = new Set(), issu
 const conds = new Map(); // query string -> {ast} | {err}
 const $ = (s, r = document) => r.querySelector(s);
 const uid = () => "u" + (++uidN);
-const isTech = () => document.body.classList.contains("techmode");
+const isTech = () => document.body.classList.contains("techmode") || document.body.classList.contains("editmode");  // every step clickable
 
 // Builds an element: h("div", {class: "x", onclick: fn}, child, "text"). Null/false attrs and children are skipped.
 function h(tag, attrs, ...kids) {
@@ -663,7 +663,7 @@ function renderQuestion(tab, q) {
 // A white card with a heading and its child fields.
 function renderSection(tab, q) {
   const f = q.field, hid = uid(), hint = hintEl(f.description);
-  const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true},
+  const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
     h("h3", {id: hid}, f.title || f.techName), hint, techLines(f, q),
     layoutGrid(f.repeatingSectionGrid, c => renderField(c, {store: answers[tab.title][f.techName], row: null})));
   card._entry = {field: f, row: null, controls: []};
@@ -690,7 +690,7 @@ function renderRepeating(tab, q) {
     }));
   }
   drawRows();
-  const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true},
+  const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
     h("h3", {id: hid}, f.title || f.techName), hint, techLines(f, q), list, addBtn);
   card._entry = {field: f, row: null, controls: []};
   return card;
@@ -700,7 +700,7 @@ function renderRepeating(tab, q) {
 function renderField(cell, ctx) {
   const f = cell.field, id = uid(), t = f.type, tn = f.techName, st = ctx.store;
   const req = isRequired(f), opt = req || f.readOnly ? "" : " (opcjonalnie)", title = labelOf(f);  // read-only: user cannot fill it, so "optional" means nothing
-  const wrap = h("div", {class: "cell", "data-bound": true, "data-type": t});
+  const wrap = h("div", {class: "cell", "data-bound": true, "data-type": t, "data-fid": f.id});
   const entry = wrap._entry = {field: f, row: ctx.row, store: st, controls: [], id};
   const errId = id + "-err";
   const hint = STATIC_TYPES.includes(t) ? null : hintEl(f.description);
@@ -1001,6 +1001,7 @@ window.addEventListener("drop", e => {
 renderIssues();
 // Embed mode: the same-origin parent (upload page) posts {type: "coi-preview", json} for the selected file.
 // Each message replaces the whole form, and nothing is saved, so the standalone preview keeps its own JSON.
+// With {edit: true, evidence} editor.js then switches the form to edit mode (upload page "Edytuj").
 if (new URLSearchParams(location.search).has("embed")) {
   document.body.classList.add("embed");
   $("#empty").hidden = true;
@@ -1015,5 +1016,7 @@ if (new URLSearchParams(location.search).has("embed")) {
   if (saved) loadText(saved, false);
 }
 </script>
+<!-- Edit mode (the click editor on the upload page); inactive unless the parent sends {edit: true}. -->
+<script src="/editor.js"></script>
 </body>
 </html>

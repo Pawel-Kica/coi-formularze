@@ -6,7 +6,8 @@
 <title>Cyfryzacja formularzy | generator e-usług COI</title>
 <!-- One self-contained page served by the API at "/": log in, drop forms, check each result against its original.
      Left column = one file at a time, or many with "Wrzuć wiele plików" (sent one by one), plus history (IndexedDB)
-     with a ZIP of all results. Main area = original document | result (form preview or JSON tree).
+     with a ZIP of all results. Main area = original document | result (form preview, JSON tree, or "Edytuj":
+     the click editor, /preview in edit mode via /editor.js; edits are saved in history and checked with the COI rules).
      No build step and no CDN, so it works offline. -->
 <style>
   :root {
@@ -98,10 +99,16 @@
   .k { color: var(--navy-dark); } .meta { color: var(--muted); }
   .v.string { color: #0a6b2f; } .v.number { color: #9a4d00; } .v.boolean, .v.null { color: #7b2fa6; }
   .hit { background: var(--hit); } .current { outline: 2px solid #ffb800; }
+  /* "Edytuj": history hidden, the result pane gets room for the form and the editor panel */
+  main.editing { grid-template-columns: 1fr; }
+  main.editing #upload { display: none; }
+  main.editing .panes { grid-template-columns: 2fr 3fr; }
+  #edit-status { font-size: .85rem; }
+  #edit-status.bad { color: var(--err); font-weight: 600; }
   @media (max-width: 1000px) { /* narrow screens: everything stacks and the page scrolls */
     body { height: auto; display: block; }
     main { grid-template-columns: 1fr; }
-    .panes { grid-template-columns: 1fr; }
+    .panes, main.editing .panes { grid-template-columns: 1fr; }
     .pane { height: 80vh; }
   }
   [hidden] { display: none !important; }
@@ -167,7 +174,9 @@
           <div class="switch" role="group" aria-label="Widok wyniku">
             <button type="button" class="small" data-view="preview" aria-pressed="true">Podgląd formularza</button>
             <button type="button" class="small" data-view="json" aria-pressed="false">JSON</button>
+            <button type="button" class="small" data-view="edit" aria-pressed="false">Edytuj</button>
           </div>
+          <span id="edit-status" class="muted" role="status"></span>
           <button type="button" class="small" id="copy">Kopiuj</button>
           <button type="button" class="small primary" id="download">Pobierz JSON</button>
           <button type="button" class="small" id="open-preview">Otwórz w nowej karcie</button>
@@ -220,8 +229,9 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   token: sessionStorage.getItem("token"), items: [], selected: null, busy: false, hits: [], hit: -1,
-  view: localStorage.getItem("coi-view") === "json" ? "json" : "preview", // result toggle, kept across items and reloads
+  view: localStorage.getItem("coi-view") === "json" ? "json" : "preview", // result toggle, kept across items and reloads ("edit" is not)
   originalUrl: null, previewReady: false,
+  doc: 0, docItem: null, lastCheck: null, // editor: which document the iframe shows, the newest rules check asked for
 };
 const STATUS = { queued: "Czeka", working: "W trakcie", done: "Gotowe", error: "Błąd", interrupted: "Przerwane" };
 
@@ -234,7 +244,9 @@ function el(tag, className, text) {
   return node;
 }
 
-// --- history: one IndexedDB record per file {id, file, created, status, result, error}, newest first on screen ---
+// --- history: one IndexedDB record per file {id, file, created, status, result, error, evidence, problems},
+// newest first on screen. result = the COI JSON (with the clerk's edits), evidence = where each element came from,
+// problems = COI rules problems after the last edit (non-empty blocks the download) ---
 
 const db = new Promise((resolve, reject) => {
   const open = indexedDB.open("coi-formularze", 1);
@@ -255,8 +267,8 @@ async function store(method, ...args) {
 // Saves an item without its DOM row; the first save assigns item.id.
 async function persist(item) {
   if (item.deleted) return;
-  const { id, file, created, status, result, error } = item;
-  const record = { file, created, status, result, error };
+  const { id, file, created, status, result, error, evidence, problems } = item;
+  const record = { file, created, status, result, error, evidence, problems };
   if (id !== undefined) record.id = id;
   try {
     item.id = await store("put", record);
@@ -361,7 +373,7 @@ async function convert(item) {
   try {
     const body = new FormData();
     body.append("file", item.file);
-    const response = await fetch("/api/forms/convert", {
+    const response = await fetch("/api/forms/convert?evidence=1", { // {coi, evidence}: the editor shows the paper quotes
       method: "POST", headers: { Authorization: `Bearer ${state.token}` }, body,
     });
     const data = await response.json().catch(() => ({}));
@@ -369,7 +381,7 @@ async function convert(item) {
       item.status = "queued"; // retried after the next login
       logout("Sesja wygasła. Zaloguj się ponownie.");
     } else if (response.ok) {
-      Object.assign(item, { status: "done", result: data });
+      Object.assign(item, { status: "done", result: data.coi, evidence: data.evidence, problems: [] });
     } else {
       Object.assign(item, { status: "error", error: detail(data, response) });
     }
@@ -436,12 +448,13 @@ function renderFiles() {
     if (list.children[index] !== item.row.li) list.insertBefore(item.row.li, list.children[index] ?? null);
     const seconds = Math.round((Date.now() - item.started) / 1000);
     item.row.pick.setAttribute("aria-pressed", String(item === state.selected));
-    item.row.status.className = `status ${item.status}`;
-    item.row.status.textContent = item.status === "working" ? `${STATUS.working}… ${seconds} s` : STATUS[item.status];
+    const fix = item.status === "done" && item.problems?.length > 0; // edited into a state that breaks the COI rules
+    item.row.status.className = `status ${fix ? "error" : item.status}`;
+    item.row.status.textContent = item.status === "working" ? `${STATUS.working}… ${seconds} s` : fix ? "Do poprawy" : STATUS[item.status];
   }
   $("#history-empty").hidden = state.items.length > 0;
   $("#clear").disabled = state.items.length === 0;
-  const done = state.items.filter((i) => i.status === "done").length;
+  const done = state.items.filter(exportable).length;
   $("#zip").hidden = done === 0;
   $("#zip").textContent = `Pobierz wszystkie (${done})`;
 }
@@ -469,10 +482,9 @@ function select(item) {
   if (changed) showOriginal(item);
   if (!item) return;
   const done = item.status === "done";
-  for (const id of ["#copy", "#download", "#open-preview"]) $(id).disabled = !done;
+  updateActions();
   if (done) {
-    $("#tree").replaceChildren(treeNode(null, item.result, 0));
-    search();
+    renderTree();
     sendPreview();
   }
   const note = $("#output-note");
@@ -519,22 +531,106 @@ function showOriginal(item) {
 function showView() {
   const done = state.selected?.status === "done";
   for (const button of document.querySelectorAll(".switch button")) button.setAttribute("aria-pressed", String(button.dataset.view === state.view));
-  $("#preview-frame").hidden = !done || state.view !== "preview";
+  $("#preview-frame").hidden = !done || state.view === "json"; // the same iframe previews and edits
   $("#json-view").hidden = !done || state.view !== "json";
+  $("#main").classList.toggle("editing", done && state.view === "edit");
 }
 
 for (const button of document.querySelectorAll(".switch button")) {
   button.addEventListener("click", () => {
+    const was = state.view;
     state.view = button.dataset.view;
-    localStorage.setItem("coi-view", state.view);
+    if (state.view !== "edit") localStorage.setItem("coi-view", state.view);
     showView();
+    if (state.view === "json" && state.selected?.status === "done") renderTree(); // shows the edits too
+    if ((was === "edit") !== (state.view === "edit")) sendPreview(); // the iframe switches edit mode on or off
   });
 }
 
 // The embedded /preview?embed=1 rebuilds its whole form on every message, so switching items never shows a stale form.
+// In "Edytuj" the message also carries edit: true and the evidence; each message starts a new document (doc), and
+// edits or checks of an older document are ignored.
 function sendPreview() {
-  if (state.previewReady && state.selected?.status === "done")
-    $("#preview-frame").contentWindow.postMessage({ type: "coi-preview", json: selectedJson() }, location.origin);
+  const item = state.selected;
+  if (!state.previewReady || item?.status !== "done") return;
+  const edit = state.view === "edit";
+  state.doc += 1;
+  state.docItem = item;
+  $("#preview-frame").contentWindow.postMessage(
+    { type: "coi-preview", json: selectedJson(), edit, evidence: item.evidence || {}, doc: state.doc }, location.origin);
+  if (edit) checkRules(item, 0);
+}
+
+// --- editor ("Edytuj"): the iframe sends every change, we save it and check it with the real COI rules ---
+
+function exportable(item) { return item.status === "done" && !(item.problems?.length > 0); }
+
+// Download, copy and the status next to them follow the selected item; problems block the export.
+function updateActions() {
+  const item = state.selected, done = item?.status === "done", blocked = done && !exportable(item);
+  $("#open-preview").disabled = !done;
+  $("#download").disabled = $("#copy").disabled = !done || blocked;
+  $("#download").title = blocked ? "Popraw problemy w edytorze, aby pobrać JSON" : "";
+  const status = $("#edit-status");
+  status.className = blocked ? "bad" : "muted";
+  status.textContent = !done ? "" : blocked ? `Do poprawy: ${item.problems.length}` : item.edited ? "Zmiany zapisane" : "";
+  renderFiles();
+}
+
+let checkTimer;
+window.addEventListener("message", (event) => {
+  if (event.origin !== location.origin || event.source !== $("#preview-frame").contentWindow) return;
+  const data = event.data || {};
+  const item = state.docItem;
+  if (data.doc !== state.doc || !item || item.deleted) return; // an edit of a document no longer shown
+  if (data.type === "coi-edit") {
+    Object.assign(item, { result: JSON.parse(data.json), evidence: data.evidence, edited: true });
+    persist(item);
+    $("#edit-status").className = "muted";
+    $("#edit-status").textContent = "Sprawdzam…";
+    clearTimeout(checkTimer);
+    checkTimer = setTimeout(() => checkRules(item, data.version), 250);
+  } else if (data.type === "coi-evidence") showEvidence(data);
+});
+
+// POST /api/forms/check on the item's current JSON; the problems go to the editor and into history.
+async function checkRules(item, version) {
+  const doc = state.doc;
+  state.lastCheck = { doc, version };
+  let problems;
+  try {
+    const response = await fetch("/api/forms/check", {
+      method: "POST", headers: { Authorization: `Bearer ${state.token}`, "Content-Type": "application/json" }, body: JSON.stringify(item.result),
+    });
+    if (response.status === 401) return logout("Sesja wygasła. Zaloguj się ponownie.");
+    if (!response.ok) throw new Error();
+    problems = (await response.json()).problems;
+  } catch {
+    if (item === state.selected) $("#edit-status").textContent = "Nie udało się sprawdzić zmian (brak połączenia z serwerem).";
+    return;
+  }
+  if (state.lastCheck?.doc !== doc || state.lastCheck.version !== version) return; // a newer edit is being checked
+  item.problems = problems;
+  persist(item);
+  if (doc === state.doc) $("#preview-frame").contentWindow.postMessage({ type: "coi-problems", problems, version, doc }, location.origin);
+  if (item === state.selected) updateActions();
+}
+
+// Ctrl+Z / Ctrl+Shift+Z while focus is outside the iframe still undo and redo in the editor.
+document.addEventListener("keydown", (event) => {
+  const key = event.key.toLowerCase();
+  if (state.view !== "edit" || !(event.metaKey || event.ctrlKey) || (key !== "z" && key !== "y") || event.target.closest("input, textarea")) return;
+  event.preventDefault();
+  $("#preview-frame").contentWindow.postMessage({ type: key === "y" || event.shiftKey ? "coi-redo" : "coi-undo", doc: state.doc }, location.origin);
+});
+
+// Hook for the next step: highlight `quote` on page `page` of the original (left pane). The editor already
+// sends {id, quote, page} when the clerk clicks a quote; `page` is null until extraction keeps page numbers.
+function showEvidence({ id, quote, page }) {}
+
+function renderTree() {
+  $("#tree").replaceChildren(treeNode(null, state.selected.result, 0));
+  search();
 }
 $("#preview-frame").addEventListener("load", () => { state.previewReady = true; sendPreview(); });
 
@@ -609,7 +705,7 @@ $("#download").addEventListener("click", () => saveBlob(new Blob([selectedJson()
 // "Pobierz wszystkie": every finished result in history, in drop order, as one ZIP; equal names become "x (2).json".
 $("#zip").addEventListener("click", () => {
   const used = new Set();
-  const files = state.items.filter((i) => i.status === "done").reverse().map((item) => {
+  const files = state.items.filter(exportable).reverse().map((item) => { // results with rules problems wait for the editor
     const base = jsonName(item.file).slice(0, -5);
     let name = `${base}.json`;
     for (let n = 2; used.has(name); n++) name = `${base} (${n}).json`;

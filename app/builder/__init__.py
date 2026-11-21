@@ -3,6 +3,8 @@
 Tabs: "Dane" (predefined, from `plan.applicant`/`plan.addressee`), the Plan's
 subject-matter pages, "Kontakt i zgody" (contact + consents from `plan.statements`)
 and the FINISH page. Usage: `coi = build(plan)`, then `app.rules.check(coi)`.
+`coi, evidence = build_with_evidence(plan)` also says where every element came from
+(the paper quote for fields, see `_evidence`); the editor on the upload page shows it.
 
 Robust to imperfect plans (the local model writes them): choice fields without
 options become text fields, conditions pointing at unknown fields/options are
@@ -31,7 +33,7 @@ from app.builder.standard import (
 from app.plan import Condition, FieldType, Plan, PlanField
 from app.text import ascii_fold, html_paragraphs
 
-__all__ = ["build"]
+__all__ = ["build", "build_with_evidence"]
 
 CHOICE = {FieldType.RADIO, FieldType.CHECKBOX, FieldType.SELECT}
 _COUNTRY = re.compile(r"\b(kraj|panstw|obywatelstw)")
@@ -135,7 +137,8 @@ def _page_titles(plan: Plan) -> list[str]:
     return out
 
 
-def _plan_pages(ctx: Ctx, plan: Plan) -> list[dict]:
+def _plan_pages(ctx: Ctx, plan: Plan, known: dict[str, dict]) -> list[dict]:
+    """The Plan's own pages; `known` gets the evidence of every element built from the Plan."""
     titles = _page_titles(plan)
     # Pass 1: techNames and locations, so conditions can point forward and backward.
     locs: dict[str, _Loc] = {}
@@ -160,14 +163,27 @@ def _plan_pages(ctx: Ctx, plan: Plan) -> list[dict]:
             desc = html_paragraphs(s.description) if s.description.strip() else ""
             if s.address and not s.repeating:
                 suffix = "_" + (st.removeprefix("adres_") or st)
-                sections.append(address_section(ctx, s.title.strip(), st, suffix, registry=False,
-                                                query=_query(s.show_if, locs, st), tab_title=title,
-                                                description=desc, register=False))
+                built = address_section(ctx, s.title.strip(), st, suffix, registry=False,
+                                        query=_query(s.show_if, locs, st), tab_title=title,
+                                        description=desc, register=False)
+                # the Standards block replaced the paper's address lines: their quotes back the section
+                quote = " / ".join(dict.fromkeys(f.quote for f in s.fields))
+                known[built["id"]] = _ev("paper", quote, plan_id=s.id, cond=s.show_if if built["states"] else None)
+                sections.append(built)
                 continue
-            fields = [_field(ctx, f, fld_tech[id(f)], st, locs) for f in s.fields]
-            sections.append(section(ctx, s.title.strip(), st, fields, description=desc,
-                                    query=_query(s.show_if, locs, st), repeating=s.repeating))
-        tabs.append(tab(ctx, title, sections))
+            fields = []
+            for f in s.fields:
+                built_field = _field(ctx, f, fld_tech[id(f)], st, locs)
+                known[built_field["id"]] = _ev("paper", f.quote, plan_id=f.id,
+                                               cond=f.show_if if built_field["states"] else None)
+                fields.append(built_field)
+            built = section(ctx, s.title.strip(), st, fields, description=desc,
+                            query=_query(s.show_if, locs, st), repeating=s.repeating)
+            known[built["id"]] = _ev("model", plan_id=s.id, cond=s.show_if if built["states"] else None)
+            sections.append(built)
+        page_tab = tab(ctx, title, sections)
+        known[page_tab["id"]] = _ev("model")
+        tabs.append(page_tab)
     return tabs
 
 
@@ -204,12 +220,57 @@ def _field(ctx: Ctx, f: PlanField, tech: str, section_tech: str, locs: dict[str,
 
 def build(plan: Plan) -> dict:
     """Plan -> COI JSON dict (ready to import; run `app.rules.check` on it)."""
+    return build_with_evidence(plan)[0]
+
+
+def build_with_evidence(plan: Plan) -> tuple[dict, dict]:
+    """Plan -> (COI JSON, evidence). The JSON is exactly `build(plan)`; evidence is separate
+    because the COI JSON stays clean (see `_evidence` for its shape)."""
     title = plan.title.strip()[:255]
     ctx = Ctx(title)
     # Predefined pages first, so their reference techNames win over plan labels.
     dane = dane_page(ctx, plan)
     contact = contact_page(ctx, plan.statements)
     finish = finish_page(ctx)
-    tabs = [dane, *_plan_pages(ctx, plan), contact, finish]
-    return {"title": title, "tabs": tabs, "flow": flow(ctx, tabs)}
+    known: dict[str, dict] = {}
+    tabs = [dane, *_plan_pages(ctx, plan, known), contact, finish]
+    coi = {"title": title, "tabs": tabs, "flow": flow(ctx, tabs)}
+    return coi, _evidence(coi, plan, known)
+
+
+def _ev(source: str, quote: str | None = None, *, plan_id: str | None = None,
+        cond: Condition | None = None) -> dict:
+    """One evidence entry. `page` stays None until extraction keeps page numbers: it is the hook
+    for highlighting the quote on the original (element id -> quote -> page)."""
+    out = {"source": source, "quote": quote, "page": None}
+    if plan_id:
+        out["plan_id"] = plan_id
+    if cond is not None:
+        out["condition_quote"] = cond.quote
+    return out
+
+
+def _evidence(coi: dict, plan: Plan, known: dict[str, dict]) -> dict[str, dict]:
+    """Every COI element id (tab, section, field) -> where it came from, in COI order:
+    - "paper": built from a Plan field (or the addressee), `quote` = its verbatim fragment of the paper;
+      a SHOW condition built from the paper adds `condition_quote`;
+    - "model": a page or section of the Plan (a grouping the model chose; the paper has no quote for it);
+    - "code": added by code from the COI Standards (pages Dane, Kontakt i zgody, finish, address blocks).
+    The CONSENT_SECTION entry lists `consent_quotes`, one per consent (None for the RODO clause)."""
+    out = {}
+    for t in coi["tabs"]:
+        out[t["id"]] = known.get(t["id"]) or _ev("code")
+        for q in t["questions"]:
+            s = q["field"]
+            out[s["id"]] = known.get(s["id"]) or _ev("code")
+            for c in s["repeatingSectionGrid"]:
+                f = c["field"]
+                out[f["id"]] = known.get(f["id"]) or _ev("code")
+                if f["type"] == "CONSENT_SECTION":
+                    out[f["id"]]["consent_quotes"] = [None] + [st.quote for st in plan.statements]
+    # The addressee field (first field of the first Dane section) holds the office named on paper.
+    addressee = coi["tabs"][0]["questions"][0]["field"]["repeatingSectionGrid"][0]["field"]
+    if plan.addressee.strip() and plan.addressee_quote.strip():
+        out[addressee["id"]] = _ev("paper", plan.addressee_quote)
+    return out
 
