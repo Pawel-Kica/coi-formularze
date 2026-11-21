@@ -1,10 +1,10 @@
 # coi-formularze
 
-REST API, które zamienia pusty formularz papierowy (PDF, DOC, DOCX, ODS, XLSX, JPG, PNG) w konfigurację e-usługi COI (JSON gotowy do importu). Działa w całości lokalnie: otwarty model językowy w Ollamie, bez chmury i zewnętrznych API. Projekt na HackNation 2026, zadanie COI „Cyfryzacja Formularzy”.
+REST API, które zamienia pusty formularz papierowy (PDF, DOC, DOCX, ODS, XLSX, XLS, JPG, PNG) w konfigurację e-usługi COI (JSON gotowy do importu). Działa w całości lokalnie: otwarty model językowy w Ollamie, bez chmury i zewnętrznych API. Projekt na HackNation 2026, zadanie COI „Cyfryzacja Formularzy”.
 
 ## Jak to działa
 
-1. **Plik → tekst**: biblioteki Pythona czytają PDF/DOC/DOCX/ODS/XLSX, skany idą przez OCR (Tesseract, opcjonalnie model wizyjny).
+1. **Plik → tekst**: biblioteki Pythona czytają PDF/DOC/DOCX/ODS/XLSX/XLS, skany i strony PDF z nieczytelną warstwą tekstu (fonty bez mapy Unicode) idą przez OCR (Tesseract, opcjonalnie model wizyjny).
 2. **Tekst → plan**: lokalny model zwraca krótki plan formularza (strony, sekcje, pola, zależności), każdy element z cytatem z papieru.
 3. **Kontrola cytatów**: kod odrzuca elementy, których cytatu nie ma w tekście (ochrona przed zmyślaniem).
 4. **Plan → JSON COI**: kod buduje pełną konfigurację (UUID, techName, siatka, sekcje ze Standardów COI, walidatory, słowniki, warunki). Zależności to warunki JSONata `SHOW` na polach i sekcjach; warunkowe przejścia między stronami realizujemy warunkami SHOW na sekcjach, bo schemat COI nie ma warunku na stronie ani na linku flow.
@@ -105,9 +105,9 @@ Błędy zawsze jako JSON `{"detail": "..."}`:
 
 ## Walidacja i limity
 
-- Rozszerzenia (wielkość liter bez znaczenia): `.pdf .doc .docx .ods .xlsx .jpg .jpeg .jpe .png`.
+- Rozszerzenia (wielkość liter bez znaczenia): `.pdf .doc .docx .ods .xlsx .xls .jpg .jpeg .jpe .png`.
 - Nazwa pliku: najwyżej 250 znaków, bez `; : > < / \ | ' * % $`.
-- Typ MIME ustalany z zawartości (sygnatury), musi pasować do rozszerzenia: PDF `%PDF`, DOC plik OLE2 ze strumieniem `WordDocument`, DOCX/XLSX archiwum ZIP z `[Content_Types].xml` i katalogiem `word/` lub `xl/`, ODS archiwum z `mimetype` = `application/vnd.oasis.opendocument.spreadsheet`, JPEG `FF D8 FF`, PNG sygnatura PNG. Nagłówek `Content-Type` od klienta nie decyduje.
+- Typ MIME ustalany z zawartości (sygnatury), musi pasować do rozszerzenia: PDF `%PDF`, DOC plik OLE2 ze strumieniem `WordDocument`, XLS plik OLE2 ze strumieniem `Workbook` (lub `Book`), DOCX/XLSX archiwum ZIP z `[Content_Types].xml` i katalogiem `word/` lub `xl/`, ODS archiwum z `mimetype` = `application/vnd.oasis.opendocument.spreadsheet`, JPEG `FF D8 FF`, PNG sygnatura PNG. Nagłówek `Content-Type` od klienta nie decyduje.
 - Rozmiar: liczony w trakcie strumieniowego odczytu, odczyt przerywany po przekroczeniu limitu (nie ufamy samemu `Content-Length`).
 - Pliki tylko w pamięci: treść żądania trafia prosto do RAM, nic nie jest zapisywane na dysk.
 

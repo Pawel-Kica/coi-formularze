@@ -1,4 +1,5 @@
-"""Spreadsheets (XLSX via openpyxl, ODS/ODT via content.xml) -> raw text, one sheet row per line.
+"""Spreadsheets (XLSX via openpyxl, old Excel XLS via xlrd, ODS/ODT via content.xml) -> raw text,
+one sheet row per line.
 
 Forms drawn in a spreadsheet use the grid for layout and cell borders for what paper shows as
 dotted lines and boxes, so we read borders too:
@@ -14,6 +15,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 import openpyxl
+import xlrd
 
 TABLE = "{urn:oasis:names:tc:opendocument:xmlns:table:1.0}"
 TEXT = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
@@ -87,6 +89,43 @@ def _cell_str(v) -> str:
     if isinstance(v, float) and v.is_integer():
         return str(int(v))
     return str(v)
+
+
+# --- XLS (Excel 97-2003, BIFF) -----------------------------------------------------------
+def read_xls(data: bytes) -> str:
+    """Same rules as read_xlsx; xlrd keeps cell borders with formatting_info=True."""
+    wb = xlrd.open_workbook(file_contents=data, formatting_info=True)
+    lines: list[str] = []
+    for sh in wb.sheets():
+        if sh.visibility != 0:  # 1 hidden, 2 very hidden
+            continue
+        spans, covered = {}, set()
+        for r0, r1, c0, c1 in sh.merged_cells:  # half-open ranges
+            spans[(r0, c0)] = c1 - c0
+            covered |= {(r, c) for r in range(r0, r1) for c in range(c0, c1)} - {(r0, c0)}
+        for r in range(sh.nrows):
+            tokens = []
+            for c in range(sh.ncols):
+                if (r, c) in covered:
+                    continue
+                cell = sh.cell(r, c)
+                b = wb.xf_list[cell.xf_index].border
+                styles = zip("lrtb", (b.left_line_style, b.right_line_style, b.top_line_style, b.bottom_line_style))
+                borders = frozenset(side for side, style in styles if style)
+                tokens.append(cell_token(_xls_str(cell, wb.datemode), borders, spans.get((r, c), 1)))
+            lines += row_lines(tokens)
+    wb.release_resources()
+    return "\n".join(lines)
+
+
+def _xls_str(cell, datemode: int) -> str:
+    if cell.ctype == xlrd.XL_CELL_DATE:
+        return str(xlrd.xldate_as_datetime(cell.value, datemode))
+    if cell.ctype == xlrd.XL_CELL_BOOLEAN:
+        return str(bool(cell.value))
+    if cell.ctype in (xlrd.XL_CELL_EMPTY, xlrd.XL_CELL_BLANK, xlrd.XL_CELL_ERROR):
+        return ""
+    return _cell_str(cell.value)
 
 
 # --- ODS / ODT ---------------------------------------------------------------------

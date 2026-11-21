@@ -1,7 +1,7 @@
 [project]
 name = "coi-formularze"
 version = "0.1.0"
-description = "Paper form (PDF/DOC/DOCX/ODS/XLSX/JPG/PNG) -> COI e-service JSON, with a local LLM"
+description = "Paper form (PDF/DOC/DOCX/ODS/XLSX/XLS/JPG/PNG) -> COI e-service JSON, with a local LLM"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
@@ -24,6 +24,7 @@ dependencies = [
     "python-multipart>=0.0.34",
     "rapidfuzz>=3.14.6",
     "uvicorn>=0.54.0",
+    "xlrd>=2.0.2",
 ]
 
 [dependency-groups]

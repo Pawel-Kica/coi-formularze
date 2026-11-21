@@ -3,8 +3,9 @@
     from app.extract import extract, Document
     doc = extract(data, filename)   # doc.text, doc.method, doc.warnings
 
-Formats: PDF (text layer, OCR for scanned pages), DOCX, legacy DOC (own binary parser),
-ODS (and ODT), XLSX, images (JPG/JPEG/PNG and anything else Pillow opens) via OCR.
+Formats: PDF (text layer, OCR for scanned or garbled pages), DOCX, legacy DOC (own binary
+parser), ODS (and ODT), XLSX, legacy XLS (xlrd), images (JPG/JPEG/PNG and anything else Pillow
+opens) via OCR.
 The format is sniffed from the bytes; the extension is only a tiebreaker (real files
 lie: some `.DOC` here are DOCX). Everything stays in memory.
 Same form in any format -> nearly the same text (see normalize.py).
@@ -14,6 +15,7 @@ import io
 import zipfile
 from dataclasses import dataclass, field
 
+import olefile
 from PIL import Image, UnidentifiedImageError
 
 from app.extract.doc import read_doc
@@ -21,7 +23,7 @@ from app.extract.docx import read_docx
 from app.extract.normalize import normalize
 from app.extract.ocr import OcrError, default_engine, ocr_image
 from app.extract.pdf import read_pdf
-from app.extract.sheets import read_odf, read_xlsx
+from app.extract.sheets import read_odf, read_xls, read_xlsx
 
 
 class UnsupportedFile(ValueError):
@@ -31,7 +33,7 @@ class UnsupportedFile(ValueError):
 @dataclass
 class Document:
     text: str
-    method: str  # "pdf-text", "pdf-ocr", "docx", "doc", "ods", "odt", "xlsx", "ocr", "vlm"
+    method: str  # "pdf-text", "pdf-ocr", "docx", "doc", "ods", "odt", "xlsx", "xls", "ocr", "vlm"
     warnings: list[str] = field(default_factory=list)
 
 
@@ -66,6 +68,8 @@ def _read(data: bytes, filename: str, warnings: list[str], engine: str) -> tuple
     if data[:4] == b"PK\x03\x04":
         return _read_zip(data)
     if data[:8] == OLE_MAGIC:
+        if is_excel_ole(data):
+            return read_xls(data), "xls"
         return read_doc(data), "doc"  # raises DocError (a ValueError) for non-Word OLE files
     try:
         img = Image.open(io.BytesIO(data))
@@ -73,6 +77,13 @@ def _read(data: bytes, filename: str, warnings: list[str], engine: str) -> tuple
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as e:
         raise UnsupportedFile(f"unsupported file type ({ext or 'no extension'})") from e
     return ocr_image(img, engine), "vlm" if engine == "vlm" else "ocr"
+
+
+def is_excel_ole(data: bytes) -> bool:
+    """.doc and .xls are both OLE2 compound files; an Excel workbook holds a `Workbook`
+    (BIFF8) or `Book` (BIFF5) stream instead of `WordDocument`."""
+    with olefile.OleFileIO(io.BytesIO(data)) as ole:  # BytesIO: never treated as a path
+        return not ole.exists("WordDocument") and (ole.exists("Workbook") or ole.exists("Book"))
 
 
 def _read_zip(data: bytes) -> tuple[str, str]:

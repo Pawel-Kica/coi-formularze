@@ -21,6 +21,7 @@ MIME_BY_EXTENSION = {
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".ods": "application/vnd.oasis.opendocument.spreadsheet",
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xls": "application/vnd.ms-excel",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".jpe": "image/jpeg",
@@ -146,10 +147,15 @@ def sniff_mime(data: bytes) -> str | None:
 
 
 def _sniff_ole(data: bytes) -> str | None:
-    """Legacy .doc: an OLE2 compound file holding a WordDocument stream."""
+    """Legacy .doc and .xls share the OLE2 magic; the stream inside tells them apart:
+    `WordDocument` for Word, `Workbook` (BIFF8) or `Book` (BIFF5) for Excel."""
     try:
         with olefile.OleFileIO(io.BytesIO(data)) as ole:  # BytesIO: never treated as a path
-            return "application/msword" if ole.exists("WordDocument") else None
+            if ole.exists("WordDocument"):
+                return MIME_BY_EXTENSION[".doc"]
+            if ole.exists("Workbook") or ole.exists("Book"):
+                return MIME_BY_EXTENSION[".xls"]
+            return None
     except Exception:  # noqa: BLE001 - corrupt input raises assorted errors: treat it as unknown
         return None
 

@@ -1,6 +1,6 @@
 # coi-formularze
 
-Paweł's HackNation 2026 solution to the COI "Cyfryzacja Formularzy" task: a REST API that turns a blank paper form (PDF, DOC, DOCX, ODS, XLSX, JPG, PNG) into an importable COI e-service JSON. Everything runs locally: an open-weights model in Ollama, no cloud.
+Paweł's HackNation 2026 solution to the COI "Cyfryzacja Formularzy" task: a REST API that turns a blank paper form (PDF, DOC, DOCX, ODS, XLSX, XLS, JPG, PNG) into an importable COI e-service JSON. Everything runs locally: an open-weights model in Ollama, no cloud.
 
 ## Hard rules
 - **NEVER call Eden AI or any external model API** (no runs, smoke tests or measurements) without Paweł's explicit OK for that specific run. `.env` holds no key; never open, print, log or commit `.env`.
@@ -22,7 +22,7 @@ file → text (`app/extract/`) → model plan (`app/llm/planner.py`, contract `a
 - `app/api.py` REST: `POST /api/auth/token`, `POST /api/forms/convert`, `POST /api/dictionaries/proposals`, `GET /health`, `/` upload page, `/preview`.
 - `app/config.py` settings from env/`.env` (`from app.config import settings`); `app/security.py` JWT (own issuer or JWKS); `app/upload.py` in-memory upload, size cap, name/extension/magic-byte checks.
 - `app/plan.py` the Plan contract between model and builder; every field, condition and statement carries a `quote` from the paper.
-- `app/extract/` bytes → normalized text: `pdf.py`, `doc.py` (own Word 97 parser), `docx.py`, `sheets.py` (XLSX/ODS), `ocr.py` + `scan.py` (Tesseract with preprocessing), `layout.py`, `normalize.py` (same form, any format → same text).
+- `app/extract/` bytes → normalized text: `pdf.py` (pages with a missing or garbled text layer go to OCR), `doc.py` (own Word 97 parser), `docx.py`, `sheets.py` (XLSX/XLS/ODS), `ocr.py` + `scan.py` (Tesseract with preprocessing), `layout.py`, `normalize.py` (same form, any format → same text).
 - `app/llm/client.py` one OpenAI-compatible JSON-Schema chat call (`LLM_BACKEND`, `LLM_BASE_URL`, `LLM_MODEL`); `planner.py` two passes (structure, then conditions); `prompts/` prompt texts and examples.
 - `app/quotes.py` drops plan items whose quote is not on paper, and broken conditions.
 - `app/builder/` Plan → COI JSON, deterministic: `core.py` building blocks, `standard.py` predefined pages from the COI Standards (Dane, Kontakt i zgody, finish), `texts.py` verbatim HTML texts.

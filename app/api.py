@@ -24,7 +24,7 @@ PREVIEW_HTML = Path(__file__).parent / "static" / "preview.html"
 
 app = FastAPI(
     title="COI Cyfryzacja Formularzy",
-    description="Pusty formularz papierowy (PDF, DOC, DOCX, ODS, XLSX, JPG, PNG) na konfigurację e-usługi COI (JSON).",
+    description="Pusty formularz papierowy (PDF, DOC, DOCX, ODS, XLSX, XLS, JPG, PNG) na konfigurację e-usługi COI (JSON).",
     version="0.1.0",
 )
 

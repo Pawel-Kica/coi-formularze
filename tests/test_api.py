@@ -156,10 +156,26 @@ def test_unsupported_extension(client, auth, name):
         ("arkusz.ods", zipped(("mimetype", b"application/vnd.oasis.opendocument.text"))),  # odt named ods
         ("stary.doc", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 600),  # broken OLE
         ("stary.doc", zipped(("[Content_Types].xml", b""), ("xl/workbook.xml", b""))),  # xlsx named doc
+        ("arkusz.xls", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 600),  # broken OLE
     ],
 )
 def test_content_must_match_extension(client, auth, name, content):
     assert upload(client, auth, name, content).status_code == 415
+
+
+DRIVE = Path.home() / "hacknation-2026/resources/drive-formularze"  # black-box forms, outside the repo
+
+
+@pytest.mark.skipif(not DRIVE.is_dir(), reason="drive-formularze missing")
+def test_xls_told_apart_from_doc(client, auth):
+    """.xls and .doc share the OLE2 magic bytes; the stream inside (Workbook vs WordDocument) decides."""
+    xls = (DRIVE / "dolnoslaski-uw__Protokol_strat_-_v2021.xls").read_bytes()
+    doc = (DRIVE / "04_usuniecie_drzewa_buczkowice.doc").read_bytes()
+    assert validate_upload("PROTOKOL.XLS", xls) == MIME_BY_EXTENSION[".xls"] == "application/vnd.ms-excel"
+    assert sniff_mime(doc) == MIME_BY_EXTENSION[".doc"]
+    assert upload(client, auth, "protokol.xls", xls).status_code == 200
+    assert upload(client, auth, "protokol.doc", xls).status_code == 415
+    assert upload(client, auth, "wniosek.xls", doc).status_code == 415
 
 
 def test_doc_and_docx_are_one_format():
