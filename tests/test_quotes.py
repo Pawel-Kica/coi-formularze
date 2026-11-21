@@ -80,12 +80,57 @@ def test_broken_condition_dropped_target_kept(cond_field, options, quote, why):
     assert len(dropped) == 1 and why in dropped[0]
 
 
-def test_trigger_after_target_dropped():
+def test_late_trigger_moves_before_its_target():
     cond = Condition(field="f2", options=["Zaliczyć"], quote="Kwotę nadpłaty proszę:")
     radio = RADIO.model_copy(update={"id": "f2"})
-    out, dropped = filter_plan(plan([f("f1", "Korekta", "korekta deklaracji", show_if=cond), radio]), TEXT)
+    target = f("f1", "Z tytułu", "zobowiązania podatkowego z tytułu", show_if=cond)  # on the chosen option's line
+    out, dropped = filter_plan(plan([target, radio]), TEXT)
+    assert [x.id for x in out.pages[0].sections[0].fields] == ["f2", "f1"]
+    assert out.pages[0].sections[0].fields[1].show_if.field == "f2"
+    assert any(d.startswith("hoist: trigger f2") for d in dropped)
+
+
+def test_late_trigger_of_a_section_moves_into_the_section_before_or_its_own():
+    cond = Condition(field="f2", options=["Zaliczyć"], quote="Kwotę nadpłaty proszę:")
+    radio = RADIO.model_copy(update={"id": "f2"})
+    target = Section(id="s2", title="T", fields=[f("f1", "Korekta", "korekta deklaracji")], show_if=cond)
+    p = Plan(title="Wniosek", addressee="", pages=[
+        Page(title="A", sections=[target]),
+        Page(title="B", sections=[Section(id="s3", title="Załączniki", fields=[radio])])])
+    out, _ = filter_plan(p, TEXT)
+    assert [s.id for s in out.pages[0].sections] == ["sf2", "s2"] and len(out.pages) == 1  # page B left empty
+    assert out.pages[0].sections[0].title == "Załączniki" and out.pages[0].sections[1].show_if.field == "f2"
+
+
+def test_late_trigger_that_is_conditional_itself_is_not_moved():
+    cond = Condition(field="f2", options=["Zaliczyć"], quote="Kwotę nadpłaty proszę:")
+    own = Condition(field="f3", options=["Tak"], quote="Kwotę nadpłaty proszę:")
+    radio = RADIO.model_copy(update={"id": "f2", "show_if": own})
+    yes_no = f("f3", "Czy nadpłata?", "Kwotę nadpłaty proszę:", FieldType.RADIO, ["Tak", "Nie"])
+    out, dropped = filter_plan(plan([f("f1", "Korekta", "korekta deklaracji", show_if=cond), radio, yes_no]), TEXT)
     assert out.pages[0].sections[0].fields[0].show_if is None
-    assert "after the target" in dropped[0]
+    assert any("after the target" in d for d in dropped)
+
+
+def test_negated_condition_over_every_option_cleared():
+    cond = Condition(field="f1", options=["Zaliczyć", "Zwrócić przelewem"], negate=True, quote="Kwotę nadpłaty proszę:")
+    target = f("f2", "Korekta", "korekta deklaracji", show_if=cond).model_copy(update={"required": True})
+    out, dropped = filter_plan(plan([RADIO, target]), TEXT)
+    kept = out.pages[0].sections[0].fields[1]
+    assert kept.show_if is None and not kept.required
+    assert "negated over every option of f1" in dropped[0]
+
+
+def test_vacuous_gate_cleared_before_the_correspondence_repair():
+    text = TEXT + "B.4 ADRES DO KORESPONDENCJI (wypełnić tylko w przypadku kiedy jest inny niż w poz. B.3)\nMiejscowość\n"
+    cond = Condition(field="f1", options=["Zaliczyć", "Zwrócić przelewem"], negate=True,
+                     quote="wypełnić tylko w przypadku kiedy jest inny niż w poz. B.3")
+    p = plan([RADIO])
+    p.pages[0].sections.append(Section(id="s2", title="Adres do korespondencji", show_if=cond,
+                                       fields=[f("f2", "Miejscowość", "Miejscowość")]))
+    out, _ = filter_plan(p, text)
+    gate = next(s for s in out.pages[0].sections if s.id == "s2").show_if
+    assert gate and not gate.negate and gate.options == ["Tak"]  # the repair's own Tak/Nie question
 
 
 def test_section_condition_on_own_field_dropped():
@@ -149,3 +194,21 @@ def test_addressee_kept_only_when_its_quote_is_on_paper():
     for quote in ("", "Do Wójta Gminy Testowo"):  # no quote, or a quote the paper lacks: guessed
         cleared, dropped = filter_plan(p.model_copy(update={"addressee_quote": quote}), TEXT)
         assert cleared.addressee == cleared.addressee_quote == "" and len(dropped) == 1
+
+
+def test_applicant_address_section_dropped_attachments_and_case_fields_stay():
+    text = TEXT + ("B.3 ADRES ZAMIESZKANIA / ADRES SIEDZIBY\nMiejscowość\n"
+                   "16. Numer działki (wypełnić jeżeli nieruchomość nie ma urzędowo nadanego adresu)\n"
+                   "G. ZAŁĄCZNIKI\nZałącznik A\nDokumenty upoważniające do reprezentowania\n")
+    p = plan([RADIO])
+    p.pages[0].sections.append(Section(id="s2", title="Adres zamieszkania / siedziby", fields=[
+        f("f2", "Miejscowość", "Miejscowość"),
+        f("f3", "Numer działki", "Numer działki (wypełnić jeżeli nieruchomość nie ma urzędowo nadanego adresu)")]))
+    p.pages.append(Page(title="Kontakt i załączniki", sections=[Section(id="s3", title="Załączniki", fields=[
+        f("f4", "Plik z załącznikiem A", "Załącznik A", FieldType.FILE_UPLOADER),
+        f("f5", "Plik z dokumentami upoważniającymi", "Dokumenty upoważniające do reprezentowania",
+          FieldType.FILE_UPLOADER)])]))
+    out, dropped = filter_plan(p, text)
+    kept = [x.id for pg in out.pages for s in pg.sections for x in s.fields]
+    assert kept == ["f1", "f3", "f4"]  # f2: the Dane page has the address; f5: the proxy section has the file
+    assert sum(d.startswith("standard:") for d in dropped) == 2
