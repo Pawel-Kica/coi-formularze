@@ -86,7 +86,7 @@ class Applicant(BaseModel):
     person: bool = True  # a natural person can file (own data, PESEL...)
     entity: bool = False  # a company/institution can file (NIP/REGON/KRS, "nazwa firmy")
     entity_ids: list[EntityId] = []  # identifiers the paper asks for; empty = Standards default
-    pesel: bool = False  # the paper asks for the applicant's PESEL
+    pesel: bool = False  # the paper asks for the applicant's PESEL (informational: Twoje dane always has PESEL)
     proxy: bool = True  # filing by a proxy (pełnomocnik) is allowed
     registry_extract: bool = False  # the paper requires a KRS/registry extract from every entity filer
 
