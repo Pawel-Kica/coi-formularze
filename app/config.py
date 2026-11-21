@@ -41,9 +41,16 @@ class Settings(BaseSettings):
     llm_model: str = "qwen3:30b-a3b-instruct-2507-q4_K_M"
     llm_timeout_s: float = 1200  # one call; form 9 (16 pages) is the longest
     edenai_api_key: SecretStr | None = None  # Bearer key for LLM_BACKEND=openai (Eden AI)
+    # Vision (app/llm/vision.py): PDF pages and JPG/PNG also go to the planner as page images,
+    # next to the text (needs a vision model in LLM_MODEL). Qwen3-VL spends ~1 token per 32x32 px:
+    # an A4 page at 1400 px is ~1.4k tokens, 8 of them keep pass 1 of a long form near 22k of 32k.
+    llm_vision: bool = False
+    llm_vision_max_side: int = 1400  # long side of a page image in pass 1 (structure), px
+    llm_vision_max_pages: int = 8  # only the first N pages get an image, the rest is text only
+    llm_vision_conditions_side: int = 1024  # long side in pass 2 (conditions), px; 0 = text only
     # OCR
     ocr_engine: str = "tesseract"  # "tesseract" or "vlm" (vision model in Ollama)
-    ocr_vlm_model: str = "qwen2.5vl:7b"
+    ocr_vlm_model: str | None = None  # model for OCR_ENGINE=vlm; unset = LLM_MODEL (must read images)
     # Dev only: folder of bench runs (e.g. bench/runs) for the review page /review (app/review.py).
     # Unset = the page and its endpoints answer 404, as in Docker and for the jury.
     review_runs_dir: Path | None = None

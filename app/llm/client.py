@@ -17,6 +17,11 @@ Qwen and Mistral. Rate limits and provider hiccups (429, 5xx, timeouts) are retr
 
 Ollama's context window is set on the server (OLLAMA_CONTEXT_LENGTH, 32768 is enough
 for the longest form), not per request.
+
+Images (`images=`, data URLs from `app.llm.vision`) go as standard OpenAI content parts
+`{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}}` before the text;
+Ollama's /v1 takes them (base64 only, no remote URLs) and still honours `response_format`.
+Without images the user message stays a plain string, so text-only requests do not change.
 """
 
 import copy
@@ -138,15 +143,21 @@ def chat_json(
     seed: int = 42,
     frequency_penalty: float = 0.0,
     name: str = "answer",
+    images: list[str] | None = None,
 ) -> ChatResult:
     """One deterministic call (temperature 0, fixed seed where the route takes one) constrained to `schema`.
+    `images`: data URLs sent before `user` in the same message (vision models only).
 
     Raises LLMError when the answer is not valid JSON, httpx errors on HTTP failures.
     """
     model = model or settings.llm_model
+    content = user
+    if images:
+        content = [{"type": "image_url", "image_url": {"url": url}} for url in images]
+        content.append({"type": "text", "text": user})
     body = {
         "model": model,
-        "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        "messages": [{"role": "system", "content": system}, {"role": "user", "content": content}],
         "response_format": {
             "type": "json_schema",
             "json_schema": {"name": name, "schema": strict_schema(schema), "strict": True},

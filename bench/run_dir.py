@@ -8,6 +8,7 @@ A Claude judge then compares each original with its output.
 
     uv run python -m bench.run_dir ~/hacknation-2026/resources/drive-formularze --out bench/runs/drive-baseline
     uv run python -m bench.run_dir <folder> --out <earlier run>   # files already done are skipped
+    LLM_VISION=1 uv run python -m bench.run_dir <folder> --out bench/runs/<new>  # page images too
 """
 
 import argparse
@@ -19,6 +20,7 @@ from pathlib import Path
 from app.builder import build
 from app.extract import extract
 from app.llm.planner import make_plan
+from app.llm.vision import page_images, setup
 from app.quotes import THRESHOLD, THRESHOLD_OCR, filter_plan
 from app.rules import check
 
@@ -32,10 +34,11 @@ def run_file(path: Path, out: Path) -> dict:
         return row | {"ok": True, "cached": True}
     t = time.time()
     try:
-        doc = extract(path.read_bytes(), path.name)
+        data = path.read_bytes()
+        doc = extract(data, path.name)
         (out / f"{path.name}.txt").write_text(doc.text)
         threshold = THRESHOLD_OCR if "ocr" in doc.method else THRESHOLD
-        plan, dropped = filter_plan(make_plan(doc.text), doc.text, threshold)
+        plan, dropped = filter_plan(make_plan(doc.text, page_images(data, path.name)), doc.text, threshold)
         coi = build(plan)
     except Exception as e:  # noqa: BLE001 - a benchmark records every failure
         return row | {"ok": False, "error": f"{type(e).__name__}: {e}"[:300], "s": round(time.time() - t)}
@@ -56,6 +59,8 @@ def main() -> int:
     (out / "source.txt").write_text(f"{Path(a.folder).expanduser().resolve()}\n")  # for the review page /review
     files = sorted(f for f in Path(a.folder).expanduser().iterdir() if f.is_file() and f.name not in SKIP_NAMES)
 
+    print("llm:", json.dumps(setup()), flush=True)
+
     def one(path: Path) -> dict:
         r = run_file(path, out)
         status = "OK " if r.get("ok") and not r.get("problems") else "ERR"
@@ -67,7 +72,7 @@ def main() -> int:
     with ThreadPoolExecutor(a.workers) as pool:
         rows = list(pool.map(one, files))
     summary = {"files": len(rows), "json_ok": sum(bool(r.get("ok")) for r in rows),
-               "rules_ok": sum(bool(r.get("ok")) and not r.get("problems") for r in rows)}
+               "rules_ok": sum(bool(r.get("ok")) and not r.get("problems") for r in rows), "llm": setup()}
     (out / "summary.json").write_text(json.dumps({"summary": summary, "rows": rows}, ensure_ascii=False, indent=1))
     print(json.dumps(summary, ensure_ascii=False))
     return 0

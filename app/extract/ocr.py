@@ -2,7 +2,8 @@
 vision model through Ollama. See bench/extract_report.py --ocr-bench for the numbers.
 
 Engine per call, default from env `OCR_ENGINE` (`tesseract` | `vlm`).
-VLM settings: `OCR_VLM_MODEL` (default qwen2.5vl:7b), `LLM_URL` (default http://localhost:11434).
+VLM settings: `OCR_VLM_MODEL` (unset = `LLM_MODEL`, which then must be a vision model such as
+qwen3-vl), `LLM_URL` (default http://localhost:11434).
 """
 
 import base64
@@ -16,6 +17,7 @@ import httpx
 import pytesseract
 from PIL import Image, ImageFilter, ImageOps
 
+from app.config import settings
 from app.extract import scan
 
 # Pages are OCRed in parallel, one tesseract process each; keep each one single-threaded.
@@ -108,7 +110,7 @@ def clean_ocr(text: str) -> str:
 
 def vlm_page(img: Image.Image, model: str | None = None, max_side: int = 1600) -> str:
     """Transcribe one page with a vision model through Ollama /api/chat."""
-    model = model or os.environ.get("OCR_VLM_MODEL", "qwen2.5vl:7b")
+    model = model or settings.ocr_vlm_model or settings.llm_model
     url = os.environ.get("LLM_URL", "http://localhost:11434").rstrip("/")
     g = img.convert("L")
     g.thumbnail((max_side, max_side))
@@ -118,8 +120,9 @@ def vlm_page(img: Image.Image, model: str | None = None, max_side: int = 1600) -
         "model": model,
         "stream": False,
         "think": False,
-        # num_predict caps runaway repetition (seen: endless "[ ] [ ]" on digit boxes)
-        "options": {"temperature": 0, "num_ctx": 8192, "num_predict": 3000},
+        # num_predict caps runaway repetition (seen: endless "[ ] [ ]" on digit boxes). No num_ctx:
+        # a different one reloads the model, and by default this is the planner's model.
+        "options": {"temperature": 0, "num_predict": 3000},
         "messages": [{"role": "user", "content": VLM_PROMPT, "images": [base64.b64encode(buf.getvalue()).decode()]}],
     }
     r = httpx.post(f"{url}/api/chat", json=payload, timeout=900)

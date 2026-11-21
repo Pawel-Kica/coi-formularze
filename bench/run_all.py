@@ -13,6 +13,7 @@ the F1), and per form the consistency of plans across formats vs the PDF plan (4
     uv run python -m bench.run_all --bip                 # gmina BIP black-box set
     uv run python -m bench.run_all --out bench/runs/e2e  # reuse: files already done are skipped
     uv run python -m bench.run_all --out bench/runs/e2e --rebuild  # cached plans, fresh build (no LLM)
+    LLM_VISION=1 uv run python -m bench.run_all --out bench/runs/<new>  # page images too: always a fresh --out
 """
 
 import argparse
@@ -24,6 +25,7 @@ from pathlib import Path
 from app.builder import build
 from app.extract import extract
 from app.llm.planner import make_plan
+from app.llm.vision import page_images, setup
 from app.plan import Plan
 from app.quotes import THRESHOLD, THRESHOLD_OCR, filter_plan
 from app.rules import check
@@ -83,9 +85,10 @@ def run_file(form: str, path: Path, out: Path, rebuild: bool = False) -> dict:
     else:
         t = time.time()
         try:
-            doc = extract(path.read_bytes(), path.name)
+            data = path.read_bytes()
+            doc = extract(data, path.name)
             threshold = THRESHOLD_OCR if "ocr" in doc.method else THRESHOLD
-            plan, dropped = filter_plan(make_plan(doc.text), doc.text, threshold)
+            plan, dropped = filter_plan(make_plan(doc.text, page_images(data, path.name)), doc.text, threshold)
             coi = build(plan)
         except Exception as e:  # noqa: BLE001 - a benchmark records every failure
             return row | {"ok": False, "error": f"{type(e).__name__}: {e}"[:300], "s": round(time.time() - t)}
@@ -136,6 +139,7 @@ def main() -> int:
     out = Path(a.out) / ("bip" if a.bip else "coi")
     files = bip_files() if a.bip else coi_files(set(a.forms.split(",")) if a.forms else None,
                                                 set(a.formats.split(",")) if a.formats else None)
+    print("llm:", json.dumps(setup()), flush=True)
     rows = []
     for form, path in files:
         r = run_file(form, path, out, a.rebuild)
@@ -147,7 +151,8 @@ def main() -> int:
         print(f"{status} {form:>3} {r['ext']:5} {r.get('s', 0):4}s {extra}", flush=True)
     cons = consistency(rows, out)
     summary = {"files": len(rows), "json_ok": sum(bool(r.get("ok")) for r in rows),
-               "rules_ok": sum(bool(r.get("ok")) and not r["problems"] for r in rows), "consistency": cons}
+               "rules_ok": sum(bool(r.get("ok")) and not r["problems"] for r in rows), "consistency": cons,
+               "llm": setup()}
     (out / "summary.json").write_text(json.dumps({"summary": summary, "rows": rows}, ensure_ascii=False, indent=1))
     print(json.dumps(summary, ensure_ascii=False))
     return 0

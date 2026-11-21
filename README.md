@@ -5,7 +5,7 @@ REST API, które zamienia pusty formularz papierowy (PDF, DOC, DOCX, ODS, XLSX, 
 ## Jak to działa
 
 1. **Plik → tekst**: biblioteki Pythona czytają PDF/DOC/DOCX/ODS/XLSX/XLS, skany i strony PDF z nieczytelną warstwą tekstu (fonty bez mapy Unicode) idą przez OCR (Tesseract, opcjonalnie model wizyjny).
-2. **Tekst → plan**: lokalny model zwraca krótki plan formularza (strony, sekcje, pola, zależności), każdy element z cytatem z papieru.
+2. **Tekst → plan**: lokalny model zwraca krótki plan formularza (strony, sekcje, pola, zależności), każdy element z cytatem z papieru. Opcjonalnie (`LLM_VISION=1`, model wizyjny) model widzi też obrazy stron PDF i JPG/PNG, więc rozpoznaje pola narysowane liniami, ramkami i kratkami, których w tekście nie ma.
 3. **Kontrola cytatów**: kod odrzuca elementy, których cytatu nie ma w tekście (ochrona przed zmyślaniem).
 4. **Plan → JSON COI**: kod buduje pełną konfigurację (UUID, techName, siatka, sekcje ze Standardów COI, walidatory, słowniki, warunki). Zależności to warunki JSONata `SHOW` na polach i sekcjach; warunkowe przejścia między stronami realizujemy warunkami SHOW na sekcjach, bo schemat COI nie ma warunku na stronie ani na linku flow.
 5. **Reguły**: wynik przechodzi schemat i reguły techniczne COI, zanim wróci do klienta.
@@ -71,8 +71,12 @@ Zmienne środowiskowe albo plik `.env` (wzór: `.env.example`).
 | `LLM_MODEL` | `qwen3:30b-a3b-instruct-2507-q4_K_M` | Model planujący formularz. Dla Eden AI: `deepinfra/google/gemma-4-31B-it` (zapasowo `deepinfra/Qwen/Qwen3.8-27B`); tylko modele z otwartymi wagami |
 | `LLM_TIMEOUT_S` | `1200` | Limit czasu jednego wywołania modelu (s) |
 | `EDENAI_API_KEY` | brak | Klucz API dla `LLM_BACKEND=openai` (tylko w `.env`, nigdy w repo; nie trafia do logów) |
+| `LLM_VISION` | `0` | `1` = strony PDF i obrazy JPG/PNG trafiają do modelu także jako obrazy, obok tekstu (model widzi pola narysowane liniami i ramkami, kratki, tabele). Wymaga modelu wizyjnego w `LLM_MODEL`, np. `qwen3-vl:30b-a3b-instruct`. DOC/DOCX/XLS(X)/ODS zostają tekstem |
+| `LLM_VISION_MAX_SIDE` | `1400` | Dłuższy bok obrazu strony w 1. przebiegu (struktura), px; Qwen3-VL liczy ok. 1 token na 32×32 px, strona A4 to ok. 1,4 tys. tokenów |
+| `LLM_VISION_MAX_PAGES` | `8` | Obraz dostaje tylko N pierwszych stron, reszta idzie samym tekstem (limit kontekstu 32k) |
+| `LLM_VISION_CONDITIONS_SIDE` | `1024` | Dłuższy bok obrazów w 2. przebiegu (warunki), px; `0` = 2. przebieg bez obrazów |
 | `OCR_ENGINE` | `tesseract` | `tesseract` albo `vlm` (model wizyjny w Ollamie) |
-| `OCR_VLM_MODEL` | `qwen2.5vl:7b` | Model wizyjny dla `OCR_ENGINE=vlm` |
+| `OCR_VLM_MODEL` | `LLM_MODEL` | Model wizyjny dla `OCR_ENGINE=vlm`; domyślnie ten sam co `LLM_MODEL` (musi czytać obrazy) |
 
 ## REST API
 

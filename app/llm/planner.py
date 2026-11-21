@@ -7,7 +7,12 @@ Pass 2 (dependencies): text + compact listing of the pass-1 plan -> conditions,
   with a schema whose enums only allow existing target ids, existing choice-field
   ids and each field's own options. May add synthesized Tak/Nie trigger questions.
 
-Used by the pipeline as `make_plan(text)`; the quote filter (`app.quotes`) runs after.
+With LLM_VISION=1 both passes also get page images (`app.llm.vision`) before the text, plus a
+short prompt on what to read from them (`prompts/vision*.md`). Pass 2 gets them smaller
+(LLM_VISION_CONDITIONS_SIDE): it reads layout (what is indented or boxed under which option),
+not small print. Quotes still come from the text, which the quote filter checks.
+
+Used by the pipeline as `make_plan(text, pages)`; the quote filter (`app.quotes`) runs after.
 """
 
 import json
@@ -16,9 +21,12 @@ import re
 from functools import cache
 from pathlib import Path
 
+from PIL import Image
 from pydantic import ValidationError
 
+from app.config import settings
 from app.llm.client import LLMError, chat_json
+from app.llm.vision import data_url
 from app.plan import (
     Applicant,
     Condition,
@@ -400,26 +408,45 @@ def apply_conditions(plan: Plan, answer: dict) -> Plan:
 # ---------- entry point ----------
 
 
-def make_plan(text: str, model: str | None = None) -> Plan:
-    """Paper form text -> Plan (not yet quote-filtered). Deterministic: temperature 0, fixed seed.
+def _pages_note(n: int) -> str:
+    """First line of the user message when page images precede it."""
+    return "Powyżej: obraz strony 1 formularza.\n\n" if n == 1 else f"Powyżej: obrazy stron 1-{n} formularza, po kolei.\n\n"
+
+
+def make_plan(text: str, pages: list[Image.Image] | None = None, model: str | None = None) -> Plan:
+    """Paper form text (+ page images from `app.llm.vision.page_images`, LLM_VISION=1) -> Plan,
+    not yet quote-filtered. Deterministic: temperature 0, fixed seed. Without pages the requests
+    are exactly the text-only ones.
 
     Pass 1 is retried once with a frequency penalty when its answer is cut off or unusable
     (a looping model); a failed pass 2 leaves the plan without conditions.
     """
+    pages = pages or []
     src = prepare_text(text)
     sys1 = _structure_system()
     user1 = f"Tekst formularza:\n```\n{src}\n```\n\n{TASK}"
+    img1 = [data_url(p, settings.llm_vision_max_side) for p in pages]
+    if img1:
+        sys1 += "\n" + _prompt("vision.md")
+        user1 = _pages_note(len(img1)) + user1
     try:
-        plan = draft_to_plan(chat_json(sys1, user1, STRUCTURE_SCHEMA, model=model, name="plan").data)
+        plan = draft_to_plan(chat_json(sys1, user1, STRUCTURE_SCHEMA, model=model, name="plan", images=img1).data)
     except (LLMError, ValidationError) as e:
         log.warning("pass 1 failed (%s), retrying with a frequency penalty", e)
         plan = draft_to_plan(
-            chat_json(sys1, user1, STRUCTURE_SCHEMA, model=model, name="plan", frequency_penalty=0.3).data
+            chat_json(sys1, user1, STRUCTURE_SCHEMA, model=model, name="plan", frequency_penalty=0.3,
+                      images=img1).data
         )
     sys2 = _conditions_system()
     user2 = f"Tekst formularza:\n```\n{src}\n```\n\nPlan:\n```\n{plan_listing(plan)}\n```"
+    side2 = settings.llm_vision_conditions_side
+    img2 = [data_url(p, side2) for p in pages] if side2 > 0 else []
+    if img2:
+        sys2 += "\n" + _prompt("vision_conditions.md")
+        user2 = _pages_note(len(img2)) + user2
     try:
-        r2 = chat_json(sys2, user2, conditions_schema(plan), model=model, name="conditions", max_tokens=4000)
+        r2 = chat_json(sys2, user2, conditions_schema(plan), model=model, name="conditions", max_tokens=4000,
+                       images=img2)
         return apply_conditions(plan, r2.data)
     except (LLMError, ValidationError) as e:
         log.warning("pass 2 failed (%s), plan has no conditions", e)
