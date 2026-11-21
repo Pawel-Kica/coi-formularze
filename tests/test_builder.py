@@ -227,6 +227,7 @@ def test_phone_prefix_select_before_every_phone_field():  # Słowniki doc: "Nume
     pre = contact[0]
     assert pre["type"] == "SELECT" and pre["title"] == "Numer kierunkowy" and pre["options"] == []
     assert pre["dictionaryName"] == "Numery kierunkowe" and pre["multiLevelTree"] is False
+    assert pre["defaultValue"] == ["+48"]  # Słowniki doc: "np. +48 dla Polski", shaped like Kraje ["Polska"]
     assert pre["searchEnabled"] is True and pre["validation"] == [] and pre["states"] == []
     subject = _section_of(coi, "numer_telefonu_2")
     i = [f["techName"] for f in subject].index("numer_telefonu_2")

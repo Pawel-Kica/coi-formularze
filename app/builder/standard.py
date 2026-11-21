@@ -64,12 +64,12 @@ def is_phone(f: dict) -> bool:
 
 def phone_prefix(ctx: Ctx, phone: dict) -> dict:
     """Bonus VI: SELECT "Numer kierunkowy" (COI dictionary "Numery kierunkowe"), placed right
-    before `phone` with its SHOW condition and its REQUIRED. No default: the dictionary's
-    item format is not documented, so a guessed "+48" could fail on import."""
+    before `phone` with its SHOW condition and its REQUIRED. Default "+48": the Słowniki doc's own
+    example item ("np. +48 dla Polski"), written like the Kraje default ["Polska"] (item name in a list)."""
     out = field(ctx, "SELECT", "Numer kierunkowy", ctx.tech("numer_kierunkowy"),
                 validation=[v for v in phone["validation"] if v == "REQUIRED"], extra={
                     "dictionaryName": PHONE_PREFIX_DICT, "multiLevelTree": False,
-                    "searchEnabled": True, "defaultValue": []})
+                    "searchEnabled": True, "defaultValue": ["+48"]})
     out["states"] = [dict(st) for st in phone["states"]]
     return out
 
