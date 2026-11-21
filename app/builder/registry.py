@@ -56,20 +56,35 @@ _OTHER = re.compile(
     r"|\brodzin|partner|wnuk|\brodzenstw|\bbrat|siostr|\bsyn(a|em|owi|u|ow)?\b|\bcor(k|ce)"
     r"|\bzon(a|e|y|ie)\b|\bm(az|eza|ezem|ezowi|ezu)\b|nabywc|zbywc|sprzedawc|inwestor|dluzn"
     r"|wierzyciel|pracownik|pracodawc|lokator|najemc|uzytkownik|\bw imieniu\b|\binna niz\b|nie jest wnioskodawc"
-    r"|wnucz|dziad|babc|tesci?|ziec|zieci|krewn|student|zainteresowan|kontaktow|ubezpieczon|niepelnospraw"
-    r"|cudzoziem|swiadczeniobiorc|zglasza(n|sz)|\bosob\w*\b(?! (wnioskujac|skladajac))"
+    r"|wnucz|dziad|babc|tesci?|ziec|zieci|krewn|krewie|pokrewien|stosun\w* do|\bwiez|relacj|student"
+    r"|zainteresowan|ubezpieczon|niepelnospraw|cudzoziem|swiadczeniobiorc|zglasza(n|sz)"
+    r"|\bosob(a|y|e|ie|om|ami|ach)?\b(?! (wnioskujac|skladajac))"  # the noun only: "osobowe" passes
 )
-_SECOND = re.compile(r"wspol|\bdrug(i|a|iego|iej)\b|kolejn|pozostal|\bnr\b|\d|wnioskodawcow")
-# The form changes the registration or the PESEL data itself: the register holds the old value.
-_CHANGE_FORM = re.compile(r"meldow|meldun|pobyt|zmian\w* adres|przeprowadz|pesel|sprostow|transkrypc|uzupelnien\w* akt")
+_SECOND = re.compile(r"wspol|\bdrug(i|a|iego|iej)\b|kolejn|pozostal|\d|wnioskodawcow")
+# The form changes the registration, the PESEL data or citizenship: the register holds the old value.
+_CHANGE_FORM = re.compile(
+    r"meldow|meldun|pobyt|zmian\w* adres|przeprowadz|pesel|sprostow|transkrypc|uzupelnien\w* akt|obywatel"
+)
+# A page or section about corrected or changed data: the register holds the value being fixed.
+_CHANGED = re.compile(r"bledn|prawidlow|poprawn|sprostow|zmian|aktualiz|\bnow(y|a|e|ego|ej)\b")
+_IF = re.compile(r"\b(jesli|jezeli|w przypadku|o ile)\b")  # a conditional field: the paper may want it empty
+# An address title that offers another address or a past one.
+_NOT_THIS = re.compile(r"\b(lub|albo|brak\w*|zamieszk\w*|pobytu|korespond\w*|poprzedn\w*|dotychczas\w*|byl\w*"
+                       r"|star\w*|now\w*|ostatni\w*|dawn\w*)\b|czasow")
 
 
 def _fold(*parts: str) -> str:
     return " ".join(ascii_fold(p).lower().strip() for p in parts if p)
 
 
+def _title(title: str) -> str:
+    """Folded title without its leading numbering ("1. ", "B) ")."""
+    return re.sub(r"^\s*([0-9]+|[a-z]|[ivx]+)[.)]\s+", "", _fold(title))
+
+
 def _heading(title: str) -> str:
-    return re.sub(r"(\s*(\([^)]*\)|:))+\s*$", "", _fold(title))
+    """`_title` without a trailing "(...)" or ":", for the exact allow-list match."""
+    return re.sub(r"(\s*(\([^)]*\)|:))+\s*$", "", _title(title))
 
 
 def _core(label: str) -> str:
@@ -81,6 +96,8 @@ def pesel_attribute(f: PlanField, s: Section, page_title: str, plan_title: str) 
     registry value, else None. Use `pesel_links` for a whole plan (it also drops duplicates)."""
     if s.repeating or _CHANGE_FORM.search(_fold(plan_title)):
         return None
+    if _CHANGED.search(_fold(_title(page_title), _title(s.title), s.description)):
+        return None
     label = _fold(f.label).rstrip(":").strip()
     core = _core(f.label)
     hit = _PESEL.get(core)
@@ -89,11 +106,11 @@ def pesel_attribute(f: PlanField, s: Section, page_title: str, plan_title: str) 
     if core == label and not _SELF_SECTION.fullmatch(_heading(s.title)):
         return None  # neither the label nor the section names the applicant
     rest = label.replace(core, " ")  # "imie ojca" itself must not trip the other-person check
-    if _OTHER.search(_fold(rest, f.description, s.title, s.description, page_title)):
+    if _OTHER.search(_fold(rest, f.description, s.title, s.description, page_title)) or _IF.search(_fold(f.description)):
         return None
-    if _SECOND.search(_fold(rest, s.title, page_title)):
+    if _SECOND.search(_fold(rest, _title(s.title), _title(page_title))):
         return None
-    # a section that also asks about someone else ("Imię małżonka") mixes two people
+    # a section that also asks about someone else ("Imię małżonka", "Stopień pokrewieństwa")
     others = [_fold(g.label) for g in s.fields if g is not f and _core(g.label) not in _PESEL]
     if any(_OTHER.search(o) or _SECOND.search(o) for o in others):
         return None
@@ -112,12 +129,17 @@ def pesel_links(plan: Plan, page_titles: list[str]) -> dict[int, str]:
 def address_source(s: Section, page_title: str, plan_title: str) -> dict[str, str] | None:
     """Attribute map for an address section that is exactly the applicant's permanent registered
     address ("Adres zameldowania wnioskodawcy", "Twój adres stałego zameldowania"), else None."""
-    if not s.address or s.repeating or _CHANGE_FORM.search(_fold(plan_title, page_title)):
+    if not s.address or s.repeating or _CHANGE_FORM.search(_fold(plan_title)):
         return None
     title = _heading(s.title)
     if not _SELF_ADDRESS.fullmatch(title) or not re.search(r"^twoj|wnioskodawcy$", title):
         return None
-    context = _fold(s.title, s.description, page_title, *(f.label for f in s.fields))
-    if _OTHER.search(context) or _SECOND.search(_fold(s.title, page_title)) or "czasow" in _fold(s.title):
-        return None  # the full title too: a trailing "(...)" was cut only for the allow-list match
+    # the full title too: a trailing "(...)" was cut only for the allow-list match
+    full = _title(s.title)
+    if _NOT_THIS.search(full.replace("na pobyt staly", "")) or _CHANGED.search(_fold(_title(page_title), s.description)):
+        return None
+    if _OTHER.search(_fold(full, s.description, page_title, *(f.label for f in s.fields))):
+        return None
+    if _SECOND.search(_fold(full, _title(page_title))):
+        return None
     return PERMANENT_ADDRESS

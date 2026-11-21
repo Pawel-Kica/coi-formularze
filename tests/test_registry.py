@@ -96,6 +96,26 @@ def test_mixed_sections_and_registry_changing_forms():
     assert _attr("Twoja data urodzenia", "DATEPICKER", section="Dane osoby, którą zgłaszasz") is None
 
 
+def test_realistic_applicant_section_links():  # council round 3: the textbook case must link
+    siblings = ("Imię", "Nazwisko", "Numer PESEL", "Seria i numer dowodu osobistego", "Nr telefonu",
+                "Telefon kontaktowy", "Nr domu", "Adres e-mail")
+    for section in ("Dane osobowe wnioskodawcy", "Twoje dane osobowe", "1. Dane wnioskodawcy", "B) Wnioskodawca"):
+        assert _attr("Data urodzenia", "DATEPICKER", section=section, page="Dane osobowe",
+                     siblings=siblings) == "PESEL.birthDate", section
+
+
+def test_round3_negatives():
+    for section in ("Dane do sprostowania", "Prawidłowe dane wnioskodawcy", "Dane po zmianie"):
+        assert _attr("Data urodzenia wnioskodawcy", "DATEPICKER", section=section,
+                     plan_title="Wniosek o wydanie odpisu aktu") is None, section
+    assert _attr("Data urodzenia", "DATEPICKER", page="Nowe dane") is None
+    for title in ("Wniosek o nadanie obywatelstwa polskiego", "Wniosek o potwierdzenie posiadania obywatelstwa"):
+        assert _attr("Obywatelstwo", plan_title=title) is None, title
+    for sib in ("Stopień pokrewieństwa", "Stosunek do wnioskodawcy"):
+        assert _attr("Data urodzenia", "DATEPICKER", siblings=(sib,)) is None, sib
+    assert _attr("Obywatelstwo", description="Wpisz, jeśli inne niż polskie") is None
+
+
 def _addr(title, plan_title="Wniosek o stypendium", page="Sprawa", labels=("Ulica", "Kod pocztowy")):
     fields = [PlanField(id=f"a{i}", label=lab, type="TEXT_FIELD", quote="q") for i, lab in enumerate(labels)]
     return address_source(Section(id="s1", title=title, address=True, fields=fields), page, plan_title)
@@ -119,6 +139,11 @@ def test_address_source():
     assert _addr("Twój adres zameldowania (przedstawiciela ustawowego)") is None
     for tail in ("(dotyczy współwnioskodawcy)", "(nie dotyczy pełnomocnika)", "(osoby małoletniej)"):
         assert _addr(f"Adres zameldowania wnioskodawcy {tail}") is None, tail
+    for tail in ("(lub zamieszkania)", "(a w razie jego braku adres pobytu)", "(poprzedni)"):
+        assert _addr(f"Adres zameldowania wnioskodawcy {tail}") is None, tail
+    assert _addr("Twój adres zameldowania (albo do korespondencji)") is None
+    assert _addr("2. Adres zameldowania wnioskodawcy") == PERMANENT_ADDRESS
+    assert _addr("Adres zameldowania wnioskodawcy", page="Dane osobowe") == PERMANENT_ADDRESS
     for title in ("Formularz meldunkowy", "Wniosek o przemeldowanie", "Wniosek o zmianę adresu"):
         assert _addr("Adres zameldowania wnioskodawcy", plan_title=title) is None, title
     assert _addr("Adres zamieszkania wnioskodawcy") is None  # residence is not registration (MLPZ on Dane)
