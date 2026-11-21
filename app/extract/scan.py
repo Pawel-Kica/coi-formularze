@@ -1,6 +1,6 @@
 """Image operations for scanned forms (Pillow + numpy, no OpenCV).
 
-- `split_pages`: a tall image of n stacked A4 pages -> n pages.
+- `split_pages`: a tall image of n stacked A4 pages -> n pages, overlapping at each cut.
 - `prepare`: grayscale, upscale small scans, fix 90/180/270 rotation, deskew.
 - `is_noisy` / `is_blurry`: cheap detectors; ocr.py then also tries a median filter / sharpening.
 - `find_rules`: horizontal rules: dotted fill-in leaders, underlines, table borders. They wreck
@@ -17,6 +17,7 @@ import pytesseract
 from PIL import Image
 
 A4 = 297 / 210
+OVERLAP = 0.04  # share of a page height each cut page also takes from its neighbour (~2 lines of text)
 
 
 @dataclass
@@ -29,7 +30,10 @@ class Rule:
 
 def split_pages(img: Image.Image) -> list[Image.Image]:
     """A tall image that is n A4 pages stacked (a common way to 'scan' a multi-page form into one
-    file) -> n page images, cut at the whitest row near each expected page boundary."""
+    file) -> n page images, cut at the whitest row near each expected page boundary. Each page
+    reaches OVERLAP past its cuts, so a line a cut runs through is whole on one side: pages that
+    are not quite A4 (cropped margins) shift the cuts into the text. A line read twice is fine,
+    `app.repair` keeps one of two identical fields."""
     w, h = img.size
     n = round(h / (w * A4))
     if n < 2:
@@ -42,7 +46,8 @@ def split_pages(img: Image.Image) -> list[Image.Image]:
         lo, hi = max(cuts[-1] + 1, target - int(page_h * 0.05)), min(h - 1, target + int(page_h * 0.05))
         cuts.append(max(range(lo, hi), key=lambda y: (rows[y], -abs(y - target))) if hi > lo else target)
     cuts.append(h)
-    return [img.crop((0, a, w, b)) for a, b in zip(cuts, cuts[1:])]
+    pad = int(page_h * OVERLAP)
+    return [img.crop((0, max(0, a - pad), w, min(h, b + pad))) for a, b in zip(cuts, cuts[1:])]
 
 
 def prepare(img: Image.Image, target_width: int, orient: bool, deskew: bool) -> Image.Image:

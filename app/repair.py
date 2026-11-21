@@ -8,6 +8,9 @@ what the model tends to get wrong and the paper text can settle:
   list would lose real answers);
 - the same choice question asked twice (same options, quotes on the same paper line, same wording)
   is kept once, conditions move to the kept one;
+- two identical fields (same label, type, options, hint and condition) in one section, or in two
+  sections in a row with the same title, are one field read twice (a line both pages of a cut JPG/PNG
+  hold, `app.extract.scan.split_pages`): the first stays, required if either was, conditions move to it;
 - an applicant's "Adres do korespondencji" section without a condition: when the paper says it is
   filled only if it differs ("inny niż", "różni się") a Tak/Nie question is added before it and the
   section shows on "Tak" (none is added when the model already gates it with its own question);
@@ -106,6 +109,37 @@ def _dedupe_questions(plan: Plan, text: str, notes: list[str]) -> None:
         _drop_empty(plan)
 
 
+def _same_title(a: Section, b: Section) -> bool:
+    return normalize(a.title) == normalize(b.title) and a.show_if == b.show_if
+
+
+def _field_key(f: PlanField) -> tuple:
+    return normalize(f.label), f.type, [normalize(o) for o in f.options], normalize(f.description), f.show_if
+
+
+def _dedupe_fields(plan: Plan, notes: list[str]) -> None:
+    """Identical fields the citizen could not tell apart (same section, or the same title twice in a row): keep the first."""
+    gone: dict[str, str] = {}
+    prev: Section | None = None
+    for _, s in _sections(plan):
+        here = [*(prev.fields if prev and _same_title(prev, s) else []), *s.fields]
+        for i, b in enumerate(here):
+            a = next((a for a in here[:i] if a.id not in gone and _field_key(a) == _field_key(b)), None)
+            if a is None or b.id in gone or a.id == b.id:
+                continue
+            gone[b.id] = a.id
+            a.required = a.required or b.required
+            notes.append(f"duplicate: field {b.id} '{b.label}' repeats {a.id}, dropped")
+        prev = s
+    if gone:
+        for _, s in _sections(plan):
+            s.fields = [f for f in s.fields if f.id not in gone]
+            for t in [s, *s.fields]:
+                if t.show_if and t.show_if.field in gone:
+                    t.show_if.field = gone[t.show_if.field]
+        _drop_empty(plan)
+
+
 def _asks_correspondence(f: PlanField) -> bool:
     """A choice question the model wrote about the correspondence address ("Czy adres do korespondencji jest inny…")."""
     return f.type in (FieldType.RADIO, FieldType.SELECT, FieldType.CHECKBOX) and "korespondenc" in normalize(f.label)
@@ -159,5 +193,6 @@ def repair_plan(plan: Plan, text: str) -> list[str]:
     notes: list[str] = []
     _clean_options(plan, text, notes)
     _dedupe_questions(plan, text, notes)
+    _dedupe_fields(plan, notes)
     _correspondence_address(plan, text, notes)
     return notes

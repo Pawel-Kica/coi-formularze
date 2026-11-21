@@ -140,10 +140,27 @@ def test_the_same_choice_question_twice_is_kept_once_and_conditions_follow():
     got = fields_of(out)
     assert "f7" not in got and got["f10"].show_if.field == "f8"  # the one a condition uses stays
     assert [s.id for s in out.pages[0].sections] == ["s2", "s3"]
-    # split fields that share a label and a quote are not duplicates
+    # split fields that share a label and a quote are not duplicates when their sections tell them apart
     w = [f(f"f{n}", "Szerokość", "4. Nazwa inwestycji", FieldType.NUMBER) for n in (1, 2)]
-    out, dropped = filter_plan(plan(sec("s1", [w[0]]), sec("s2", [w[1]])), PAPER)
+    out, dropped = filter_plan(plan(sec("s1", [w[0]], title="Jezdnia"), sec("s2", [w[1]], title="Chodnik")), PAPER)
     assert len(fields_of(out)) == 2 and not dropped
+
+
+def test_a_field_read_twice_at_a_page_cut_is_kept_once():
+    """A JPG of stacked pages: both pages hold the line at the cut, so the model returns its field twice."""
+    name = lambda id, req=True: f(id, "Nazwa inwestycji", "4. Nazwa inwestycji", required=req)
+    cond = Condition(field="f8", options=["Tak"], quote="Czy roboty wymagają objazdu")
+    detour = [f(id, "Czy roboty wymagają objazdu?", "5. Czy roboty wymagają objazdu: tak / nie", FieldType.RADIO, ["Tak", "Nie"])
+              for id in ("f7", "f8")]
+    length = f("f10", "Długość objazdu", "Długość objazdu", show_if=cond)
+    p = plan(sec("s1", [name("f1", False), name("f2"), detour[0]], title="Inwestycja"),
+             sec("s2", [name("f4"), detour[1], length], title="Inwestycja"),  # the cut also repeated the heading
+             sec("s3", [name("f3")], title="Inna inwestycja"))  # another section: a field of its own
+    out, dropped = filter_plan(p, PAPER)
+    got = fields_of(out)
+    assert sorted(got) == ["f1", "f10", "f3", "f8"]  # the choice question: the one the condition uses stays
+    assert got["f1"].required and got["f10"].show_if.field == "f8"
+    assert [s.id for s in out.pages[0].sections] == ["s1", "s2", "s3"]
 
 
 ADDRESS = "Adres do korespondencji\nUlica ____ Miejscowość ____\nNazwa inwestycji ____\n"
