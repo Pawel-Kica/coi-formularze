@@ -1,8 +1,9 @@
 """Paper headings of pages and sections (app/headings.py): nearest heading above a section's quotes, its page."""
 
 from app.builder import build_with_evidence
-from app.headings import _heading, add_headings, heading_page, section_headings
+from app.headings import _heading, add_headings, section_headings
 from app.plan import Page, Plan, PlanField, Section
+from app.sources import Paper
 
 # form 8 shape: one label ("Miejscowość") printed in two parts, a heading broken over lines, a section with none
 TEXT = """DEKLARACJA O WYSOKOŚCI OPŁATY
@@ -45,7 +46,9 @@ def test_heading_lines():
 
 
 def test_section_headings():
-    found = section_headings(plan(), TEXT)
+    p = plan()
+    coi, ev = build_with_evidence(p)
+    found = section_headings(Paper.from_text(TEXT), coi, ev)
     assert "s0" not in found  # only the form title above it
     assert found["s1"][0] == "C. OKOLICZNOŚCI UZASADNIAJĄCE ZŁOŻENIE DEKLARACJI"
     # "Miejscowość" after the previous section, and the heading joined across its two lines
@@ -53,19 +56,24 @@ def test_section_headings():
     assert found["s3"][0] == "F. DANE DO KONTAKTU (pola nieobowiązkowe)"
 
 
-def test_heading_page():
-    pages = ["# Tytuł\nA. CZĘŚĆ PIERWSZA\nPole", "B. CZĘŚĆ DRUGA\nPole drugie"]
-    text = "\n\n".join(pages)
-    assert heading_page("B. CZĘŚĆ DRUGA", 3, text, pages) == 2  # exact by line count (PIPELINE=images)
-    layers = ["A. CZĘŚĆ PIERWSZA x", "y B. CZĘŚĆ DRUGA"]
-    assert heading_page("B. CZĘŚĆ DRUGA", 0, "other text", layers) == 2  # searched in PDF text layers
-    assert heading_page("B. CZĘŚĆ DRUGA", 0, text, []) is None
+def test_heading_runs_on_into_next_field():
+    assert _heading("E.4 RAZEM WYSOKOŚĆ MIESIĘCZNEJ OPŁATY 69. SUMA poz. 51 lub 67 oraz 68") == "E.4 RAZEM WYSOKOŚĆ MIESIĘCZNEJ OPŁATY"
+
+
+def test_heading_page_from_the_paper_lines():
+    p = plan()
+    coi, ev = build_with_evidence(p)
+    pages = ["# Tytuł\nB.3 ADRES ZAMIESZKANIA\n1. Uwagi", "C. OKOLICZNOŚCI\n25. Okoliczności\nD. NIERUCHOMOŚĆ\n26. Miejscowość\n70. Telefon"]
+    add_headings(ev, coi, Paper.from_pages(pages))
+    tabs = {t["title"]: t for t in coi["tabs"]}
+    assert (ev[tabs["Wstęp"]["id"]]["heading"], ev[tabs["Wstęp"]["id"]]["heading_page"]) == ("B.3 ADRES ZAMIESZKANIA", 1)
+    assert (ev[tabs["Okoliczności"]["id"]]["heading"], ev[tabs["Okoliczności"]["id"]]["heading_page"]) == ("C. OKOLICZNOŚCI", 2)
 
 
 def test_add_headings_marks_sections_and_first_section_pages():
     p = plan()
     coi, ev = build_with_evidence(p)
-    add_headings(ev, coi, p, TEXT, [])
+    add_headings(ev, coi, Paper.from_text(TEXT))
     tabs = {t["title"]: t for t in coi["tabs"]}
     okol = tabs["Okoliczności"]
     first, second = (q["field"]["id"] for q in okol["questions"])

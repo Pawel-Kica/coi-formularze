@@ -138,22 +138,75 @@ def _paper_lines(text: str) -> tuple[str, list[int]]:
     return " ".join(lines), starts
 
 
+def span_lines(span: tuple[int, int], text: str) -> tuple[int, int]:
+    """(first line, last line) of a span of `_paper_lines(text)`'s joined string, counted over the non-empty lines."""
+    _, starts = _paper_lines(text)
+    a, b = span
+    return bisect_right(starts, a) - 1, bisect_right(starts, max(a, b - 1)) - 1
+
+
+def _exact_spans(q: str, joined: str) -> list[tuple[int, int]]:
+    return [(m.start(), m.end()) for m in re.finditer(rf"(?<!\w){re.escape(q)}(?!\w)", joined)]
+
+
 def quote_lines(quote: str, text: str) -> list[tuple[int, int]]:
     """Where `quote` sits on the paper: (first line, last line) of every exact occurrence, else of the
     one best fuzzy match, else []. Lines are counted over the non-empty lines of `text`."""
     q = normalize(quote)
     if len(q) < MIN_QUOTE_CHARS:
         return []
-    joined, starts = _paper_lines(text)
-
-    def span(a: int, b: int) -> tuple[int, int]:
-        return bisect_right(starts, a) - 1, bisect_right(starts, max(a, b - 1)) - 1
-
-    hits = [span(m.start(), m.end()) for m in re.finditer(rf"(?<!\w){re.escape(q)}(?!\w)", joined)]
+    joined, _ = _paper_lines(text)
+    hits = _exact_spans(q, joined)
     if hits:
-        return hits
+        return [span_lines(h, text) for h in hits]
     al = fuzz.partial_ratio_alignment(q, joined)
-    return [span(al.dest_start, al.dest_end)] if al and al.score >= THRESHOLD_OCR else []
+    return [span_lines((al.dest_start, al.dest_end), text)] if al and al.score >= THRESHOLD_OCR else []
+
+
+_NEAR = 6  # lines: how far on a line that is exactly the quote beats a longer line that only contains it
+
+
+def place_quotes(items: list[tuple[str, str | None, bool]], text: str) -> dict[str, tuple[int, int]]:
+    """Where each quote sits on the paper, read in form order: one place per key, as a span of
+    `_paper_lines(text)`'s joined string (`span_lines` turns it into lines). The one walk behind both the paper
+    headings ("Na papierze: ...", `app.headings`) and the crops of the paper ("Źródło", `app.sources`), so the two
+    never disagree.
+
+    `items` = (key, quote, moves) in form order. A label printed many times ("Miejscowość", "Numer lokalu") resolves
+    to its first occurrence after the previous quote (the cursor), else the last one before it; a line that is
+    exactly the quote, a few lines on, beats a longer line that only contains it. No exact occurrence: the best fuzzy
+    match (OCR) after the cursor, else anywhere. `moves=False` (a condition's quote) is looked up without moving the
+    cursor. Quotes not on paper, or too short to prove anything, get no key."""
+    joined, starts = _paper_lines(text)
+    out, cursor = {}, 0
+    for key, quote, moves in items:
+        q = normalize(quote or "")
+        if len(q) < MIN_QUOTE_CHARS:
+            continue
+        hits = _exact_spans(q, joined)
+        if hits:
+            ahead = [h for h in hits if h[0] >= cursor] or [max(hits)]
+            pick, first = ahead[0], span_lines(ahead[0], text)[0]
+            for h in ahead:
+                a, b = span_lines(h, text)
+                if a - first > _NEAR:
+                    break
+                if a == b and h[0] == starts[a] and h[1] == (starts[a + 1] - 1 if a + 1 < len(starts) else len(joined)):
+                    pick = h  # the whole line is the quote
+                    break
+        else:
+            pick = None
+            for base in [cursor, 0] if cursor else [0]:
+                al = fuzz.partial_ratio_alignment(q, joined[base:])
+                if al and al.score >= THRESHOLD_OCR:
+                    pick = (base + al.dest_start, base + al.dest_end)
+                    break
+            if pick is None:
+                continue
+        out[key] = pick
+        if moves:
+            cursor = max(cursor, pick[1])
+    return out
 
 
 def _fix_options(wanted: list[str], options: list[str]) -> list[str]:

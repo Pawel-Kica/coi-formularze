@@ -6,6 +6,10 @@ with whatever else the page keeps per file: status, error, the COI JSON with the
 (`result`), where each element came from (`evidence`), the COI rules problems after the last edit
 (`problems`), `checking`. Scripts add finished conversions with `add()` directly
 (`bench/history_add.py`), no server needed. Never calls a model.
+
+"Źródło" (`app.sources`) reads a record's file: `POST /{id}/sources` places the quotes of the evidence the page
+holds now (edits included) on the paper, `GET /{id}/page/{n}.png` is the page the boxes are drawn on. The paper's
+word boxes are cached per record (the file never changes), so only the first request of a scan waits for OCR.
 """
 
 import json
@@ -13,10 +17,12 @@ import sqlite3
 import time
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
+from functools import lru_cache
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Form, HTTPException, Response, UploadFile, status
 
+from app import sources
 from app.config import settings
 from app.security import current_user
 
@@ -88,6 +94,63 @@ def history_file(item_id: int) -> Response:
     if not row:
         raise _missing()
     return Response(row["file"], media_type=row["type"] or "application/octet-stream")
+
+
+def _file(item_id: int) -> tuple[str, bytes]:
+    with _db() as conn:
+        row = conn.execute("SELECT name, file FROM uploads WHERE id = ?", (item_id,)).fetchone()
+    if not row:
+        raise _missing()
+    return row["name"], row["file"]
+
+
+@lru_cache(maxsize=16)
+def _paper(db: str, item_id: int) -> sources.Paper:
+    """Cached per database and record: ids are never reused (AUTOINCREMENT), and tests swap databases."""
+    name, data = _file(item_id)
+    return sources.read_paper(data, name)
+
+
+@router.post("/{item_id}/sources")
+def paper_sources(item_id: int, body: Annotated[dict, Body()]) -> dict:
+    """Where on the paper each element came from ("Źródło" in the preview). Body: `{"coi", "evidence"}` as the page
+    holds them now. -> `{"pages": [{"aspect": height / width}], "sources": {element id: place or null}}`, a place
+    being `{page, pages, boxes}` (boxes as fractions of the page image) or `{lines, text}` for office formats,
+    see `app.sources.locate`."""
+    try:
+        paper = _paper(str(settings.history_db), item_id)
+    except HTTPException:
+        raise
+    except Exception:  # a broken file: the pane says the place is unknown, the rest of the page works
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Nie udało się odczytać pliku.")
+    coi, evidence = body.get("coi"), body.get("evidence") or {}
+    if not isinstance(evidence, dict) or (coi is not None and not isinstance(coi, dict)):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Oczekuję {coi, evidence}.")
+    try:
+        found = sources.locate(paper, coi, evidence)
+    except (KeyError, TypeError):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Pole coi nie jest JSON-em e-usługi COI.")
+    return {"pages": [{"aspect": round(a, 4)} for a in paper.aspects], "sources": found}
+
+
+@lru_cache(maxsize=32)
+def _page_png(db: str, item_id: int, n: int) -> bytes | None:
+    name, data = _file(item_id)
+    return sources.page_png(data, name, n)
+
+
+@router.get("/{item_id}/page/{n}.png")
+def page_image(item_id: int, n: int) -> Response:
+    """Page `n` (1-based) of a record's PDF or JPG/PNG as a PNG about 1600 px wide, for "Źródło"."""
+    try:
+        png = _page_png(str(settings.history_db), item_id, n)
+    except HTTPException:
+        raise
+    except Exception:
+        png = None
+    if png is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ten plik nie ma takiej strony.")
+    return Response(png, media_type="image/png", headers={"Cache-Control": "private, max-age=86400, immutable"})
 
 
 @router.post("")

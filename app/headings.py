@@ -1,14 +1,16 @@
 """Paper headings for pages and sections: which part of the paper ("C. OKOLICZNOŚCI ...", "D.1 ADRES
 NIERUCHOMOŚCI") each page and section of the e-service came from. Code only, no model.
 
-    add_headings(evidence, coi, plan, doc.text, page_texts)   # in app.pipeline, after the builder
+    add_headings(evidence, coi, paper)   # in app.pipeline after the builder; paper = app.sources.read_paper
 
-A section's anchor is the paper line of its first field quote (`app.quotes.quote_lines`, read in plan order, so a
-label printed many times, "Miejscowość", resolves to the occurrence after the previous section's anchor, a line that
-is exactly the quote preferred within a few lines). Its heading is the nearest heading line at or above the anchor: a Markdown `#` heading (PIPELINE=images), or a line numbered like a
-paper part ("C. ...", "D.1 ...", "II. ...", mostly capitals) or all in capitals (2+ words, no item number, no full
-stop). The form title and the addressee are never a heading. No such line: no heading. A page gets the heading of
-its first section, if any.
+The paper is the file's real lines (PDF text layer, OCR of a scan, an office file's text; the Markdown a vision model
+wrote only when those cannot be read), so a heading the model left out of its Markdown is still found. A section's
+anchor is the paper line of its first field quote, placed by `app.quotes.place_quotes` (the walk the "Źródło" crops
+use too, so the two never disagree: a label printed many times, "Miejscowość", resolves to the occurrence after the
+previous quote). Its heading is the nearest heading line at or above the anchor: a Markdown `#` heading, or a line
+numbered like a paper part ("C. ...", "D.1 ...", "II. ...", mostly capitals) or all in capitals (2+ words, no item
+number, no full stop). The form title and the addressee are never a heading. No such line: no heading. A page gets
+the heading of its first section, if any.
 
 Evidence entries of sections and pages gain `heading` (the line, verbatim without Markdown marks) and
 `heading_page` (1-based paper page, or None). The upload page shows them under "Pokaż cytaty z papieru i warunki"
@@ -19,14 +21,14 @@ import re
 
 from rapidfuzz import fuzz
 
-from app.plan import Plan
-from app.quotes import normalize, quote_lines
+from app.quotes import normalize, place_quotes, span_lines
+from app.sources import Paper, quote_items
 
 _MD_HEADING = re.compile(r"^\s*#{1,6}\s+")
 _NUMBERED = re.compile(r"^(?:[A-ZĄĆĘŁŃÓŚŹŻ]|[IVX]{1,4})(?:\.\d+)*\.?\s+\S")
 _NUMBERED_PREFIX = re.compile(r"^\S+\s+")
 _MAX_CHARS = 300
-_NEAR = 6  # lines
+_NEXT_ITEM = re.compile(r"\s+\d{1,3}\.\s")
 
 
 def _clean(line: str) -> str:
@@ -45,6 +47,7 @@ def _heading(line: str) -> str | None:
         return None
     if _MD_HEADING.match(line):
         return text
+    text = _NEXT_ITEM.split(text, 1)[0]  # a text layer line may run on into the next numbered field ("... 69. SUMA")
     letters = [c for c in text if c.isalpha()]
     upper = sum(c.isupper() for c in letters) / len(letters) if letters else 0
     numbered = _NUMBERED.match(text)
@@ -70,93 +73,47 @@ def _full_heading(lines: list[str], i: int) -> tuple[str, int]:
     return (text, start) if start < i and _NUMBERED.match(text) else (_heading(lines[i]) or "", i)
 
 
-def _lines(text: str) -> list[str]:
-    """The paper's lines as `quote_lines` counts them (the ones left non-empty by `normalize`)."""
-    return [line for line in text.splitlines() if normalize(line)]
-
-
-def section_headings(plan: Plan, text: str) -> dict[str, tuple[str, int]]:
-    """Plan section id -> (heading, its line index) for every section with a clear heading above it."""
-    lines = _lines(text)
-    skip = [normalize(plan.title), normalize(plan.addressee)]  # the form title and the office are no part headings
-    out, cursor = {}, 0
-    for page in plan.pages:
-        for s in page.sections:
-            anchor = None
-            for f in s.fields:  # the first field found on paper, past the previous section's anchor
-                hits = [a for a, _ in quote_lines(f.quote, text)]
-                if hits:
-                    ahead = [a for a in hits if a >= cursor] or [max(hits)]
-                    # a line that is exactly the quote, a few lines on, beats a longer line that only contains it
-                    exact = (a for a in ahead if a - ahead[0] <= _NEAR and normalize(lines[a]) == normalize(f.quote))
-                    anchor = next(exact, ahead[0])
-                    break
+def section_headings(paper: Paper, coi: dict, evidence: dict) -> dict[str, tuple[str, int]]:
+    """Plan section id (`plan_id` in the evidence, so address twins share one) -> (heading, its line index in
+    `paper.lines`) for every section from the plan with a clear heading above it. The anchor is the section's own
+    quote (an address block, whose fields code builds) or else its first field quote placed on paper."""
+    lines = [line.text for line in paper.lines]
+    places = place_quotes(quote_items(coi, evidence), paper.text)
+    first = coi["tabs"][0]["questions"][0]["field"]["repeatingSectionGrid"] if coi["tabs"] and coi["tabs"][0]["questions"] else []
+    addressee = (evidence.get(first[0]["field"]["id"]) or {}).get("quote") if first else None
+    skip = [normalize(coi.get("title") or ""), normalize(addressee or "")]  # the form title and the office are no part headings
+    out: dict[str, tuple[str, int]] = {}
+    for t in coi["tabs"]:
+        for q in t["questions"]:
+            s = q["field"]
+            key = (evidence.get(s["id"]) or {}).get("plan_id")  # sections code adds from the Standards have none
+            if not key or key in out:
+                continue
+            ids = [s["id"], *(c["field"]["id"] for c in s.get("repeatingSectionGrid") or [])]  # an address block: its own quote
+            anchor = next((span_lines(places[i], paper.text)[0] for i in ids if i in places), None)
             if anchor is None:
                 continue
-            cursor = max(cursor, anchor + 1)
             for i in range(min(anchor, len(lines) - 1), -1, -1):
                 if _heading(lines[i]):
                     h, start = _full_heading(lines, i)
                     if not any(n and fuzz.ratio(normalize(h), n) >= 85 for n in skip):
-                        out[s.id] = (h, start)
+                        out[key] = (h, start)
                     break
     return out
 
 
-def heading_page(heading: str, line: int, text: str, pages: list[str], start: int = 0) -> int | None:
-    """1-based page of a heading line. Exact by line count when `text` is the pages joined (PIPELINE=images);
-    else the first page from `start` (0-based) whose text holds the heading (text layers of a PDF)."""
-    if not pages:
-        return None
-    counts = [len(_lines(p)) for p in pages]
-    if sum(counts) == len(_lines(text)):
-        for n, c in enumerate(counts, 1):
-            if line < c:
-                return n
-            line -= c
-        return None
-    key = normalize(heading)
-    order = list(range(start, len(pages))) + list(range(start))
-    return next((i + 1 for i in order if key and key in normalize(pages[i])), None)
-
-
-def add_headings(evidence: dict, coi: dict, plan: Plan, text: str, pages: list[str]) -> None:
+def add_headings(evidence: dict, coi: dict, paper: Paper) -> None:
     """Adds `heading` and `heading_page` to the evidence of every section with a paper heading (all COI sections
     built from that plan section, address twins included) and of every page whose first section has one."""
-    found = section_headings(plan, text)
-    paper_page: dict[str, int | None] = {}
-    last = 0
-    for sid, (h, line) in found.items():
-        paper_page[sid] = heading_page(h, line, text, pages, last)
-        last = (paper_page[sid] or last + 1) - 1
+    found = section_headings(paper, coi, evidence)
     for t in coi["tabs"]:
-        first = True
-        for q in t["questions"]:
+        for k, q in enumerate(t["questions"]):
             ev = evidence.get(q["field"]["id"]) or {}
-            sid = ev.get("plan_id")
-            if sid in found:
-                ev["heading"], ev["heading_page"] = found[sid][0], paper_page[sid]
-                if first and t["id"] in evidence:
-                    evidence[t["id"]]["heading"], evidence[t["id"]]["heading_page"] = found[sid][0], paper_page[sid]
-            first = False
-
-
-def pdf_text_pages(data: bytes, filename: str) -> list[str]:
-    """Text layer of every PDF page (empty for scans), for `heading_page` in the text pipeline; [] for other files."""
-    if not filename.lower().endswith(".pdf"):
-        return []
-    import pypdfium2 as pdfium
-
-    try:
-        pdf = pdfium.PdfDocument(data)
-    except Exception:
-        return []
-    try:
-        out = []
-        for page in pdf:
-            tp = page.get_textpage()
-            out.append(tp.get_text_range())
-            tp.close()
-        return out
-    finally:
-        pdf.close()
+            key = ev.get("plan_id")
+            if key not in found:
+                continue
+            h, line = found[key]
+            page = paper.lines[line].page
+            ev["heading"], ev["heading_page"] = h, None if page is None else page + 1
+            if k == 0 and t["id"] in evidence:
+                evidence[t["id"]]["heading"], evidence[t["id"]]["heading_page"] = ev["heading"], ev["heading_page"]
