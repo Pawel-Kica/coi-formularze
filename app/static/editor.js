@@ -1,7 +1,7 @@
 "use strict";
 /* Click editor: the "Edycja" sidebar of /preview?embed=1, driven by the upload page (index.html).
    One view, no edit mode: the preview stays what it is (steps, answers, conditions) and the sidebar sits to its
-   right. "Edytuj" next to an element (preview.html's fixLink: every field, section, page heading, the title and the
+   right. The pencil next to an element's name (preview.html's fixLink: every field, section, page heading, the title and the
    dashed line of a hidden element) opens the sidebar on that element; one click collapses it to a slim strip and the
    state is remembered. Every change is checked by the server with the real COI rules (POST /api/forms/check,
    called by the parent).
@@ -86,7 +86,7 @@ function edRemoveBlock(loc) {
   const left = loc.tab.questions.reduce((n, q) => n + count(q), 0) - (loc.kind === "field" ? 1 : count(loc.tab.questions.find(q => q.field === loc.el)));
   if (left > 0) return "";
   return edFinish(loc) ? "Strona końcowa musi mieć choć jeden tekst, a to ostatni."
-    : "Na tej stronie nie zostałoby żadne pole, a taka strona nie przejdzie importu do COI. Usuń całą stronę („Edytuj” przy jej tytule) albo najpierw dodaj inne pole.";
+    : "Na tej stronie nie zostałoby żadne pole, a taka strona nie przejdzie importu do COI. Usuń całą stronę (ołówek przy jej tytule) albo najpierw dodaj inne pole.";
 }
 
 // Every element whose SHOW condition reads one of `fields`.
@@ -528,7 +528,7 @@ function edRemoveTab(tab) {
 const edProblemsOf = id => ed.problems.filter(p => p.id === id);
 
 // After every render: the selected element and the problems are marked on the form. Nothing else changes in it:
-// the preview stays a preview (the paper quotes, conditions and "Edytuj" links are drawn by preview.html).
+// the preview stays a preview (the paper quotes, conditions and pencils are drawn by preview.html).
 function edDecorate() {
   const tab = pages[pageIdx], page = $("#page");
   const head = $("#pageHeading"), title = $("#formTitle");
@@ -590,7 +590,7 @@ function edSetOpen(open, pin) {
   if (open) edPanel(); else edFlush();
 }
 
-// "Edytuj" next to an element (preview.html): the sidebar opens on it, its label ready to type in; the element stays in place.
+// The pencil next to an element's name (preview.html): the sidebar opens on it, its label ready to type in; the element stays in place.
 function edOpen(id) {
   if (!ed.on) return;
   edSetOpen(true, document.querySelector(`[data-fid="${CSS.escape(id)}"]`));
@@ -700,7 +700,7 @@ function edHelpPanel() {
   return [
     h("div", {id: "edAllWrap", hidden: true}, h("ol", {class: "ed-probs", id: "edAll", "aria-label": "Do poprawy"})),  // the banner above already says "Do poprawy: N"
     h("div", {id: "edHelp"},
-      h("p", {class: "ed-lead"}, "Kliknij „Edytuj” obok elementu formularza, aby go poprawić albo usunąć.")),
+      h("p", {class: "ed-lead"}, "Kliknij ołówek przy nazwie elementu formularza, aby go poprawić albo usunąć.")),
   ];
 }
 
@@ -806,7 +806,7 @@ function edSectionControls(loc) {
     edBtn("↑ W górę", "up", () => edMove(s.id, -1), {disabled: i <= 0, label: "Przesuń sekcję w górę"}),
     edBtn("↓ W dół", "down", () => edMove(s.id, 1), {disabled: i >= list.length - 1, label: "Przesuń sekcję w dół"}),
     // an INFO_SECTION holds no fields (the rules skip its children); a section that is one text without a heading
-    // has no "Edytuj" of its own on that text, so its panel leads there
+    // has no pencil of its own on that text, so its panel leads there
     s.type !== "INFO_SECTION" && edBtn(edFinish(loc) ? "+ Tekst" : "+ Pole", "addfield", () => edAddField(s.id, null),
       {label: edFinish(loc) ? "Dodaj tekst na końcu tej sekcji" : "Dodaj pole na końcu tej sekcji"}),
     edBtn("+ Sekcja", "addsec", () => edAddSection(loc.tab.id, s.id), {label: "Dodaj sekcję poniżej tej"}),
@@ -978,7 +978,7 @@ window.addEventListener("message", e => {
   if (d.type === "coi-redo") edRedo();
 });
 
-// The citizen's view (annotations off) has no "Edytuj" links, so the sidebar steps aside; opening it turns them on again.
+// The citizen's view (annotations off) has no pencils, so the sidebar steps aside; opening it turns them on again.
 $("#notesToggle").addEventListener("change", e => { if (ed.on && !e.target.checked) edSetOpen(false); });
 
 // Focus leaving the frame (a click on "JSON" or "Pobierz JSON" in the upload page): what was being typed goes out first.

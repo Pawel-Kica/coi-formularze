@@ -116,25 +116,26 @@ body.notes .src{display:block}
 #pageHeading~.src,.legend{margin:0 0 1rem}
 .legend{border-left-color:#1e7b34}
 .src .to-paper{background:none;border:0;padding:0;font:inherit;color:#0052a5;text-decoration:underline;cursor:pointer;text-align:left}
-/* "Edytuj" next to every element of the embedded preview (annotations on): one click opens the "Edycja" sidebar on it */
+/* a pencil right after the name of every element of the embedded preview (annotations on): one click opens the
+   "Edycja" sidebar on it; elements without a name (a text block, an info box) get it at the top right */
 .fix{display:none}
-.embed .cell{display:flow-root}
-body.embed.notes .fix{display:block;float:right;margin:.3rem 0 0 .75rem;background:none;color:#0052a5;border:1px solid transparent;border-radius:4px;padding:.05rem .45rem;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
-body.embed.notes .card>.fix{margin-top:.1rem}
-body.embed.notes .wrap>.fix{margin-top:.15rem}
-body.embed.notes #page>.fix{margin-top:.2rem}
-/* on a field it sits at the top right, on the label's line, the same place for every kind of field */
-.embed .cell{position:relative}
-body.embed.notes .cell>.fix{position:absolute;top:-.15rem;right:0;float:none;margin:0}
-body.embed.notes :is(.cell>label,.cell>.choice,.cell .group>legend,.cell>.textblock,.cell>.info){padding-right:4.2rem}
-.embed [data-bound]:hover:not(:has([data-bound]:hover))>.fix,.embed .fix:hover,.embed .fix:focus-visible{border-color:#0052a5;background:#e8f0fb}
-/* "Źródło" next to "Edytuj" (embedded, annotations on, a saved record): toggles a crop of the paper page under the
+.embed .cell{display:flow-root;position:relative}
+body.embed.notes .fix{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;width:1.6rem;height:1.6rem;margin:-.2rem 0 0 .35rem;padding:0;background:none;color:#0052a5;border:1px solid transparent;border-radius:4px;font:inherit;cursor:pointer;opacity:.55}
+body.embed.notes .fix::before{content:"";width:15px;height:15px;background:currentColor;-webkit-mask:var(--pencil) center/contain no-repeat;mask:var(--pencil) center/contain no-repeat}
+:root{--pencil:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z'/%3E%3Cpath d='m15 5 4 4'/%3E%3C/svg%3E")}
+body.embed.notes .cell>.fix{position:absolute;top:-.15rem;right:0;margin:0}
+.embed [data-bound]:hover:not(:has([data-bound]:hover)) .fix,.embed .fix:hover,.embed .fix:focus-visible{opacity:1}
+.embed .fix:hover,.embed .fix:focus-visible{border-color:#0052a5;background:#e8f0fb}
+/* "Źródło" at the top right (embedded, annotations on, a saved record): toggles a crop of the paper page under the
    element with the quote framed; a click on the crop shows the whole page in the original pane */
 .srcbtn{display:none}
 body.embed.notes .srcbtn{display:block;float:right;margin:.3rem 0 0 .25rem;background:none;color:#0052a5;border:1px solid transparent;border-radius:4px;padding:.05rem .45rem;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
 body.embed.notes .card>.srcbtn{margin-top:.1rem}
-body.embed.notes .cell>.srcbtn{position:absolute;top:-.15rem;right:4.1rem;float:none;margin:0}
-body.embed.notes .cell:has(>.srcbtn) :is(.cell>label,.cell>.choice,.cell .group>legend,.cell>.textblock,.cell>.info){padding-right:9rem}
+body.embed.notes .cell>.srcbtn{position:absolute;top:-.15rem;right:0;float:none;margin:0}
+body.embed.notes .cell:has(>.fix)>.srcbtn{right:2rem}
+body.embed.notes .cell:has(>.srcbtn) :is(.cell>label,.cell>.choice,.cell .group>legend,.cell>.textblock,.cell>.info){padding-right:5rem}
+body.embed.notes .cell:has(>.fix)>:is(.textblock,.info){padding-right:2rem}
+body.embed.notes .cell:has(>.fix):has(>.srcbtn)>:is(.textblock,.info){padding-right:7rem}
 .embed [data-bound]:hover:not(:has([data-bound]:hover))>.srcbtn,.embed .srcbtn:hover,.embed .srcbtn:focus-visible{border-color:#0052a5;background:#e8f0fb}
 body.embed.notes .srcbtn[aria-pressed=true]{background:#0052a5!important;border-color:#0052a5!important;color:#fff}
 .srcbox{display:none;margin:.5rem 0 0}
@@ -155,7 +156,6 @@ body.embed.notes .srcbox:not([hidden]){display:block}
 /* a hidden element in annotation mode: one dashed line saying what would show it */
 body.ghosts .cond-hidden:has(>.ghost){display:block!important}
 body.ghosts .cond-hidden>:not(.ghost){display:none!important}
-body.embed.notes .ghost>.fix{margin-top:0}
 body.ghosts .cond-hidden>.ghost{display:block;margin:0;padding:.45rem .75rem;border:1px dashed #8a94a6;border-radius:6px;background:#f8fafc;color:#4b5563;font-size:13px;line-height:1.4}
 body.ghosts section.card.cond-hidden{padding:0;background:none;box-shadow:none}
 @keyframes flash{from{background:#fff3b0;box-shadow:0 0 0 6px #fff3b0}to{background:transparent;box-shadow:0 0 0 6px transparent}}
@@ -202,8 +202,7 @@ body.techmode .tech{display:block}
 </div>
 
 <main class="wrap" id="app" hidden>
-  <button type="button" class="fix" id="titleFix" aria-label="Edytuj tytuł e-usługi">Edytuj</button>
-  <h1 id="formTitle"></h1>
+  <h1 id="formTitle"><button type="button" class="fix" id="titleFix" aria-label="Edytuj tytuł e-usługi" title="Edytuj"></button></h1>
   <p class="src legend" id="legend"></p>
   <nav aria-label="Kroki wniosku" id="stepNav"></nav>
   <div id="page"></div>
@@ -377,7 +376,7 @@ function labelOf(f) {
   return t;
 }
 
-// The name an element goes by next to "Edytuj", in the dashed line of a hidden element and in the editor: its
+// The name an element goes by next to its pencil, in the dashed line of a hidden element and in the editor: its
 // label; statements = their title or "Zgody"; a text without a heading = how it begins. Never a techName.
 function nameOf(f) {
   if (f.title) return labelOf(f);
@@ -713,9 +712,9 @@ function dependentsOf(f) {
   return out;
 }
 
-// "Edytuj" next to an element: opens the "Edycja" sidebar (editor.js, embedded preview only) on it, in place.
-// Every element of every page has one (the form title and the page heading too): nothing is locked.
-const fixLink = (id, name) => EMBED && h("button", {type: "button", class: "fix", "aria-label": `Edytuj: ${name}`, onclick: () => edOpen(id)}, "Edytuj");
+// The pencil right after an element's name: opens the "Edycja" sidebar (editor.js, embedded preview only) on it, in
+// place. Every element of every page has one (the form title and the page heading too): nothing is locked.
+const fixLink = (id, name) => EMBED && h("button", {type: "button", class: "fix", "aria-label": `Edytuj: ${name}`, title: "Edytuj", onclick: e => { e.preventDefault(); edOpen(id); }});
 const fixButton = f => fixLink(f.id, nameOf(f));
 
 // "Źródło": where on the paper an element came from. The upload page sends {type: "coi-sources", doc, pages, sources,
@@ -779,14 +778,14 @@ function cropOf(place, show) {
   return h("button", {type: "button", class: "crop", title: "Pokaż całą stronę w oryginale", "aria-label": `Strona ${place.page}: pokaż całą stronę`, onclick: show}, win);
 }
 
-// One dashed line that stands in for a hidden element in annotation mode (with its own "Edytuj": the condition is
+// One dashed line that stands in for a hidden element in annotation mode (with its own pencil: the condition is
 // fixed from where it is read), or null when the element is always visible. Code-made fields (the two address
 // variants) stay simply hidden.
 function ghostOf(f, kind) {
   const ct = condText(f);
   if (!ct || (kind === "field" && evidence[f.id]?.source === "code")) return null;
   const what = kind === "section" ? "Ukryta sekcja" : STATIC_TYPES.includes(f.type) ? "Ukryty tekst" : "Ukryte pole";
-  return h("p", {class: "ghost"}, fixButton(f), h("strong", {}, `${what} „${nameOf(f)}”. `), condGone(f) ? COND_GONE : `Pokaże się, gdy ${ct}.`);
+  return h("p", {class: "ghost"}, h("strong", {}, `${what} „${nameOf(f)}”`), fixButton(f), ". ", condGone(f) ? COND_GONE : `Pokaże się, gdy ${ct}.`);
 }
 
 // The one line under the heading of a standard page: code built it, and what on it (if anything) is from the paper.
@@ -809,7 +808,7 @@ function renderLegend() {
 // Polish plural: plural(3, ["pole", "pola", "pól"]) -> "pola".
 const plural = (n, [one, few, many]) => n === 1 ? one : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? few : many;
 
-// Body classes: "notes" = annotations and "Edytuj" links visible, "ghosts" = hidden elements shown as one line.
+// Body classes: "notes" = annotations and pencils visible, "ghosts" = hidden elements shown as one line.
 function applyModes() {
   const b = document.body.classList;
   b.toggle("techmode", $("#techToggle").checked);
@@ -951,7 +950,7 @@ function start(obj) {
   applyModes();
   $("#empty").hidden = true;
   $("#app").hidden = false;
-  $("#formTitle").textContent = cfg.title || "Formularz bez tytułu";
+  $("#formTitle").replaceChildren(cfg.title || "Formularz bez tytułu", $("#titleFix"));
   document.title = (cfg.title || "Formularz") + " | podgląd COI";
   go(0, false);
 }
@@ -1001,7 +1000,7 @@ function renderQuestion(tab, q) {
 function renderSection(tab, q) {
   const f = q.field, hid = uid(), hint = hintEl(f.description);
   const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
-    ghostOf(f, "section"), fixButton(f), srcButton(f), h("h3", {id: hid}, labelOf(f)), notesOf(f, "section", isStandard(tab)), srcBox(f), hint, techLines(f, q),
+    ghostOf(f, "section"), srcButton(f), h("h3", {id: hid}, labelOf(f), fixButton(f)), notesOf(f, "section", isStandard(tab)), srcBox(f), hint, techLines(f, q),
     layoutGrid(f.repeatingSectionGrid, c => renderField(c, {store: answers[tab.title][f.techName], row: null, standard: isStandard(tab),
       only: f.repeatingSectionGrid.length === 1})));
   card._entry = {field: f, row: null, controls: []};
@@ -1029,7 +1028,7 @@ function renderRepeating(tab, q) {
   }
   drawRows();
   const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
-    ghostOf(f, "section"), fixButton(f), srcButton(f), h("h3", {id: hid}, labelOf(f)), notesOf(f, "section", isStandard(tab)), srcBox(f), hint, techLines(f, q), list, addBtn);
+    ghostOf(f, "section"), srcButton(f), h("h3", {id: hid}, labelOf(f), fixButton(f)), notesOf(f, "section", isStandard(tab)), srcBox(f), hint, techLines(f, q), list, addBtn);
   card._entry = {field: f, row: null, controls: []};
   return card;
 }
@@ -1052,10 +1051,13 @@ function renderField(cell, ctx) {
   const reqAttrs = {required: req, "aria-required": req ? "true" : null, "aria-describedby": described};
   const opts = optionsOf(f);
   const val = st[tn];
+  // the pencil sits right after the field's name; a section that is just one text without a heading has one pencil,
+  // the section's (its panel leads to the text)
+  const fx = !(ctx.only && STATIC_TYPES.includes(t) && !f.title) && fixButton(f);
 
   // Radio/checkbox group in a fieldset; value is one name (radio) or a list of names (checkbox).
   const group = (type) => {
-    const fs = h("fieldset", {class: "group", "aria-describedby": described}, h("legend", {}, title + opt), hint);
+    const fs = h("fieldset", {class: "group", "aria-describedby": described}, h("legend", {}, title + opt, fx), hint);
     opts.forEach((o, k) => {
       const cid = k ? uid() : id;
       const inp = h("input", {type, id: cid, name: id, value: o, "aria-required": req && type === "radio" ? "true" : null});
@@ -1078,7 +1080,7 @@ function renderField(cell, ctx) {
         cb.checked = val === true;
         cb.addEventListener("change", () => set(cb.checked));
         entry.controls.push(cb);
-        wrap.append(hint || "", h("div", {class: "choice"}, cb, h("label", {for: id}, title + opt)));
+        wrap.append(hint || "", h("div", {class: "choice"}, cb, h("label", {for: id}, title + opt, fx)));
       }
       break;
     case "SELECT": {
@@ -1087,7 +1089,7 @@ function renderField(cell, ctx) {
       sel.value = val || "";
       sel.addEventListener("change", () => set(sel.value));
       entry.controls.push(sel);
-      wrap.append(h("label", {for: id}, title + opt), hint || "", sel, emptyDictNote(f));
+      wrap.append(h("label", {for: id}, title + opt, fx), hint || "", sel, emptyDictNote(f));
       break;
     }
     case "FILE_UPLOADER": {
@@ -1110,12 +1112,12 @@ function renderField(cell, ctx) {
       box.addEventListener("drop", e => { e.preventDefault(); e.stopPropagation(); box.classList.remove("over"); add(e.dataTransfer.files); });
       entry.controls.push(btn);
       show();
-      wrap.append(h("fieldset", {class: "group"}, h("legend", {}, title + opt), hint, box));
+      wrap.append(h("fieldset", {class: "group"}, h("legend", {}, title + opt, fx), hint, box));
       break;
     }
     case "CONSENT_SECTION": {
       const cs = consentsOf(f);
-      const fs = h("fieldset", {class: "group", "aria-describedby": described}, h("legend", {}, f.title || "Zgody"), hint);
+      const fs = h("fieldset", {class: "group", "aria-describedby": described}, h("legend", {}, f.title || "Zgody", fx), hint);
       cs.forEach((c, k) => {
         const cid = k ? uid() : id, creq = consentRequired(f, c);
         const cb = h("input", {type: "checkbox", id: cid, required: creq, "aria-required": creq ? "true" : null});
@@ -1133,13 +1135,12 @@ function renderField(cell, ctx) {
       inp.value = typeof val === "string" ? val : "";
       inp.addEventListener("input", () => set(inp.value));
       entry.controls.push(inp);
-      wrap.append(h("label", {for: id}, title + opt), hint || "", inp);
+      wrap.append(h("label", {for: id}, title + opt, fx), hint || "", inp);
     }
   }
   if (caption) wrap.append(caption);
   if (f.tooltipMessage) wrap.append(h("details", {class: "tip"}, h("summary", {}, "Pomoc"), sanitize(f.tooltipMessage)));
-  // a section that is just one text without a heading has one "Edytuj", the section's (its panel leads to the text)
-  if (!(ctx.only && STATIC_TYPES.includes(t) && !f.title)) wrap.prepend(fixButton(f) || "");
+  if (STATIC_TYPES.includes(t)) wrap.prepend(fx || "");  // a text has no name: its pencil sits at the top right
   wrap.prepend(srcButton(f) || "");
   wrap.append(h("p", {class: "err", id: errId, hidden: true}), ...notesOf(f, "field", ctx.standard), srcBox(f) || "", ...techLines(f, cell));
   // a wrong format (PESEL, kod pocztowy...) shows as soon as the field is left; an empty required field never blocks the preview
@@ -1199,8 +1200,7 @@ function renderPage() {
   const page = $("#page");
   const standard = isStandard(tab) && hasEvidence() && h("p", {class: "src"}, standardNote(tab));
   page.replaceChildren(
-    fixLink(tab.id, `strona ${tab.title}`) || "",
-    h("h2", {id: "pageHeading", tabindex: "-1"}, tab.title),
+    h("h2", {id: "pageHeading", tabindex: "-1"}, tab.title, fixLink(tab.id, `strona ${tab.title}`)),
     ...[standard, ...notesOf(tab, "tab", isStandard(tab))].filter(Boolean),
     h("div", {id: "errsum"}),
     layoutGrid(tab.questions, q => renderQuestion(tab, q)));
