@@ -61,6 +61,7 @@ def test_real_images_result_all_quotes_placed():
     assert len(places) >= 50 and all(places.values())
 
 
+@pytest.mark.slow
 @needs_data
 @pytest.mark.parametrize("n", [7, 8])
 def test_png_scan_quotes_found(n):

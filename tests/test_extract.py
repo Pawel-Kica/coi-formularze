@@ -34,7 +34,7 @@ def _form_files() -> dict[str, dict[str, Path]]:
 
 FILES = _form_files()
 CASES = [
-    (form, ext)
+    pytest.param(form, ext, marks=pytest.mark.slow) if ext in IMAGES else (form, ext)
     for form, files in FILES.items()
     for ext in files
     if ext != "pdf" and (ext not in IMAGES or form in IMAGE_FORMS)
@@ -142,6 +142,7 @@ def test_garbled_text_layer_is_not_text():
     assert not _looks_like_text(caesar)  # a cipher of letters only: too few vowels
 
 
+@pytest.mark.slow
 @needs_drive
 def test_garbled_pdf_pages_go_through_ocr():
     """Drive 01: pages 1-2 have a cipher text layer, page 3 is a scan; all three are OCRed."""
@@ -151,6 +152,7 @@ def test_garbled_pdf_pages_go_through_ocr():
     assert "Zgłoszenie pobytu stałego" in doc.text and "JÊRV" not in doc.text
 
 
+@pytest.mark.slow
 @needs_data
 def test_scanned_pdf_goes_through_ocr(pdf_texts):
     """A PDF made of page images (no text layer) is OCRed page by page."""
@@ -162,6 +164,7 @@ def test_scanned_pdf_goes_through_ocr(pdf_texts):
     assert fuzz.ratio(pdf_texts["5"], doc.text) >= 90
 
 
+@pytest.mark.slow
 @needs_data
 def test_rotated_scan(pdf_texts):
     img = Image.open(FILES["5"]["png"]).rotate(2.5, expand=True, fillcolor="white")
@@ -170,6 +173,7 @@ def test_rotated_scan(pdf_texts):
     assert fuzz.ratio(pdf_texts["5"], extract(buf.getvalue(), "skew.png").text) >= 90
 
 
+@pytest.mark.slow
 @needs_data
 def test_upside_down_scan(pdf_texts):
     img = Image.open(FILES["3"]["png"]).rotate(180)
@@ -178,6 +182,7 @@ def test_upside_down_scan(pdf_texts):
     assert fuzz.ratio(pdf_texts["3"], extract(buf.getvalue(), "flipped.png").text) >= 88
 
 
+@pytest.mark.slow
 @needs_data
 def test_scan_checkboxes_and_fill_lines():
     """Form 9 scan: drawn checkboxes come out as [ ] and dotted lines as ____, like the PDF."""
@@ -188,6 +193,7 @@ def test_scan_checkboxes_and_fill_lines():
     assert "Imię ____" in text
 
 
+@pytest.mark.slow
 def test_blank_scan_gives_empty_text_and_warning():
     buf = io.BytesIO()
     Image.new("L", (800, 1100), 255).save(buf, format="PNG")
