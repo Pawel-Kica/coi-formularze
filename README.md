@@ -7,7 +7,7 @@ REST API, które zamienia pusty formularz papierowy (PDF, DOC, DOCX, ODS, XLSX, 
 1. **Plik → tekst**: biblioteki Pythona czytają PDF/DOC/DOCX/ODS/XLSX, skany idą przez OCR (Tesseract, opcjonalnie model wizyjny).
 2. **Tekst → plan**: lokalny model zwraca krótki plan formularza (strony, sekcje, pola, zależności), każdy element z cytatem z papieru.
 3. **Kontrola cytatów**: kod odrzuca elementy, których cytatu nie ma w tekście (ochrona przed zmyślaniem).
-4. **Plan → JSON COI**: kod buduje pełną konfigurację (UUID, techName, siatka, sekcje ze Standardów COI, walidatory, słowniki, warunki).
+4. **Plan → JSON COI**: kod buduje pełną konfigurację (UUID, techName, siatka, sekcje ze Standardów COI, walidatory, słowniki, warunki). Zależności to warunki JSONata `SHOW` na polach i sekcjach; warunkowe przejścia między stronami realizujemy warunkami SHOW na sekcjach, bo schemat COI nie ma warunku na stronie ani na linku flow.
 5. **Reguły**: wynik przechodzi schemat i reguły techniczne COI, zanim wróci do klienta.
 
 Kod: `app/api.py` (REST), `app/upload.py` (walidacja pliku), `app/security.py` (JWT), `app/config.py` (konfiguracja), `app/pipeline.py` (etapy 1-5), `app/static/index.html` (strona do wgrywania).
