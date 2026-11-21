@@ -28,12 +28,12 @@ file → text (`app/extract/`) → model plan (`app/llm/planner.py`, contract `a
 - `app/dictionaries.py` + `app/llm/dictionaries.py` bonus II: new dictionary proposals next to the COI JSON, model proposes, code filters.
 - `app/static/index.html` upload page (history, batch, ZIP); `app/static/preview.html` e-service preview (bonus V). `app/text.py` shared text helpers.
 - `bench/` `run_all.py` end-to-end definition-of-done table, `score.py` scorer (plan vs gold, COI vs reference), `run_models.py` model comparison, `extract_report.py` extraction/OCR consistency, `dictionaries.py` bonus II bench, `MODELS.md` measurements and decisions; runs go to `bench/runs/` (gitignored).
-- `gold/plans/formN.json` Claude's gold plans for all 9 forms, `gold/notes/formN.md` the reasoning per form (TEXT_BLOCK: `label` = heading, `description` = text); `gold/dictionaries/` bonus II key (9 COI + BIP forms); `gold/coi/` patched COI references 1 and 5 with validation (in progress).
+- `gold/plans/formN.json` Claude's gold plans for all 9 forms, `gold/notes/formN.md` the reasoning per form (TEXT_BLOCK: `label` = heading, `description` = text); `gold/dictionaries/` bonus II key (9 COI + BIP forms); `gold/coi/formN.json` COI references 1 and 5 with hand-added validation (only `validation` differs, decisions in `gold/coi/NOTES.md`), scored by `walid=`.
 - `tests/` pytest per module. `output/` deliverable JSONs. `data/coi` symlink to `~/hacknation-2026/resources/formularze` (the 9 COI form packs, references, Standards; gitignored).
 
 ## Commands
 - Tests: `uv run pytest`
-- End to end: `uv run python -m bench.run_all [--forms 1,5] [--formats pdf] [--bip] [--out bench/runs/<name>]` (uses the local model)
+- End to end: `uv run python -m bench.run_all [--forms 1,5] [--formats pdf] [--bip] [--out bench/runs/<name>]` (uses the local model); `--rebuild` re-runs only the builder on cached plans; forms 1 and 5 print `walid=` (validator F1 vs `gold/coi/`, matched fields only) next to `ref=`
 - Score one file: `uv run python bench/score.py coi|plan <ours.json> <ref.json>`
 - Dev server: launchd agent `com.pawel.coi-api` keeps the API on http://localhost:8010 (login admin / haslo, `--reload` on `app/`), log `~/Library/Logs/coi-api.log`. Restart: `launchctl kickstart -k gui/$(id -u)/com.pawel.coi-api`. Never put `--` inside an XML comment in its plist (a heartbeat check parses it with plistlib).
 - Native run, Docker, config table, API: `README.md` (jury-facing, keep it human).
