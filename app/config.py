@@ -7,9 +7,9 @@ runtime, nothing secret has a default.
 
 import logging
 import secrets
-from typing import Self
+from typing import Literal, Self
 
-from pydantic import SecretStr, model_validator
+from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 log = logging.getLogger(__name__)
@@ -33,10 +33,14 @@ class Settings(BaseSettings):
     auth_username: str = "admin"
     auth_password: SecretStr | None = None
 
-    # Local model (Ollama) and OCR, read by the pipeline
-    llm_url: str = "http://localhost:11434"
+    # Model that plans the form (app/llm/client.py), any OpenAI-compatible chat API:
+    # "ollama" = local Ollama (its /v1 endpoint, no key), "openai" = remote API with a key.
+    llm_backend: Literal["ollama", "openai"] = "ollama"
+    llm_base_url: str = Field("http://localhost:11434/v1", validation_alias=AliasChoices("LLM_BASE_URL", "LLM_URL"))
     llm_model: str = "qwen3:30b-a3b-instruct-2507-q4_K_M"
-    llm_timeout_s: float = 900
+    llm_timeout_s: float = 1200  # one call; form 9 (16 pages) is the longest
+    edenai_api_key: SecretStr | None = None  # Bearer key for LLM_BACKEND=openai (Eden AI)
+    # OCR
     ocr_engine: str = "tesseract"  # "tesseract" or "vlm" (vision model in Ollama)
     ocr_vlm_model: str = "qwen2.5vl:7b"
 

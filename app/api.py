@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from app import pipeline
 from app.config import settings
+from app.llm.client import health as llm_health
 from app.security import authenticate, current_user, issue_token, local_login_enabled
 from app.upload import read_single_file, validate_upload
 
@@ -93,17 +94,10 @@ async def convert(request: Request, _user: Annotated[str, Depends(current_user)]
 
 @app.get("/health", tags=["ops"])
 async def health() -> dict:
-    """Liveness (always 200 while the API runs) plus whether Ollama is up and LLM_MODEL is pulled."""
-    model = settings.llm_model if ":" in settings.llm_model else f"{settings.llm_model}:latest"
-    try:
-        async with httpx.AsyncClient(timeout=2) as client:
-            response = await client.get(f"{settings.llm_url.rstrip('/')}/api/tags")
-            response.raise_for_status()
-        pulled = {m["name"] for m in response.json()["models"]}
-        llm = "ok" if model in pulled else "model_missing"
-    except httpx.HTTPError, ValueError, KeyError, TypeError:
-        llm = "unreachable"
-    return {"status": "ok", "llm": llm, "llm_model": settings.llm_model}
+    """Liveness (always 200 while the API runs) plus whether the model is usable:
+    Ollama up and LLM_MODEL pulled, or for a remote API whether its key is set."""
+    llm = await llm_health()
+    return {"status": "ok", "llm": llm, "llm_backend": settings.llm_backend, "llm_model": settings.llm_model}
 
 
 @app.get("/", include_in_schema=False)

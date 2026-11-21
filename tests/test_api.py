@@ -226,7 +226,7 @@ def test_real_samples_sniffed(extension, mime):
 
 
 def test_health_without_llm(client, monkeypatch):
-    monkeypatch.setattr(settings, "llm_url", "http://127.0.0.1:9")
+    monkeypatch.setattr(settings, "llm_base_url", "http://127.0.0.1:9/v1")
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["llm"] == "unreachable"

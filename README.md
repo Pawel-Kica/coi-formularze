@@ -23,6 +23,8 @@ uv sync
 uv run uvicorn app.api:app --port 8000
 ```
 
+Ollama powinna mieć okno kontekstu co najmniej 32k tokenów (najdłuższy formularz ma 16 stron): `OLLAMA_CONTEXT_LENGTH=32768 ollama serve` (compose ustawia to sam).
+
 Strona: http://localhost:8000, dokumentacja OpenAPI: http://localhost:8000/docs. Testy: `uv run pytest`.
 
 ## Docker
@@ -33,7 +35,7 @@ Obraz: oficjalny `python:3.14.10-alpine3.24` (wszystkie zależności mają gotow
 docker build -t coi-formularze:0.1.0 .
 docker run --rm -p 8000:8000 \
   -e JWT_SECRET="$(openssl rand -hex 32)" -e AUTH_PASSWORD=haslo \
-  -e LLM_URL=http://host.docker.internal:11434 \
+  -e LLM_BASE_URL=http://host.docker.internal:11434/v1 \
   --add-host=host.docker.internal:host-gateway \
   coi-formularze:0.1.0
 ```
@@ -62,9 +64,11 @@ Zmienne środowiskowe albo plik `.env` (wzór: `.env.example`).
 | `AUTH_USERNAME` | `admin` | Login do `/api/auth/token` |
 | `AUTH_PASSWORD` | brak | Hasło; bez niego logowanie lokalne jest wyłączone |
 | `JWT_JWKS_URL` | brak | Zewnętrzny serwer tożsamości (np. Keycloak): tokeny weryfikowane jego kluczami publicznymi, logowanie lokalne wyłączone |
-| `LLM_URL` | `http://localhost:11434` | Adres Ollamy |
+| `LLM_BACKEND` | `ollama` | `ollama` (lokalna Ollama, bez klucza) albo `openai` (dowolne API zgodne z OpenAI, np. Eden AI) |
+| `LLM_BASE_URL` | `http://localhost:11434/v1` | Adres API czatu (`/chat/completions`); dawna nazwa `LLM_URL` też działa. Dla Eden AI: `https://api.edenai.run/v3` |
 | `LLM_MODEL` | `qwen3:30b-a3b-instruct-2507-q4_K_M` | Model planujący formularz |
-| `LLM_TIMEOUT_S` | `900` | Limit czasu jednego wywołania modelu (s) |
+| `LLM_TIMEOUT_S` | `1200` | Limit czasu jednego wywołania modelu (s) |
+| `EDENAI_API_KEY` | brak | Klucz API dla `LLM_BACKEND=openai` (tylko w `.env`, nigdy w repo; nie trafia do logów) |
 | `OCR_ENGINE` | `tesseract` | `tesseract` albo `vlm` (model wizyjny w Ollamie) |
 | `OCR_VLM_MODEL` | `qwen2.5vl:7b` | Model wizyjny dla `OCR_ENGINE=vlm` |
 
@@ -74,7 +78,7 @@ Zmienne środowiskowe albo plik `.env` (wzór: `.env.example`).
 |---|---|---|
 | `POST /api/auth/token` | brak | `username` i `password` (JSON lub formularz) → `{access_token, token_type, expires_in}` |
 | `POST /api/forms/convert` | `Bearer` JWT | Jeden plik w polu `file` (multipart) → JSON COI, bez żadnej otoczki |
-| `GET /health` | brak | `{"status": "ok", "llm": "ok" \| "model_missing" \| "unreachable", "llm_model": ...}` |
+| `GET /health` | brak | `{"status": "ok", "llm": "ok" \| "model_missing" \| "unreachable" \| "no_api_key", "llm_backend": ..., "llm_model": ...}` |
 | `GET /` | brak | Strona do wgrywania plików (kilka plików przetwarza po kolei, wynik jako drzewo JSON) |
 | `GET /docs` | brak | OpenAPI / Swagger UI (przycisk „Authorize” loguje loginem i hasłem) |
 
@@ -111,4 +115,4 @@ _Do uzupełnienia: wyniki benchmarku (9 formularzy × 8 formatów), porównanie 
 
 ## Licencje
 
-Wyłącznie open source bez copyleft: zależności Pythona na licencjach MIT, BSD, Apache-2.0, PSF i MIT-CMU (Pillow); `certifi` (zależność `httpx`) ma MPL-2.0, które obejmuje tylko jego własne pliki i nie wymaga publikacji naszego kodu. Tesseract: Apache-2.0, Ollama: MIT, modele Qwen3: Apache-2.0. Model działa lokalnie, rozwiązanie nie korzysta z zewnętrznych API ani usług SaaS.
+Wyłącznie open source bez copyleft: zależności Pythona na licencjach MIT, BSD, Apache-2.0, PSF i MIT-CMU (Pillow); `certifi` (zależność `httpx`) ma MPL-2.0, które obejmuje tylko jego własne pliki i nie wymaga publikacji naszego kodu. Tesseract: Apache-2.0, Ollama: MIT, modele Qwen3: Apache-2.0. Domyślnie model działa lokalnie (Ollama) i rozwiązanie nie korzysta z zewnętrznych API ani usług SaaS. Klient modelu mówi protokołem zgodnym z OpenAI, więc ten sam kod może użyć innego modelu o otwartych wagach na serwerze GPU albo u dostawcy (`LLM_BACKEND=openai`).

@@ -1,0 +1,8 @@
+{"new_questions": [
+  {"id": "q1", "label": "Czy łódź zostaje na przystani zimą?", "place_before": "s4", "quote": "wypełnić tylko, jeśli łódź zostaje na przystani zimą"}],
+ "conditions": [
+  {"target_id": "f2", "field": "f1", "options": ["Motorowa"], "negate": false, "quote": "motorowa, moc silnika ____ kW"},
+  {"target_id": "s4", "field": "q1", "options": ["Tak"], "negate": false, "quote": "wypełnić tylko, jeśli łódź zostaje na przystani zimą"},
+  {"target_id": "s7", "field": "f18", "options": ["Inna osoba"], "negate": false, "quote": "w przypadku innej osoby niż wnioskodawca, dołączyć zgodę opiekuna"},
+  {"target_id": "f23", "field": "f22", "options": ["Tak"], "negate": false, "quote": "Członkowie Klubu Żeglarskiego są zwolnieni z opłaty."},
+  {"target_id": "f24", "field": "f22", "options": ["Tak"], "negate": false, "quote": "Członkowie Klubu Żeglarskiego są zwolnieni z opłaty."}]}
