@@ -422,9 +422,11 @@ def make_plan(text: str, pages: list[Image.Image] | None = None, model: str | No
     are exactly the text-only ones; with `images_only(pages)` they carry no extracted text.
 
     Pass 1 is retried once with a frequency penalty when its answer is cut off or unusable
-    (a looping model); a failed pass 2 leaves the plan without conditions.
+    (a looping model); a failed pass 2 leaves the plan without conditions. LLM_REASONING other than
+    "none" (thinking on) gives both passes 16k more max_tokens.
     """
     pages = pages or []
+    think = 0 if settings.llm_reasoning == "none" else 16000  # reasoning tokens count in max_tokens
     only = images_only(pages)  # LLM_VISION_TEXT=0: the page images replace the text
     form_text = f"Tekst formularza:\n```\n{prepare_text(text)}\n```\n\n"
     sys1 = _structure_system()
@@ -434,12 +436,13 @@ def make_plan(text: str, pages: list[Image.Image] | None = None, model: str | No
         sys1 += "\n" + _prompt("vision_only.md" if only else "vision.md")
         user1 = _pages_note(len(img1)) + user1
     try:
-        plan = draft_to_plan(chat_json(sys1, user1, STRUCTURE_SCHEMA, model=model, name="plan", images=img1).data)
+        plan = draft_to_plan(chat_json(sys1, user1, STRUCTURE_SCHEMA, model=model, name="plan", images=img1,
+                                       max_tokens=16000 + think).data)
     except (LLMError, ValidationError) as e:
         log.warning("pass 1 failed (%s), retrying with a frequency penalty", e)
         plan = draft_to_plan(
             chat_json(sys1, user1, STRUCTURE_SCHEMA, model=model, name="plan", frequency_penalty=0.3,
-                      images=img1).data
+                      images=img1, max_tokens=16000 + think).data
         )
     sys2 = _conditions_system()
     side2 = settings.llm_vision_conditions_side
@@ -450,7 +453,7 @@ def make_plan(text: str, pages: list[Image.Image] | None = None, model: str | No
         sys2 += "\n" + _prompt("vision_only_conditions.md" if only2 else "vision_conditions.md")
         user2 = _pages_note(len(img2)) + user2
     try:
-        r2 = chat_json(sys2, user2, conditions_schema(plan), model=model, name="conditions", max_tokens=4000,
+        r2 = chat_json(sys2, user2, conditions_schema(plan), model=model, name="conditions", max_tokens=8000 + think,
                        images=img2)
         return apply_conditions(plan, r2.data)
     except (LLMError, ValidationError) as e:

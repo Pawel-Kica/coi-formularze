@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     llm_model: str = "qwen3:30b-a3b-instruct-2507-q4_K_M"
     llm_timeout_s: float = 1200  # one call; form 9 (16 pages) is the longest
     edenai_api_key: SecretStr | None = None  # Bearer key for LLM_BACKEND=openai (Eden AI)
+    # Thinking of remote Qwen/Mistral (`reasoning_effort`) for the planner (and bonus II) calls, never for page
+    # transcription: "none" = off, low/medium/high = think first (planner max_tokens grow by 16k).
+    llm_reasoning: Literal["none", "low", "medium", "high"] = "none"
     # Vision (app/llm/vision.py): PDF pages and JPG/PNG also go to the planner as page images,
     # next to the text (needs a vision model in LLM_MODEL). Qwen3-VL spends ~1 token per 32x32 px:
     # an A4 page at 1400 px is ~1.4k tokens, 8 of them keep pass 1 of a long form near 22k of 32k.

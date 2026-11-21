@@ -119,6 +119,22 @@ def test_openai_backend_per_model_params(monkeypatch, remote, model, seed, reaso
     assert seen["body"].get("reasoning_effort") == reasoning
 
 
+def test_reasoning_setting_for_json_calls_only(monkeypatch, remote):
+    """LLM_REASONING turns thinking on for chat_json; chat_text (page transcription) keeps it off."""
+    monkeypatch.setattr(settings, "llm_reasoning", "medium")
+    seen = {}
+    fake_post(monkeypatch, seen=seen)
+    client.chat_json("sys", "user", SCHEMA, model="deepinfra/Qwen/Qwen3.5-397B-A17B")
+    assert seen["body"]["reasoning_effort"] == "medium"
+    client.chat_text("sys", "user", model="deepinfra/Qwen/Qwen3.5-397B-A17B")
+    assert seen["body"]["reasoning_effort"] == "none"
+
+
+def test_inline_reasoning_cut_off(monkeypatch, remote):
+    fake_post(monkeypatch, content='<think>plan first</think>\n{"a": {"b": "x"}}')
+    assert client.chat_json("sys", "user", SCHEMA, model="deepinfra/Qwen/Qwen3.5-397B-A17B").data == {"a": {"b": "x"}}
+
+
 def test_ollama_backend_keeps_seed_no_reasoning(monkeypatch):
     monkeypatch.setattr(settings, "llm_backend", "ollama")
     seen = {}

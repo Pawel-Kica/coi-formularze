@@ -12,8 +12,10 @@ Config (`app.config.settings`, from env or `.env`):
   Eden AI example: LLM_MODEL=deepinfra/google/gemma-4-31B-it (fallback deepinfra/Qwen/Qwen3.8-27B).
 
 Per-model request params (`model_params`): Eden routes reject or ignore some OpenAI params, so
-`seed` goes only to Ollama and Mistral, `reasoning_effort: "none"` (thinking off) only to remote
-Qwen and Mistral. Rate limits and provider hiccups (429, 5xx, timeouts) are retried.
+`seed` goes only to Ollama and Mistral, `reasoning_effort` only to remote Qwen and Mistral: LLM_REASONING
+(default "none" = thinking off) for `chat_json` (planner, dictionaries), always "none" for `chat_text` (page
+transcription is copying). The reasoning comes back outside `content` and counts in `completion_tokens`;
+a leading `<think>...</think>` in `content` is cut off. Rate limits and provider hiccups (429, 5xx, timeouts) are retried.
 
 Ollama's context window is set on the server (OLLAMA_CONTEXT_LENGTH, 32768 is enough
 for the longest form), not per request.
@@ -53,8 +55,8 @@ CALLS: list[dict] = []
 MAX_TRIES = 3  # per call, for 429 / 5xx / transport errors
 
 
-def model_params(model: str, seed: int) -> dict:
-    """Extra request params the model's route accepts (see module docstring)."""
+def model_params(model: str, seed: int, reasoning: str | None = None) -> dict:
+    """Extra request params the model's route accepts (see module docstring). `reasoning`: None = LLM_REASONING."""
     name = model.lower()
     if settings.llm_backend == "ollama":
         return {"seed": seed}
@@ -62,7 +64,7 @@ def model_params(model: str, seed: int) -> dict:
     if "mistral" in name:
         out["seed"] = seed
     if "qwen" in name or "mistral" in name:
-        out["reasoning_effort"] = "none"
+        out["reasoning_effort"] = reasoning or settings.llm_reasoning
     return out
 
 
@@ -178,7 +180,8 @@ def chat_text(
     """The same deterministic call without a schema: the answer is free text (`raw`, `data` empty),
     e.g. a page transcribed to Markdown (`app.llm.transcribe`). Raises LLMError when the answer is
     empty or cut off by `max_tokens`. `timeout` (s, unset = LLM_TIMEOUT_S) and `tries` per HTTP attempt."""
-    raw, seconds, stats = _chat(system, user, model, max_tokens, 42, 0.0, images, None, presence_penalty, timeout, tries)
+    raw, seconds, stats = _chat(system, user, model, max_tokens, 42, 0.0, images, None, presence_penalty, timeout, tries,
+                                reasoning="none")
     if not raw.strip() or stats["finish_reason"] == "length":
         raise LLMError(f"model returned no usable text (finish_reason={stats['finish_reason']})")
     return ChatResult(data={}, raw=raw, seconds=seconds, prompt_tokens=stats["prompt_tokens"] or 0,
@@ -186,7 +189,7 @@ def chat_text(
 
 
 def _chat(system, user, model, max_tokens, seed, frequency_penalty, images, response_format, presence_penalty=0.0,
-          timeout=None, tries=MAX_TRIES):
+          timeout=None, tries=MAX_TRIES, reasoning=None):
     """One chat completion -> (answer text, seconds, stats); logs the call in CALLS."""
     model = model or settings.llm_model
     content = user
@@ -198,7 +201,7 @@ def _chat(system, user, model, max_tokens, seed, frequency_penalty, images, resp
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": content}],
         "temperature": 0,
         "max_tokens": max_tokens,
-        **model_params(model, seed),
+        **model_params(model, seed, reasoning),
     }
     if response_format:
         body["response_format"] = response_format
@@ -211,11 +214,14 @@ def _chat(system, user, model, max_tokens, seed, frequency_penalty, images, resp
     seconds = time.monotonic() - t0
     choice = (out.get("choices") or [{}])[0]
     raw = (choice.get("message") or {}).get("content") or ""
+    if raw.lstrip().startswith("<think>") and "</think>" in raw:  # a route that inlines the reasoning
+        raw = raw.split("</think>", 1)[1].lstrip()
     usage = out.get("usage") or {}
     stats = {
         "prompt_tokens": usage.get("prompt_tokens"),
         "output_tokens": usage.get("completion_tokens"),
         "finish_reason": choice.get("finish_reason"),
+        "reasoning_tokens": (usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
     }
     CALLS.append({"model": model, "seconds": round(seconds, 2), **stats})
     return raw, seconds, stats
