@@ -660,7 +660,7 @@
               "id": "f55",
               "label": "Łączna miesięczna opłata (zł)",
               "type": "NUMBER",
-              "required": false,
+              "required": true,
               "description": "Opłata za lokale mieszkalne po odjęciu zwolnienia plus opłata za część nieruchomości, na której nie mieszkają mieszkańcy.",
               "quote": "69. SUMA poz. 51 lub 67 oraz 68"
             },

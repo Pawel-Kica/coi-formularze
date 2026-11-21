@@ -7,11 +7,12 @@
     "entity": true,
     "entity_ids": [],
     "pesel": false,
-    "proxy": true
+    "proxy": true,
+    "registry_extract": true
   },
   "pages": [
     {
-      "title": "Rodzaj wniosku i wnioskodawca",
+      "title": "Rodzaj wniosku i klub",
       "sections": [
         {
           "id": "s1",
@@ -29,20 +30,6 @@
               ],
               "description": "Stypendium i nagroda są dla sportowca, wyróżnienie dla trenera.",
               "quote": "Rodzaje wniosków:"
-            }
-          ]
-        },
-        {
-          "id": "s2",
-          "title": "Odpis z rejestru klubu",
-          "fields": [
-            {
-              "id": "f2",
-              "label": "Plik z aktualnym odpisem z KRS lub innego rejestru",
-              "type": "FILE_UPLOADER",
-              "required": true,
-              "description": "Odpis musi być zgodny z bieżącym stanem faktycznym i prawnym.",
-              "quote": "Do wniosku należy dołączyć aktualny odpis danych o klubie z Krajowego Rejestru Sądowego"
             }
           ]
         },

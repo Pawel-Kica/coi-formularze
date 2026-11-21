@@ -160,16 +160,19 @@ def dane_page(ctx: Ctx, plan: Plan) -> dict:
         sections.append(section(ctx, "Dane podmiotu", ctx.tech("dane_podmiotu"), ent, query=on_entity))
         sections.append(address_section(ctx, "Adres siedziby", "adres_siedziby", "_siedziba", registry=False,
                                  query=on_entity))
+        rep_title = "Odpis z KRS lub innego rejestru" if a.registry_extract else "Potwierdzenie, że jesteś reprezentantem"
         sections.append(section(
-            ctx, "Potwierdzenie, że jesteś reprezentantem", ctx.tech("potwierdzenie_ze_jestes_reprezentantem"),
+            ctx, rep_title, ctx.tech("potwierdzenie_ze_jestes_reprezentantem"),
             [_file(ctx, "Plik z odpisem danych", "plik_z_odpisem_danych")],
-            description=texts.REPRESENTATIVE_DESC, query=all_of(on_entity, role(REPRESENTATIVE))))
+            description=texts.REPRESENTATIVE_DESC,
+            query=on_entity if a.registry_extract else all_of(on_entity, role(REPRESENTATIVE))))
 
     if OTHER in who_opts:
         on_other = who(OTHER)
         sections.append(section(ctx, "Dane innej osoby", ctx.tech("dane_innej_osoby"), [
             _text(ctx, "Imię", "imie_inna_osoba", required=True),
             _text(ctx, "Nazwisko", "nazwisko_inna_osoba", required=True),
+            _text(ctx, "Numer PESEL", "numer_pesel_inna_osoba", required=True, extra_validators=["PESEL"]),
         ], query=on_other))  # fmt: skip
         sections.append(address_section(ctx, "Adres zamieszkania innej osoby",
                                  "adres_zamieszkania_osoby_ktorej_jestes_pelnomocnikiem", "_inna_osoba",

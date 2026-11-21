@@ -4,7 +4,7 @@
 - The paper's "Wnioskodawca: Prezydent Miasta Zgierza / Klub sportowy" choice is dropped: an organ does not file via a citizen e-service, so the filer is always the club and club sections are unconditional.
 - Applicant: entity only (club), proxy yes. Reprezentant/pełnomocnik + pełnomocnictwo + opłata skarbowa, club name and "Adres siedziby" map onto the Standards Dane page.
 - Dropped: proxy's "Seria i numer dowodu osobistego", phones "(opcjonalnie)" (contact page), "Data sporządzenia wniosku", "Podpis i pieczątka", "4. Klauzula informacyjna", the zarządzenie header.
-- KRS odpis is required by the paper for the club -> "Plik z aktualnym odpisem z KRS lub innego rejestru".
+- KRS odpis is required by the paper for every club filing -> `applicant.registry_extract: true` (the generated Dane page shows its odpis upload for Reprezentant and Pełnomocnik), no extra upload in `pages` (council round 2: avoid a double upload).
 - "Korespondencja z urzędem": RADIO Poczta tradycyjna / Skrzynka ePUAP / e-Doręczenia (same spelling as the label); poczta -> siedziba / inny adres, "Inny adres korespondencyjny klubu" is an `address: true` section.
 - Candidate: Imię, Nazwisko, Data urodzenia; "Adres zameldowania" is an `address: true` section with the paper's hint as its description; synthesized Tak/Nie RADIO, then "Adres do korespondencji kandydata" (`address: true`).
 - Dyscypliny: rodzaje (3) and the list (20 + Inna) are CHECKBOXes, options in sentence case; "Inna dyscyplina" text shown for "Inna". No type-to-discipline mapping on paper, so no filtering.

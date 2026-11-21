@@ -88,6 +88,7 @@ class Applicant(BaseModel):
     entity_ids: list[EntityId] = []  # identifiers the paper asks for; empty = Standards default
     pesel: bool = False  # the paper asks for the applicant's PESEL
     proxy: bool = True  # filing by a proxy (pełnomocnik) is allowed
+    registry_extract: bool = False  # the paper requires a KRS/registry extract from every entity filer
 
 
 class Statement(BaseModel):

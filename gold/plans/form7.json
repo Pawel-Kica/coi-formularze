@@ -237,7 +237,8 @@
               "required": false,
               "quote": "Adres miejsca utrzymywania psa/psów:"
             }
-          ]
+          ],
+          "address": true
         },
         {
           "id": "s4",

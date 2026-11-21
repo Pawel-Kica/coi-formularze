@@ -75,7 +75,7 @@
                 "Tak",
                 "Nie"
               ],
-              "description": "Zwolnienie z opłaty skarbowej określa art. 2, a wyłączenie art. 7 ustawy o opłacie skarbowej. Wybierz Nie, jeśli Twoja sprawa jest zwolniona z opłaty.",
+              "description": "Wybierz Nie, jeśli Twoja sprawa jest zwolniona z opłaty.",
               "quote": "Zwolnienie z opłaty skarbowej określa art. 2"
             },
             {
@@ -94,7 +94,7 @@
             },
             {
               "id": "f6",
-              "label": "Plik z potwierdzeniem przelewu",
+              "label": "Plik z potwierdzeniem zapłaty",
               "type": "FILE_UPLOADER",
               "required": true,
               "quote": "Opłatę skarbową należy wnieść w kasie lub bezgotówkowo na rachunek",

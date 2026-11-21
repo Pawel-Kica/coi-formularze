@@ -28,7 +28,7 @@
               "id": "f2",
               "label": "Nazwa drogi",
               "type": "TEXT_FIELD",
-              "required": false,
+              "required": true,
               "description": "Na przykład nazwa ulicy.",
               "quote": "nazwa drogi oraz jej nr"
             },
