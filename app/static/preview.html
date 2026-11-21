@@ -698,7 +698,7 @@ function renderRepeating(tab, q) {
 // One field cell: label, hint, control, registry caption, help, tech lines, error slot.
 function renderField(cell, ctx) {
   const f = cell.field, id = uid(), t = f.type, tn = f.techName, st = ctx.store;
-  const req = isRequired(f), opt = req ? "" : " (opcjonalnie)", title = labelOf(f);
+  const req = isRequired(f), opt = req || f.readOnly ? "" : " (opcjonalnie)", title = labelOf(f);  // read-only: user cannot fill it, so "optional" means nothing
   const wrap = h("div", {class: "cell", "data-bound": true, "data-type": t});
   const entry = wrap._entry = {field: f, row: ctx.row, store: st, controls: [], id};
   const errId = id + "-err";
