@@ -37,7 +37,9 @@ from app.builder.standard import (
     contact_page,
     dane_page,
     finish_page,
+    is_phone,
     own_filing,
+    phone_prefix,
 )
 from app.builder.texts import PHONE_HINT_TEXT
 from app.plan import Condition, FieldType, Plan, PlanField
@@ -198,6 +200,8 @@ def _plan_pages(ctx: Ctx, plan: Plan, known: dict[str, dict]) -> list[dict]:
                     sections.append(built)
                 continue
             fields = []
+            # bonus VI: a phone field gets a prefix SELECT unless the paper already asks for one
+            has_prefix = any("kierunkow" in ascii_fold(f.label).lower() for f in s.fields)
             for f in s.fields:
                 attr = links.get(id(f))
                 for i, (fed, extra_q) in enumerate(variants if attr else [(False, None)]):
@@ -207,6 +211,8 @@ def _plan_pages(ctx: Ctx, plan: Plan, known: dict[str, dict]) -> list[dict]:
                     has_cond = _query(f.show_if, locs, st, tech) is not None
                     known[built_field["id"]] = _ev("paper", f.quote, plan_id=f.id,
                                                    cond=f.show_if if has_cond else None)
+                    if not has_prefix and not fed and is_phone(built_field):
+                        fields.append(phone_prefix(ctx, built_field))  # evidence: "code"
                     fields.append(built_field)
             built = section(ctx, s.title.strip(), st, fields, description=desc,
                             query=_query(s.show_if, locs, st), repeating=s.repeating)

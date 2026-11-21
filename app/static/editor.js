@@ -35,10 +35,12 @@ const ED_CHOICE = ["RADIO", "CHECKBOX", "SELECT"];
 const ED_FORMATS = [["", "bez sprawdzania"], ["PESEL", "PESEL"], ["NIP", "NIP"], ["REGON", "REGON"], ["ZIP_CODE", "kod pocztowy"],
   ["EMAIL", "adres e-mail"], ["EPUAP", "skrytka ePUAP"], ["ADE", "adres do e-Doręczeń"], ["SERIAL_NUMBER_ID_CARD", "seria i numer dowodu"]];
 const ED_DICTS = [["", "Własne opcje (lista poniżej)"], ["Kraje", "Słownik COI: Kraje"],
-  ["TERYT_4G_DOWODOWY", "Słownik COI: TERYT (województwo, powiat, gmina, miejscowość)"]];
+  ["TERYT_4G_DOWODOWY", "Słownik COI: TERYT (województwo, powiat, gmina, miejscowość)"],
+  ["Numery kierunkowe", "Słownik COI: Numery kierunkowe (telefon)"]];
 const ED_DICT_EXTRA = {
   Kraje: {multiLevelTree: false, searchEnabled: true, defaultValue: ["Polska"]},
   TERYT_4G_DOWODOWY: {multiLevelTree: true, searchEnabled: true, defaultValue: []},
+  "Numery kierunkowe": {multiLevelTree: false, searchEnabled: true, defaultValue: []},
 };
 const ED_EMPTY_HTML = "<html><head></head><body></body></html>";
 
