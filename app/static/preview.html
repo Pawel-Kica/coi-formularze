@@ -313,7 +313,8 @@ function optionsOf(f) {
 
 // Visible label of a field (TERYT selects shown as "Województwo").
 function labelOf(f) {
-  const t = f.title || f.techName || "(bez tytułu)";
+  // no title: a placeholder, never the technical name (the clerk and the citizen do not know it)
+  const t = f.title || (f.type === "SECTION" || f.type === "REPEATING_SECTION" ? "(bez tytułu)" : "(bez etykiety)");
   if (f.dictionaryName && dictFor(f.dictionaryName) === VOIVODESHIPS && (t === f.dictionaryName || /^TERYT/i.test(t))) return "Województwo";
   return t;
 }
@@ -325,9 +326,9 @@ function nameOf(f) {
   if (f.type === "CONSENT_SECTION") return "Zgody";
   if (STATIC_TYPES.includes(f.type)) {
     const text = sanitize(f.description).textContent.replace(/\s+/g, " ").trim();
-    return !text ? "Tekst" : text.length > 40 ? text.slice(0, 39) + "…" : text;
+    return !text ? "Tekst" : text.length <= 40 ? text : text.slice(0, 38).replace(/\s+\S*$/, "") + "…";  // cut between words
   }
-  return "(bez etykiety)";
+  return labelOf(f);
 }
 
 const consentsOf = f => (f.consentSectionConfig && Array.isArray(f.consentSectionConfig.consents)) ? f.consentSectionConfig.consents : [];
@@ -585,7 +586,7 @@ function condGone(f) {
   const gone = n => Boolean(n) && typeof n === "object" && ((n.op === "path" && !refField(n.ref)) || gone(n.l) || gone(n.r) || gone(n.e));
   return (f.states || []).some(s => s.type === "SHOW" && gone(cond(s.query).ast));
 }
-const COND_GONE = "Pole, od którego to zależy, zostało usunięte.";
+const COND_GONE = "Warunek zależy od pola, którego już nie ma.";
 // All SHOW conditions of an element in plain words, "" when it is always visible.
 function condText(f) {
   return (f.states || []).filter(s => s.type === "SHOW").map(s => {
@@ -881,7 +882,7 @@ function renderQuestion(tab, q) {
 function renderSection(tab, q) {
   const f = q.field, hid = uid(), hint = hintEl(f.description);
   const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
-    ghostOf(f, "section"), fixButton(f), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q),
+    ghostOf(f, "section"), fixButton(f), h("h3", {id: hid}, labelOf(f)), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q),
     layoutGrid(f.repeatingSectionGrid, c => renderField(c, {store: answers[tab.title][f.techName], row: null, standard: isStandard(tab),
       only: f.repeatingSectionGrid.length === 1})));
   card._entry = {field: f, row: null, controls: []};
@@ -909,7 +910,7 @@ function renderRepeating(tab, q) {
   }
   drawRows();
   const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
-    ghostOf(f, "section"), fixButton(f), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q), list, addBtn);
+    ghostOf(f, "section"), fixButton(f), h("h3", {id: hid}, labelOf(f)), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q), list, addBtn);
   card._entry = {field: f, row: null, controls: []};
   return card;
 }

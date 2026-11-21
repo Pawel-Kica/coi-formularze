@@ -370,7 +370,7 @@ function edRemove(id) {
 // At most 60 characters, cut between words.
 const edShort = text => (text.length <= 60 ? text : text.slice(0, 58).replace(/\s+\S*$/, "") + "…");
 // The one name of an element, for the panel heading and the notes about it (preview.html's nameOf: never a techName).
-const edName = loc => (loc.kind === "title" ? cfg.title : loc.kind === "tab" ? loc.tab.title : nameOf(loc.el)) || "(bez tytułu)";
+const edName = loc => (loc.kind === "title" ? cfg.title || "(bez tytułu)" : loc.kind === "tab" ? loc.tab.title : nameOf(loc.el));
 // Brings an element into view, on its own step.
 function edShow(id, block = "nearest") {
   const at = edFind(id);
@@ -660,10 +660,7 @@ function edHelpPanel() {
   return [
     h("div", {id: "edAllWrap", hidden: true}, h("ol", {class: "ed-probs", id: "edAll", "aria-label": "Do poprawy"})),  // the banner above already says "Do poprawy: N"
     h("div", {id: "edHelp"},
-      h("p", {class: "ed-lead"}, "Kliknij „Edytuj” obok elementu formularza, aby go poprawić albo usunąć."),
-      h("ul", {class: "ed-tips"},
-        h("li", {}, "Pod każdym polem widać cytat z papieru, z którego powstało."),
-        h("li", {}, "Każdą zmianę sprawdzamy regułami COI. Problemy są zaznaczone na czerwono."))),
+      h("p", {class: "ed-lead"}, "Kliknij „Edytuj” obok elementu formularza, aby go poprawić albo usunąć.")),
   ];
 }
 
@@ -752,7 +749,7 @@ function edTabControls(loc) {
     if (msg.textContent) { el.value = tab.title; return; }
     if (v !== tab.title) edChange(() => edRenameTab(tab, v));
   });
-  return [edRow("Tytuł strony", inp, "Zapisuje się po Enter."), msg,
+  return [edRow("Tytuł strony", inp), msg,
     h("div", {class: "ed-actions"}, edBtn("+ Dodaj sekcję na końcu strony", "addsec", () => edAddSection(tab.id, null)))];
 }
 
@@ -889,7 +886,10 @@ function edConditionControls(loc) {
 function edStart(doc, key) {
   ed.on = Boolean(cfg) && !$("#app").hidden;  // a JSON that did not load: preview shows the error, nothing to edit
   document.body.classList.toggle("ed-on", ed.on);
-  if (!ed.on) return;
+  if (!ed.on) {  // no sidebar here: the parent gives the original its room back (it remembered "open" from the last file)
+    parent.postMessage({type: "coi-sidebar", open: false, doc}, location.origin);
+    return;
+  }
   if (key === undefined || key !== ed.key) Object.assign(ed, {undo: [], redo: [], sel: null});
   Object.assign(ed, {failed: false, doc, key, version: 0, checked: -1, problems: [], pending: null, note: ""});
   if (ed.sel && !edFind(ed.sel)) ed.sel = null;
@@ -971,7 +971,6 @@ body:not(.sidebar) #edPanel>:not(#edStrip),body.sidebar #edStrip{display:none}
 .ed-status.wait{background:#f3f4f6;color:#4b5563}
 #edBody{padding:1rem}
 .ed-lead{font-weight:600;margin:0 0 .5rem}
-.ed-tips{margin:0 0 1rem;padding-left:1.1rem;color:#4b5563;font-size:14px}
 .ed-kind{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#4b5563;margin:0}
 .ed-title{font-size:1.1rem;margin:.1rem 0 .75rem;word-break:break-word}
 .ed-row{margin:0 0 .9rem}
@@ -1003,7 +1002,8 @@ body:not(.sidebar) #edPanel>:not(#edStrip),body.sidebar #edStrip{display:none}
 .ed-consent-row{display:flex;justify-content:space-between;align-items:center;margin-top:.3rem}
 .ed-cond-box{border-top:1px solid #e3e7ec;padding-top:.8rem}
 .ed-cond-line{display:grid;grid-template-columns:1fr;gap:.2rem;margin-top:.5rem;font-size:14px}
-.ed-actions{display:flex;flex-wrap:wrap;gap:.4rem;border-top:1px solid #e3e7ec;padding-top:.9rem;margin-top:.4rem}
+.ed-actions{display:flex;flex-wrap:wrap;gap:.3rem;border-top:1px solid #e3e7ec;padding-top:.9rem;margin-top:.4rem}
+.ed-actions .ed-btn{padding:.3rem .45rem}
 [data-fid]{scroll-margin-top:64px}
 .ed-bad{outline:2px solid #b3261e;outline-offset:4px;border-radius:6px}
 .ed-sel{outline:3px solid #0052a5;outline-offset:4px;border-radius:6px}

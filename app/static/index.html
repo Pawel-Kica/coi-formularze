@@ -83,7 +83,7 @@
      the width the form needs (more while the sidebar is open: .wide); the original takes the rest and gives way
      first: narrower, then a strip (.no-original: collapsed by hand, or by layoutPanes when there is no room left). */
   .panes { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(460px, 1fr); gap: 12px; }
-  .panes.wide { grid-template-columns: minmax(0, 1fr) minmax(740px, 1.4fr); }
+  .panes.wide { grid-template-columns: minmax(0, 1fr) minmax(820px, 1.4fr); }
   .panes.no-original { grid-template-columns: 40px minmax(0, 1fr); }
   .panes.no-original #original-pane > :not(.strip), .panes:not(.no-original) .strip { display: none; }
   .strip { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 12px 0;
@@ -710,7 +710,7 @@ function showView() {
 const ORIGINAL_MIN = 400, STACKED = 1000;
 function originalRoom() {
   const wide = state.sidebar && state.selected?.status === "done";
-  return { wide, tight: wide && $("#panes").clientWidth - 12 - 740 < ORIGINAL_MIN };  // tight: no room for both
+  return { wide, tight: wide && $("#panes").clientWidth - 12 - 820 < ORIGINAL_MIN };  // tight: no room for both
 }
 function layoutPanes() {
   const panes = $("#panes");
@@ -718,7 +718,7 @@ function layoutPanes() {
   const { wide, tight } = originalRoom(), stacked = innerWidth <= STACKED;
   panes.classList.toggle("wide", wide);
   panes.classList.toggle("no-original", !stacked && (state.originalHidden || tight));
-  $("#original-strip").title = tight ? "Rozwiń oryginał. Panel edycji się zwinie, bo oba się nie mieszczą." : "Rozwiń oryginał";
+  $("#original-strip").title = tight && state.view === "preview" ? "Rozwiń oryginał. Panel edycji się zwinie, bo oba się nie mieszczą." : "Rozwiń oryginał";
 }
 new ResizeObserver(layoutPanes).observe($("#panes"));
 $("#original-collapse").addEventListener("click", () => {
