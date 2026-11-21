@@ -191,17 +191,24 @@ def chat_json(
 
 
 async def health() -> str:
-    """"ok" | "model_missing" | "unreachable" for Ollama (lists its models, 2 s timeout);
-    "ok" | "no_api_key" for a remote API (not called: health checks must not cost money)."""
+    """"ok" | "model_missing" | "busy" | "unreachable" for Ollama (lists its models, 2 s timeout, one retry);
+    "ok" | "no_api_key" for a remote API (not called: health checks must not cost money).
+    "busy" = Ollama is up but its answer failed or came late: while it generates, /v1/models
+    now and then returns 500, which is not "unreachable". Only a refused connection is."""
     if settings.llm_backend != "ollama":
         key = settings.edenai_api_key
         return "ok" if key is not None and key.get_secret_value() else "no_api_key"
     want = settings.llm_model if ":" in settings.llm_model else f"{settings.llm_model}:latest"
-    try:
-        async with httpx.AsyncClient(timeout=2) as client:
-            r = await client.get(f"{base_url()}/models")
-            r.raise_for_status()
-        have = {m["id"] for m in r.json()["data"]}
-        return "ok" if want in have else "model_missing"
-    except (httpx.HTTPError, ValueError, KeyError, TypeError):
-        return "unreachable"
+    status = "unreachable"
+    async with httpx.AsyncClient(timeout=2) as client:
+        for _ in range(2):
+            try:
+                r = await client.get(f"{base_url()}/models")
+                r.raise_for_status()
+                have = {m["id"] for m in r.json()["data"]}
+                return "ok" if want in have else "model_missing"
+            except httpx.ConnectError:
+                return "unreachable"
+            except (httpx.HTTPError, ValueError, KeyError, TypeError):
+                status = "busy"
+    return status

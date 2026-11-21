@@ -151,3 +151,22 @@ def test_bad_request_is_not_retried(monkeypatch, remote):
     with pytest.raises(httpx.HTTPStatusError):
         client.chat_json("sys", "user", SCHEMA)
     assert len(calls) == 1
+
+
+def test_health_ollama_busy_is_not_unreachable(monkeypatch):
+    """Ollama answers 500 to /v1/models now and then while it generates: one retry, then "busy"."""
+    import asyncio
+
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.path)
+        return httpx.Response(500) if len(calls) == 1 else httpx.Response(200, json={"data": [{"id": settings.llm_model}]})
+
+    real = httpx.AsyncClient
+    monkeypatch.setattr(settings, "llm_backend", "ollama")
+    monkeypatch.setattr(client.httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    assert asyncio.run(client.health()) == "ok" and len(calls) == 2  # retried
+    calls.clear()
+    monkeypatch.setattr(client.httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(lambda r: httpx.Response(500)), **kw))
+    assert asyncio.run(client.health()) == "busy"

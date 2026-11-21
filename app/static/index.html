@@ -887,7 +887,7 @@ $("#copy").addEventListener("click", async () => {
 // The pill names the model in short ("qwen3:30b-a3b-instruct-2507-q4_K_M" -> "qwen3 30B"); the full id is in its title.
 function checkModel() {
   fetch("/health").then((r) => r.json()).then((health) => {
-    const text = { ok: "gotowy", model_missing: "brak modelu", unreachable: "niedostępny" }[health.llm] ?? health.llm;
+    const text = { ok: "gotowy", busy: "zajęty", model_missing: "brak modelu", unreachable: "niedostępny" }[health.llm] ?? health.llm;
     const [name, tag = ""] = String(health.llm_model || "").split("/").pop().split(":");
     const size = tag.split("-")[0].replace(/b$/i, "B");
     const model = [name, size].filter(Boolean).join(" ");

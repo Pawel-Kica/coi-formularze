@@ -91,7 +91,7 @@ Kolumna „Autoryzacja” dotyczy `AUTH_ENABLED=1`; przy domyślnym `0` wszystko
 | `POST /api/forms/convert` | `Bearer` JWT | Jeden plik w polu `file` (multipart) → JSON COI, bez żadnej otoczki. Z `?evidence=1` → `{"coi": ..., "evidence": {id elementu: {"source": "paper" \| "model" \| "code", "quote": cytat z papieru, "page": ...}}}` (tego używa strona: cytaty w podglądzie i w edytorze) |
 | `POST /api/forms/text` | `Bearer` JWT | Jeden plik w polu `file` (multipart) → `{"text": tekst odczytany z pliku, "method": sposób odczytu}`, bez modelu. Strona pokazuje go jako oryginał dla formatów, których przeglądarka nie wyświetla (DOC, DOCX, ODS, XLSX, XLS) |
 | `POST /api/forms/check` | `Bearer` JWT | JSON COI (np. po poprawkach urzędnika) → `{"problems": [{"id": id elementu lub null, "message": opis po polsku, "detail": reguła}]}`; pusta lista = gotowe do importu, te same reguły co przy konwersji |
-| `GET /health` | brak | `{"status": "ok", "llm": "ok" \| "model_missing" \| "unreachable" \| "no_api_key", "llm_backend": ..., "llm_model": ...}` |
+| `GET /health` | brak | `{"status": "ok", "llm": "ok" \| "model_missing" \| "busy" \| "unreachable" \| "no_api_key", "llm_backend": ..., "llm_model": ...}` |
 | `GET /` | brak | Strona do wgrywania plików (kilka plików przetwarza po kolei): oryginał obok e-usługi w widokach „Podgląd” (cytat z papieru pod każdym polem), „Edytuj”, „JSON” i „Słowniki”. „Edytuj” obok pola otwiera edytor na tym polu: urzędnik poprawia je w panelu, a każdą zmianę sprawdzają reguły COI (z problemami nie pobierze JSON-a) |
 | `GET /docs` | brak | OpenAPI / Swagger UI (przycisk „Authorize” loguje loginem i hasłem) |
 
