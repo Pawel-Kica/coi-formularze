@@ -25,6 +25,8 @@
   .bar { padding: 10px 16px; display: flex; gap: 16px; align-items: center; }
   .bar h1 { font-size: 1.15rem; margin: 0; flex: 1; }
   .bar small { display: block; font-weight: 400; opacity: .85; }
+  .bar a.nav { color: #fff; font-weight: 600; text-decoration: none; padding: 4px 10px; border-radius: 4px; }
+  .bar a.nav:hover { background: rgba(255,255,255,.15); }
   .pill { font-size: .85rem; padding: 2px 10px; border-radius: 999px; background: rgba(255,255,255,.15); }
   main { flex: 1; min-height: 0; padding: 12px 16px 16px; display: grid; gap: 12px;
          grid-template-columns: clamp(220px, 20vw, 300px) minmax(0, 1fr); } /* the history column is always there */
@@ -144,6 +146,7 @@
 <header>
   <div class="bar">
     <h1>Cyfryzacja formularzy<small>Pusty formularz papierowy → konfiguracja e-usługi COI (JSON)</small></h1>
+    <a href="/slowniki" class="nav">Słowniki</a>
     <span id="llm" class="pill">Model AI: sprawdzam…</span>
     <button id="logout" type="button" hidden>Wyloguj</button>
   </div>
@@ -243,6 +246,11 @@
               #dicts-list p { margin: 4px 0 0; font-size: .85rem; }
               #dicts code { font-size: .8rem; }
               #dicts details { margin-top: 8px; font-size: .85rem; }
+              #dicts .dict-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+              #dicts .dict-actions select { font: inherit; font-size: .9rem; padding: 3px 6px; border: 1px solid #8a94a0; border-radius: 4px; max-width: 100%; }
+              #dicts .dict-done { margin: 8px 0 0; padding: 6px 8px; border-radius: 4px; background: #e9f6ec; color: var(--ok); font-size: .9rem; }
+              #dicts .dict-done.warn { background: #fff3e0; color: var(--warn); }
+              #dicts .dict-done a { color: var(--navy); }
             </style>
             <div class="dicts-head">
               <h3 id="dicts-title">Proponowane słowniki</h3>
@@ -1063,7 +1071,7 @@ function renderDicts(item) {
     field.append(el("strong", "", "Pole: "), document.createTextNode(`${p.field.label} `), el("span", "muted", `(${p.field.types.join(" / ")})`));
     const structure = el("p", "muted");
     structure.append("Struktura: ", el("code", "", p.structure.map((c) => c.name).join(" + ")), ` · kod słownika: `, el("code", "", p.code));
-    li.append(head, field, el("p", "", `Wartości: ${values}`), el("p", "muted", p.reason), structure, download);
+    li.append(head, field, el("p", "", `Wartości: ${values}`), el("p", "muted", p.reason), structure, dictActions(item, p, download));
     return li;
   }));
   const box = $("#dicts-dropped");
@@ -1097,6 +1105,118 @@ $("#dicts-download").addEventListener("click", () => saveDicts(state.selected, s
     showView();
     if (item) renderNote(item);
   };
+}
+
+// "Dodaj" (dictionary catalog, app/catalog.py): a proposal goes into the catalog, as a new dictionary (default) or
+// into one already there (values merged without duplicates), and its field in THIS form reads that dictionary at once:
+// the editor in the preview frame makes the change ({type: "coi-bind-dict"}), so it is undoable, saved in history and
+// checked with the COI rules like every edit. The JSON gets only `dictionaryName` = the dictionary's code. The card then
+// says where it went (p.added = {code, name, id, label}, kept with the proposals) while the field still reads it.
+state.catalog = [];  // our dictionaries (GET /api/dictionaries without the COI ones), for the "Dodaj do" list
+const api = async (url, method = "GET", body) => {
+  const response = await fetch(url, { method, headers: { Authorization: `Bearer ${state.token}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+    body: body && JSON.stringify(body) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(detail(data, response));
+  return data;
+};
+async function loadCatalogList() {
+  try {
+    const ours = (await api("/api/dictionaries")).filter((d) => !d.builtin);
+    const changed = JSON.stringify(ours.map((d) => [d.code, d.name])) !== JSON.stringify(state.catalog.map((d) => [d.code, d.name]));
+    state.catalog = ours;
+    if (changed && state.selected?.dicts) renderDicts(state.selected);
+  } catch { /* the list just offers "Nowy słownik" */ }
+}
+addEventListener("focus", loadCatalogList);
+addEventListener("storage", (event) => { if (event.key === "coi-catalog") loadCatalogList(); });  // the "Słowniki" page saved a change
+$("#dicts-tab").addEventListener("click", () => state.selected && renderDicts(state.selected));  // an undo in the preview unbinds the field
+
+function fieldById(coi, id) {
+  for (const tab of coi?.tabs || []) for (const q of tab.questions || []) {
+    if (q.field.id === id) return q.field;
+    for (const c of q.field.repeatingSectionGrid || []) if (c.field.id === id) return c.field;
+  }
+  return null;
+}
+
+function dictActions(item, p, download) {
+  const box = el("div");
+  const bound = p.added && p.added.id && fieldById(item.result, p.added.id)?.dictionaryName === p.added.code;
+  const catalogLink = (code) => { const a = el("a", "", "katalogu"); a.href = `/slowniki?kod=${encodeURIComponent(code)}`; return a; };
+  if (bound) {
+    const done = el("p", "dict-done");
+    done.append(`Dodano do słownika „${p.added.name}”, podpięte do pola „${p.added.label}”. Wartości są w `, catalogLink(p.added.code), ".");
+    const look = el("button", "small primary", "Zobacz w podglądzie");
+    look.type = "button";
+    look.addEventListener("click", () => {
+      state.view = "preview";
+      showView();
+      updateActions();
+      setTimeout(() => $("#preview-frame").contentWindow.postMessage({ type: "coi-show", id: p.added.id }, location.origin), 60);
+    });
+    const actions = el("div", "dict-actions");
+    actions.append(look, download);
+    box.append(done, actions);
+    return box;
+  }
+  if (p.added && !p.added.id) {  // in the catalog, but no field of this form matched the proposal
+    const note = el("p", "dict-done warn");
+    note.append(`Dodano do słownika „${p.added.name}” w `, catalogLink(p.added.code), ". Pola nie znalazłem: podepnij je w edycji („Skąd lista”).");
+    box.append(note);
+  }
+  const target = el("select");
+  target.setAttribute("aria-label", `Dokąd dodać: ${p.name}`);
+  target.append(new Option("Nowy słownik", ""), ...state.catalog.map((d) => new Option(`Do: ${d.name}`, d.code)));
+  if (state.catalog.some((d) => d.code === p.code)) target.value = p.code;  // the same dictionary again: merge, no "_2" twin
+  const add = el("button", "small primary", "Dodaj");
+  add.type = "button";
+  add.title = "Dodaj do katalogu słowników i podepnij pole w tym formularzu";
+  add.addEventListener("click", () => addDict(item, p, target.value, add));
+  const actions = el("div", "dict-actions");
+  actions.append(target, add, download);
+  box.append(actions);
+  return box;
+}
+
+let bindReq = 0;
+const bindWaits = new Map();
+addEventListener("message", (event) => {
+  if (event.origin !== location.origin || event.data?.type !== "coi-bound") return;
+  bindWaits.get(event.data.req)?.(event.data);
+});
+
+async function addDict(item, p, code, button) {
+  button.disabled = true;
+  const source = { file: item.file.name, field: p.field.label };
+  let dict;
+  try {
+    dict = code ? await api(`/api/dictionaries/${encodeURIComponent(code)}/items`, "POST", { items: p.items, source })
+      : await api("/api/dictionaries", "POST", { name: p.name, code: p.code, source, items: p.items });
+  } catch (error) {
+    button.disabled = false;
+    $("#dicts-status").className = "error";
+    return ($("#dicts-status").textContent = `Nie udało się dodać słownika: ${error.message}`);
+  }
+  let bound = { id: null, label: "" };
+  if (state.docItem === item && item === state.selected) {
+    const req = ++bindReq;
+    bound = await new Promise((resolve) => {
+      bindWaits.set(req, resolve);
+      setTimeout(() => resolve({ id: null, label: "" }), 4000);
+      $("#preview-frame").contentWindow.postMessage({ type: "coi-bind-dict", doc: state.doc, req, code: dict.code, name: dict.name,
+        items: dict.items.map((i) => i.nazwa), quote: p.field.quote, label: p.field.label }, location.origin);
+    });
+    bindWaits.delete(req);
+  }
+  p.added = { code: dict.code, name: dict.name, id: bound.id, label: bound.label };
+  if (item.id !== undefined) localStorage.setItem(DICTS_KEY(item), JSON.stringify(item.dicts));
+  await loadCatalogList();
+  if (item === state.selected) renderDicts(item);
+}
+{
+  const base = select;
+  select = (item) => { base(item); loadCatalogList(); };
 }
 
 // AUTH_ENABLED off on the server: no login form, requests go without a real token.

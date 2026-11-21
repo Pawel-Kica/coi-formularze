@@ -12,7 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from app import history, pipeline, review
+from app import catalog, history, pipeline, review
 from app.dictionaries import propose as propose_dictionaries
 from app.config import settings
 from app.extract import extract
@@ -25,6 +25,7 @@ from app.upload import read_single_file, validate_upload
 INDEX_HTML = Path(__file__).parent / "static" / "index.html"
 PREVIEW_HTML = Path(__file__).parent / "static" / "preview.html"
 EDITOR_JS = Path(__file__).parent / "static" / "editor.js"
+DICTIONARIES_HTML = Path(__file__).parent / "static" / "dictionaries.html"
 
 app = FastAPI(
     title="COI Cyfryzacja Formularzy",
@@ -33,6 +34,7 @@ app = FastAPI(
 )
 app.include_router(review.router)  # dev-only /review, 404 unless REVIEW_RUNS_DIR is set
 app.include_router(history.router)  # /api/history: upload page history in SQLite (HISTORY_DB)
+app.include_router(catalog.router)  # /api/dictionaries: the dictionary catalog, same SQLite file
 
 
 class Credentials(BaseModel):
@@ -178,6 +180,12 @@ async def index() -> FileResponse:
 async def preview() -> FileResponse:
     """E-service preview: renders a COI JSON the way a citizen sees it (bonus V)."""
     return FileResponse(PREVIEW_HTML)
+
+
+@app.get("/slowniki", include_in_schema=False)
+async def dictionaries_page() -> FileResponse:
+    """The dictionary catalog page ("Słowniki" in the header): COI dictionaries read-only, ours editable."""
+    return FileResponse(DICTIONARIES_HTML)
 
 
 @app.get("/editor.js", include_in_schema=False)

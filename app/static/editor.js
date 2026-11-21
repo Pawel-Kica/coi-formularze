@@ -20,6 +20,11 @@
      {type: "coi-problems", problems: [{id, message, detail}], version, doc}, or {..., failed: true} when the
      check itself did not get through (the status line then offers "Sprawdź ponownie").
    - parent -> here {type: "coi-undo"} / {type: "coi-redo"}: Ctrl+Z pressed while the parent had focus.
+   - parent -> here {type: "coi-bind-dict", doc, req, code, name, items, quote, label}: "Dodaj" next to a dictionary
+     proposal; the field of that proposal (paper quote first, then label) gets the catalog dictionary `code` as one
+     undoable change (a text field becomes a SELECT, RADIO/CHECKBOX keep their type); answer {type: "coi-bound", req,
+     doc, id, label} (id null: no such field).
+   - parent -> here {type: "coi-show", id}: scroll to the element on its step and flash it ("Zobacz w podglądzie").
 
    Evidence (preview.html's `evidence`, drawn under every element by its notesOf) = {elementId: {source: "paper" |
    "model" | "code" | "clerk", quote, page, condition_quote?, consent_quotes?}} from POST /api/forms/convert?evidence=1;
@@ -42,6 +47,9 @@ const ED_DICT_EXTRA = {
   TERYT_4G_DOWODOWY: {multiLevelTree: true, searchEnabled: true, defaultValue: []},
   "Numery kierunkowe": {multiLevelTree: false, searchEnabled: true, defaultValue: []},
 };
+// Our dictionaries from the catalog (preview.html's CATALOG_NAMES) for "Skąd lista"; none of them is a tree.
+const edCatalogDicts = () => Object.entries(CATALOG_NAMES).map(([code, name]) => [code, `Słownik urzędu: ${name}`]);
+const ED_CATALOG_EXTRA = {multiLevelTree: false, searchEnabled: true, defaultValue: []};
 const ED_EMPTY_HTML = "<html><head></head><body></body></html>";
 
 const ED_OPEN_KEY = "coi-sidebar";  // localStorage: "1" = the sidebar was left open
@@ -395,9 +403,33 @@ function edSetType(f, type) {
 }
 function edSetDictionary(f, name) {
   for (const k of ["dictionaryName", "multiLevelTree", "searchEnabled", "defaultValue", "defaultValueType"]) delete f[k];
-  if (name) { f.options = []; Object.assign(f, {dictionaryName: name}, ED_DICT_EXTRA[name] || {}); }
-  else Object.assign(f, {searchEnabled: f.options.length > 15, defaultValue: []});
+  const select = f.type === "SELECT";  // RADIO/CHECKBOX take a dictionary too, without the list's extras
+  if (name) { f.options = []; Object.assign(f, {dictionaryName: name}, select ? ED_DICT_EXTRA[name] || ED_CATALOG_EXTRA : {}); }
+  else if (select) Object.assign(f, {searchEnabled: f.options.length > 15, defaultValue: []});
   edCanonical(f);
+}
+
+// The field a dictionary proposal was made for: the paper quote first (one contains the other), then the label.
+function edProposalField(quote, label) {
+  const n = t => String(t || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const q = n(quote), l = n(label);
+  let best = null, top = 0;
+  eachField(f => {
+    if (!["TEXT_FIELD", "TEXTAREA", ...ED_CHOICE].includes(f.type)) return;
+    const fq = n(evidence[f.id]?.quote), ft = n(f.title);
+    const score = fq && q && (q.includes(fq) || fq.includes(q)) ? 3 : ft && ft === l ? 2 : ft.length > 3 && l.length > 3 && (ft.includes(l) || l.includes(ft)) ? 1 : 0;
+    if (score > top) [best, top] = [f, score];
+  });
+  return best;
+}
+// "Dodaj" on the upload page: the proposal's field reads the catalog dictionary from now on (one undoable change).
+function edBindDictionary(d) {
+  CATALOG[d.code] = d.items || [];  // the preview has the values before it redraws, not after its next fetch
+  CATALOG_NAMES[d.code] = d.name;
+  const f = edProposalField(d.quote, d.label);
+  if (f) edChange(() => { if (!ED_CHOICE.includes(f.type)) edSetType(f, "SELECT"); edSetDictionary(f, d.code); },
+    `Pole „${nameOf(f)}” bierze wartości ze słownika „${d.name}”.`);
+  parent.postMessage({type: "coi-bound", req: d.req, doc: ed.doc, id: f ? f.id : null, label: f ? nameOf(f) : ""}, location.origin);
 }
 // Key order of the builder: base keys, then type extras, then states, questionOrder, tooltipMessage.
 function edCanonical(f) {
@@ -807,8 +839,10 @@ function edFieldControls(loc) {
     const formats = ED_FORMATS.some(([v]) => v === format) ? ED_FORMATS : [...ED_FORMATS, [format, format]];
     out.push(edRow("Sprawdzanie formatu", edSelectBox(formats, format, "format", v => edChange(() => edSetValidation(f, required, v)))));
   }
-  if (t === "SELECT") {
-    const dicts = ED_DICTS.some(([v]) => v === (f.dictionaryName || "")) ? ED_DICTS : [...ED_DICTS, [f.dictionaryName, `Słownik: ${f.dictionaryName}`]];
+  const ours = edCatalogDicts();
+  if (t === "SELECT" || (ED_CHOICE.includes(t) && (ours.length || f.dictionaryName))) {
+    const all = t === "SELECT" ? [...ED_DICTS, ...ours] : [ED_DICTS[0], ...ours];  // COI's lists are drop-down lists
+    const dicts = all.some(([v]) => v === (f.dictionaryName || "")) ? all : [...all, [f.dictionaryName, `Słownik: ${f.dictionaryName}`]];
     out.push(edRow("Skąd lista", edSelectBox(dicts, f.dictionaryName || "", "dict", v => edChange(() => edSetDictionary(f, v)))));
   }
   if (ED_CHOICE.includes(t) && !f.dictionaryName) out.push(edOptionsControls(f));
@@ -926,6 +960,12 @@ window.addEventListener("message", e => {
     ed.checked = d.version;
     renderPage();
     edStatus();
+  }
+  if (d.type === "coi-bind-dict" && d.doc === ed.doc) edBindDictionary(d);
+  if (d.type === "coi-show") {
+    edShow(d.id, "center");
+    const el = document.querySelector(`[data-fid="${CSS.escape(d.id)}"]`);
+    if (el) { el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
   }
   if (d.type === "coi-undo") edUndo();
   if (d.type === "coi-redo") edRedo();

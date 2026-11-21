@@ -69,6 +69,10 @@ input.ro,textarea.ro,select:disabled{background:#f3f4f6;border-color:#f3f4f6;col
 .hint{color:#4b5563;font-size:14px;margin:0 0 .5rem}
 .hint p,.textblock p,.info p{margin:.2rem 0 .5rem}
 .caption{font-size:13px;color:#4b5563;margin:.3rem 0 0}
+.dict-empty{color:#9a4d00}
+.dict-empty a{color:#0052a5;font-weight:600}
+.flash{animation:flash 2.4s ease-out}
+@keyframes flash{0%,40%{box-shadow:0 0 0 3px #ffb800;background:#fff8dc}100%{box-shadow:0 0 0 3px transparent}}
 .err{color:#b3261e;font-size:14px;margin:.35rem 0 0;font-weight:600}
 [aria-invalid=true]{border-color:#b3261e!important;box-shadow:0 0 0 1px #b3261e}
 .errsum{border-left:4px solid #0052a5;background:#e8f0fb;padding:.75rem 1rem;border-radius:4px;margin-bottom:1rem}
@@ -292,9 +296,38 @@ function validators(f) {
 }
 const isRequired = f => validators(f).includes("REQUIRED");
 
+// Our dictionaries from the catalog (app/catalog.py, GET /api/dictionaries): {code: [value names]}. A field names one
+// by `dictionaryName` = code, without its values, so the preview asks the server: a value added on the "Słowniki" page
+// shows up here on the next document, on window focus (back from that page) and when the upload page says so.
+let CATALOG = {}, CATALOG_NAMES = {};
+const inCatalog = name => Object.prototype.hasOwnProperty.call(CATALOG, String(name || ""));
+async function loadCatalog() {
+  try {
+    const token = sessionStorage.getItem("token") || "open";
+    const r = await fetch("/api/dictionaries", {headers: {Authorization: `Bearer ${token}`}});
+    if (!r.ok) return;
+    const next = {};
+    for (const d of await r.json()) if (!d.builtin) { next[d.code] = d.items.map(i => i.nazwa); CATALOG_NAMES[d.code] = d.name; }
+    setCatalog(next);
+  } catch (e) { /* offline: the preview keeps what it had */ }
+}
+// New catalog values: the open form is drawn again (same step, same answers) when anything changed.
+function setCatalog(next) {
+  const changed = JSON.stringify(next) !== JSON.stringify(CATALOG);
+  CATALOG = next;
+  if (changed && cfg && !$("#app").hidden) { issues = []; precheck(); renderIssues(); renderPage(); }
+}
+// Under a field whose catalog dictionary is still empty: where to fill it (a new tab, the form stays as it is).
+function emptyDictNote(f) {
+  if (!inCatalog(f.dictionaryName) || CATALOG[f.dictionaryName].length) return "";
+  return h("p", {class: "caption dict-empty"}, "Słownik nie ma jeszcze wartości, ",
+    h("a", {href: `/slowniki?kod=${encodeURIComponent(f.dictionaryName)}`, target: "_blank", rel: "opener"}, "uzupełnij w katalogu"), ".");
+}
+
 // Preview dictionary for a dictionaryName, or null when unknown.
 function dictFor(name) {
   const n = String(name || "");
+  if (inCatalog(n)) return CATALOG[n];
   if (/^TERYT|wojew/i.test(n)) return VOIVODESHIPS;
   if (/kraj|countr/i.test(n)) return COUNTRIES;
   if (/kierunk/i.test(n)) return PHONE_CODES;
@@ -796,7 +829,7 @@ function precheck() {
     if (f.validation != null && !Array.isArray(f.validation)) issue(`${where}: validation jest obiektem zamiast tablicy`);
     for (const v of validators(f)) if (!knownV.includes(v)) issue(`${where}: nieznany walidator ${v}`);
     if (f.dictionaryName && !dictFor(f.dictionaryName)) issue(`${where}: nieznany słownik „${f.dictionaryName}”, użyto opcji pola`);
-    if ((f.type === "RADIO" || f.type === "SELECT") && !optionsOf(f).length) issue(`${where}: ${f.type} bez opcji`);
+    if ((f.type === "RADIO" || f.type === "SELECT") && !optionsOf(f).length && !inCatalog(f.dictionaryName)) issue(`${where}: ${f.type} bez opcji`);
     if (f.type === "CONSENT_SECTION" && !consentsOf(f).length) issue(`${where}: sekcja zgód bez zgód`);
     for (const s of f.states || []) {
       if (s.type !== "SHOW" && s.type !== "READ_ONLY") issue(`${where}: nieznany typ stanu ${s.type}`);
@@ -951,9 +984,9 @@ function renderField(cell, ctx) {
   switch (t) {
     case "TEXT_BLOCK": wrap.append(h("div", {class: "textblock"}, sanitize(f.description))); break;
     case "INFO_SECTION": wrap.append(h("div", {class: "info", role: "note"}, sanitize(f.description || f.title))); break;
-    case "RADIO": wrap.append(group("radio")); break;
+    case "RADIO": wrap.append(group("radio"), emptyDictNote(f)); break;
     case "CHECKBOX":
-      if (opts.length) wrap.append(group("checkbox"));
+      if (opts.length || inCatalog(f.dictionaryName)) wrap.append(group("checkbox"), emptyDictNote(f));
       else {
         const cb = h("input", {type: "checkbox", id, ...reqAttrs});
         cb.checked = val === true;
@@ -968,7 +1001,7 @@ function renderField(cell, ctx) {
       sel.value = val || "";
       sel.addEventListener("change", () => set(sel.value));
       entry.controls.push(sel);
-      wrap.append(h("label", {for: id}, title + opt), hint || "", sel);
+      wrap.append(h("label", {for: id}, title + opt), hint || "", sel, emptyDictNote(f));
       break;
     }
     case "FILE_UPLOADER": {
@@ -1266,6 +1299,13 @@ window.addEventListener("drop", e => {
 });
 
 renderIssues();
+// The catalog: now, on focus, when the "Słowniki" page (any tab) saved a change, with every document and when the upload page added one
+// ({type: "coi-catalog"}).
+loadCatalog();
+addEventListener("focus", loadCatalog);
+addEventListener("storage", e => { if (e.key === "coi-catalog") loadCatalog(); });  // the "Słowniki" page saved a change
+document.addEventListener("visibilitychange", () => { if (!document.hidden) loadCatalog(); });
+addEventListener("message", e => { if (e.origin === location.origin && ["coi-preview", "coi-catalog"].includes(e.data?.type)) loadCatalog(); });
 // Embed mode: the same-origin parent (upload page) posts {type: "coi-preview", json, evidence, key, doc} for the
 // selected file. Each message replaces the whole form, and nothing is saved, so the standalone preview keeps its own
 // JSON. The same `key` again (the same file sent once more) keeps the open step, the place on screen and the answers.
