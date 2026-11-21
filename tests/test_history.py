@@ -30,14 +30,13 @@ def test_round_trip(client):
     assert r.status_code == 200
     item_id = r.json()["id"]
 
-    r = client.put(f"/api/history/{item_id}", json={"status": "done", "result": COI, "evidence": {"a": {"source": "paper"}}, "problems": []})
+    # PUT replaces the whole state (any page field, e.g. checking), keeps the file and created
+    state = {"status": "done", "error": "", "result": COI, "evidence": {"a": {"source": "paper"}}, "problems": [], "checking": True}
+    r = client.put(f"/api/history/{item_id}", json=state)
     assert r.json() == {"id": item_id}
 
     [rec] = client.get("/api/history").json()
-    assert rec == {
-        "id": item_id, "file_name": "wniosek.pdf", "file_type": "application/pdf", "file_size": len(PDF),
-        "created": 1000, "status": "done", "error": "", "result": COI, "evidence": {"a": {"source": "paper"}}, "problems": [],
-    }
+    assert rec == {"id": item_id, "file_name": "wniosek.pdf", "file_type": "application/pdf", "file_size": len(PDF), "created": 1000, **state}
     r = client.get(f"/api/history/{item_id}/file")
     assert r.content == PDF and r.headers["content-type"] == "application/pdf"
 

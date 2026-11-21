@@ -1,10 +1,11 @@
 """Upload page history in a local SQLite file (HISTORY_DB), so every conversion shows up in every browser.
 
 One row per processed file: the original bytes (the page's original pane, "Spróbuj ponownie" and ZIP
-names need them) plus its state: status, error, the COI JSON with the clerk's edits (`result`), where
-each element came from (`evidence`) and the COI rules problems after the last edit (`problems`).
-`created` is epoch milliseconds, like the page's `Date.now()`. Scripts add finished conversions with
-`add()` directly (`bench/history_add.py`), no server needed. Never calls a model.
+names need them), `created` (epoch milliseconds, like the page's `Date.now()`) and `state`, one JSON
+with whatever else the page keeps per file: status, error, the COI JSON with the clerk's edits
+(`result`), where each element came from (`evidence`), the COI rules problems after the last edit
+(`problems`), `checking`. Scripts add finished conversions with `add()` directly
+(`bench/history_add.py`), no server needed. Never calls a model.
 """
 
 import json
@@ -19,14 +20,11 @@ from fastapi import APIRouter, Body, Depends, Form, HTTPException, Response, Upl
 from app.config import settings
 from app.security import current_user
 
-JSON_FIELDS = ("result", "evidence", "problems")
-STATE_FIELDS = ("created", "status", "error", *JSON_FIELDS)  # what PUT may change; the file never changes
-
 SCHEMA = """CREATE TABLE IF NOT EXISTS history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL, type TEXT NOT NULL, file BLOB NOT NULL,
-    created INTEGER NOT NULL, status TEXT NOT NULL, error TEXT NOT NULL DEFAULT '',
-    result TEXT, evidence TEXT, problems TEXT
+    created INTEGER NOT NULL,
+    state TEXT NOT NULL
 )"""
 
 
@@ -40,39 +38,33 @@ def _db() -> Iterator[sqlite3.Connection]:
             yield conn
 
 
-def _state(record: dict) -> dict:
-    """The known state fields of a client record, JSON fields serialized."""
-    out = {k: record[k] for k in STATE_FIELDS if k in record}
-    for k in JSON_FIELDS:
-        if k in out:
-            out[k] = json.dumps(out[k], ensure_ascii=False)
-    if out.get("error") is None:
-        out.pop("error", None)
-    return out
+def _split(record: dict) -> tuple[int | None, str]:
+    """A client record -> (created, the rest as JSON). The rest is whatever the page keeps per file
+    (status, error, result, evidence, problems, checking, ...), so a new page field needs no schema change."""
+    state = {k: v for k, v in record.items() if k not in ("id", "created", "file", "file_name", "file_type", "file_size")}
+    return record.get("created"), json.dumps(state, ensure_ascii=False)
 
 
 def add(name: str, mime: str, data: bytes, record: dict) -> int:
     """Insert one file with its state (missing `created` = now, `status` = done), returns its id."""
-    row = {"created": int(time.time() * 1000), "status": "done", **_state(record), "name": name, "type": mime, "file": data}
+    created, state = _split({"status": "done", **record})
     with _db() as conn:
-        cols = ", ".join(row)
-        return conn.execute(f"INSERT INTO history ({cols}) VALUES ({', '.join('?' * len(row))})", list(row.values())).lastrowid
+        return conn.execute(
+            "INSERT INTO history (name, type, file, created, state) VALUES (?, ?, ?, ?, ?)",
+            (name, mime, data, created or int(time.time() * 1000), state),
+        ).lastrowid
 
 
 def records() -> list[dict]:
-    """Every record without the file bytes, newest first, with file_name, file_type, file_size."""
+    """Every record without the file bytes, newest first: {id, file_name, file_type, file_size, created, **state}."""
     with _db() as conn:
         rows = conn.execute(
-            "SELECT id, name, type, length(file) AS size, created, status, error, result, evidence, problems"
-            " FROM history ORDER BY created DESC, id DESC"
+            "SELECT id, name, type, length(file) AS size, created, state FROM history ORDER BY created DESC, id DESC"
         ).fetchall()
-    out = []
-    for r in rows:
-        rec = {"id": r["id"], "file_name": r["name"], "file_type": r["type"], "file_size": r["size"]}
-        rec |= {k: r[k] for k in ("created", "status", "error")}
-        rec |= {k: json.loads(r[k]) if r[k] is not None else None for k in JSON_FIELDS}
-        out.append(rec)
-    return out
+    return [
+        {**json.loads(r["state"]), "id": r["id"], "file_name": r["name"], "file_type": r["type"], "file_size": r["size"], "created": r["created"]}
+        for r in rows
+    ]
 
 
 router = APIRouter(prefix="/api/history", tags=["history"], dependencies=[Depends(current_user)])
@@ -115,14 +107,12 @@ def create(file: UploadFile, record: Annotated[str, Form()]) -> dict:
 
 @router.put("/{item_id}")
 def update(item_id: int, record: Annotated[dict, Body()]) -> dict:
-    """Replace the state fields given in the JSON body; the file stays as it was."""
-    state = _state(record)
+    """Replace the record's state with the JSON body (the page always sends all of it); the file stays as it was."""
+    created, state = _split(record)
     with _db() as conn:
-        if state:
-            sets = ", ".join(f"{k} = ?" for k in state)
-            found = conn.execute(f"UPDATE history SET {sets} WHERE id = ?", [*state.values(), item_id]).rowcount
-        else:
-            found = conn.execute("SELECT 1 FROM history WHERE id = ?", (item_id,)).fetchone()
+        found = conn.execute(
+            "UPDATE history SET state = ?, created = coalesce(?, created) WHERE id = ?", (state, created, item_id)
+        ).rowcount
     if not found:
         raise _missing()
     return {"id": item_id}
