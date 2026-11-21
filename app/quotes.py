@@ -9,13 +9,18 @@
 - an addressee whose quote is not on paper is cleared (empty name, the office fills it in);
 - every condition (`show_if`) is checked: its quote is on paper, the trigger field
   exists, is a choice field (RADIO/CHECKBOX/SELECT), its options exist (fuzzy-fixed
-  to the exact option text), the trigger comes before the target. A broken
-  condition is dropped, the target stays (always visible).
+  to the exact option text), the trigger comes before the target, and the quote is more
+  than the trigger's own question or option line unless the target sits right there on
+  paper (`_supported`). A broken condition is dropped, the target stays (always visible;
+  a field also stops being required);
+- between the two, `app.repair.repair_plan` fixes invented options, doubled questions and
+  the applicant's correspondence address.
 Returns the cleaned plan and human-readable notes for everything dropped.
 """
 
 import re
 import unicodedata
+from bisect import bisect_right
 from functools import lru_cache
 
 from rapidfuzz import fuzz, process
@@ -43,6 +48,7 @@ _STANDARD_SECTION = re.compile(
     r"|^dane identyfikacyjne( wnioskodawcy| składającego( deklarację)?)?$|^adres (zamieszkania|siedziby)( lub [\w ]+)?( wnioskodawcy)?$"
 )
 _STANDARD_LABEL = re.compile(r"pieczę|klauzul|\brodo\b|pełnomocni|wnioskodaw|^podpis$|^podpis wnioskodawcy")
+_APPLICANT_WORD = re.compile(r"wnioskodaw")  # the part of _STANDARD_LABEL a choice question may contain (a proxy question may not)
 _STANDARD_QUOTE = re.compile(r"podpis wnioskodawcy|czytelny podpis|^\W*podpis\W*$|pieczę|klauzula informacyjna")
 _FILL_DATE = re.compile(r"^\(?data\)?$|miejscowość i data|data i podpis|^\w+, dnia$|^dnia$")
 
@@ -113,6 +119,35 @@ def quote_found(quote: str, text: str, threshold: float = THRESHOLD) -> bool:
     return quote_score(quote, text) >= threshold
 
 
+@lru_cache(maxsize=16)
+def _paper_lines(text: str) -> tuple[str, list[int]]:
+    """The normalized paper as one string of its non-empty lines, and the offset where each line starts."""
+    lines = [n for n in (normalize(line) for line in text.splitlines()) if n]
+    starts, pos = [], 0
+    for n in lines:
+        starts.append(pos)
+        pos += len(n) + 1
+    return " ".join(lines), starts
+
+
+def quote_lines(quote: str, text: str) -> list[tuple[int, int]]:
+    """Where `quote` sits on the paper: (first line, last line) of every exact occurrence, else of the
+    one best fuzzy match, else []. Lines are counted over the non-empty lines of `text`."""
+    q = normalize(quote)
+    if len(q) < MIN_QUOTE_CHARS:
+        return []
+    joined, starts = _paper_lines(text)
+
+    def span(a: int, b: int) -> tuple[int, int]:
+        return bisect_right(starts, a) - 1, bisect_right(starts, max(a, b - 1)) - 1
+
+    hits = [span(m.start(), m.end()) for m in re.finditer(rf"(?<!\w){re.escape(q)}(?!\w)", joined)]
+    if hits:
+        return hits
+    al = fuzz.partial_ratio_alignment(q, joined)
+    return [span(al.dest_start, al.dest_end)] if al and al.score >= THRESHOLD_OCR else []
+
+
 def _fix_options(wanted: list[str], options: list[str]) -> list[str]:
     """Map the condition's options onto the trigger's real options (fuzzy), drop unknown."""
     norm = [normalize(o) for o in options]
@@ -122,6 +157,42 @@ def _fix_options(wanted: list[str], options: list[str]) -> list[str]:
         if hit and hit[1] >= 80 and options[hit[2]] not in fixed:
             fixed.append(options[hit[2]])
     return fixed
+
+
+# words that state a dependency ("wypełnić, jeżeli ...", "dotyczy tylko ...", "w przypadku ...")
+_CONDITIONAL = re.compile(r"\b(jeżeli|jeśli|w przypadku|w razie|gdy|kiedy|tylko|wyłącznie|jedynie|dotyczy|o ile)\b")
+_YES_NO = {"tak", "nie"}
+
+
+def _overlap(a: list[tuple[int, int]], b: list[tuple[int, int]], reach: int = 0) -> bool:
+    """Some span of `a` starts inside a span of `b`, or up to `reach` lines after it."""
+    return any(y0 <= x0 <= y1 + reach or x0 <= y0 <= x1 for x0, x1 in a for y0, y1 in b)
+
+
+def _supported(c, trig, target, text: str, next_section: bool | None) -> bool:
+    """Is the condition backed by more than the trigger itself? The model likes to hang fields on an
+    unrelated question and "prove" it with that question's own line. Supported when the quote
+    - has a conditional word, or is some other paper line than the trigger's question / the chosen option;
+    - or repeats the trigger, but the target sits on the chosen option's paper line ("[ ] tatuaż ____"),
+      for a Tak/Nie trigger up to 2 lines below the question, or (a section) right after the trigger's
+      section.
+    `next_section`: for a section target, whether it directly follows the trigger's section; else None.
+    A quote we cannot place on the paper counts as supported."""
+    if _CONDITIONAL.search(unicodedata.normalize("NFKC", c.quote).lower()):
+        return True
+    q = normalize(c.quote)
+    quote_at, trig_at = quote_lines(c.quote, text), quote_lines(trig.quote, text)
+    repeats = (
+        fuzz.partial_ratio(q, normalize(trig.quote)) >= 90
+        or any(fuzz.ratio(q, normalize(o)) >= 90 for o in c.options)
+        or bool(quote_at and trig_at and _overlap(quote_at, trig_at))
+    )
+    if not repeats or not quote_at or next_section:
+        return True
+    target_at = quote_lines(target.quote if next_section is None else target.fields[0].quote, text)
+    if {normalize(o) for o in trig.options} <= _YES_NO:
+        return _overlap(target_at, quote_at, reach=2)
+    return _overlap(target_at, quote_at + [at for o in c.options for at in quote_lines(o, text)])
 
 
 def filter_plan(plan: Plan, text: str, threshold: float | None = None) -> tuple[Plan, list[str]]:
@@ -143,7 +214,10 @@ def filter_plan(plan: Plan, text: str, threshold: float | None = None) -> tuple[
                 lab, quo = normalize(f.label), normalize(f.quote)
                 # a choice field inside an applicant section is usually case data ("Składający jako: ...")
                 in_std_sec = std_sec and f.type not in CHOICE_TYPES
-                if in_std_sec or _STANDARD_LABEL.search(lab) or _STANDARD_QUOTE.search(quo) or _FILL_DATE.search(quo):
+                # the same for a question about the applicant ("Czy osoba odpowiedzialna to wnioskodawca?")
+                std = _STANDARD_LABEL.search(lab)
+                std_label = std and not (f.type in CHOICE_TYPES and _APPLICANT_WORD.fullmatch(std.group()))
+                if in_std_sec or std_label or _STANDARD_QUOTE.search(quo) or _FILL_DATE.search(quo):
                     dropped.append(f"standard: field {f.id} '{f.label}' belongs to a generated page (Dane/contact/finish)")
                 elif ok(f.quote):
                     kept.append(f)
@@ -164,19 +238,26 @@ def filter_plan(plan: Plan, text: str, threshold: float | None = None) -> tuple[
         plan.addressee = plan.addressee_quote = ""
     if not plan.pages:
         raise ValueError("no page of the plan is backed by the paper text")
+    from app.repair import repair_plan  # repair imports this module
+
+    dropped += repair_plan(plan, text)
+    if not plan.pages:
+        raise ValueError("no page of the plan is backed by the paper text")
 
     # 2. Conditions. Order = position in the plan; a trigger must come before its target,
     # which also rules out cycles. A trigger that is itself conditional is fine (chain).
     order: dict[str, int] = {}
+    sec_no: dict[str, int] = {}  # section or field id -> number of its section
     fields = {}
-    for page in plan.pages:
-        for sec in page.sections:
-            order[sec.id] = len(order)
-            for f in sec.fields:
-                order[f.id] = len(order)
-                fields[f.id] = f
+    for n, sec in enumerate(s for page in plan.pages for s in page.sections):
+        order[sec.id] = len(order)
+        sec_no[sec.id] = n
+        for f in sec.fields:
+            order[f.id] = len(order)
+            sec_no[f.id] = n
+            fields[f.id] = f
 
-    def check(target_id: str, target, own_fields: set[str]) -> None:
+    def check(target_id: str, target, own_fields: set[str], is_section: bool = False) -> None:
         c = target.show_if
         if c is None:
             return
@@ -196,15 +277,19 @@ def filter_plan(plan: Plan, text: str, threshold: float | None = None) -> tuple[
             opts = _fix_options(c.options, trig.options)
             if opts:
                 c.options = opts
+                if not _supported(c, trig, target, text, sec_no[target_id] - sec_no[c.field] == 1 if is_section else None):
+                    why = f"quote only repeats the trigger {c.field}, the target is not on the chosen option's line: {c.quote!r}"
             else:
                 why = f"options {c.options} not among {trig.options}"
         if why:
             dropped.append(f"condition on {target_id}: {why}")
             target.show_if = None
+            if not is_section:  # hidden until now: do not make it a must for everyone (a section keeps its flags)
+                target.required = False
 
     for page in plan.pages:
         for sec in page.sections:
-            check(sec.id, sec, {f.id for f in sec.fields})
+            check(sec.id, sec, {f.id for f in sec.fields}, is_section=True)
             for f in sec.fields:
                 check(f.id, f, set())
     return plan, dropped
