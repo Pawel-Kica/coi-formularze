@@ -12,7 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from app import pipeline
+from app import pipeline, review
 from app.dictionaries import propose as propose_dictionaries
 from app.config import settings
 from app.llm.client import health as llm_health
@@ -27,6 +27,7 @@ app = FastAPI(
     description="Pusty formularz papierowy (PDF, DOC, DOCX, ODS, XLSX, XLS, JPG, PNG) na konfigurację e-usługi COI (JSON).",
     version="0.1.0",
 )
+app.include_router(review.router)  # dev-only /review, 404 unless REVIEW_RUNS_DIR is set
 
 
 class Credentials(BaseModel):

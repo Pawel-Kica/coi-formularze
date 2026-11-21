@@ -7,6 +7,7 @@ runtime, nothing secret has a default.
 
 import logging
 import secrets
+from pathlib import Path
 from typing import Literal, Self
 
 from pydantic import AliasChoices, Field, SecretStr, model_validator
@@ -43,6 +44,9 @@ class Settings(BaseSettings):
     # OCR
     ocr_engine: str = "tesseract"  # "tesseract" or "vlm" (vision model in Ollama)
     ocr_vlm_model: str = "qwen2.5vl:7b"
+    # Dev only: folder of bench runs (e.g. bench/runs) for the review page /review (app/review.py).
+    # Unset = the page and its endpoints answer 404, as in Docker and for the jury.
+    review_runs_dir: Path | None = None
 
     @property
     def max_file_size_bytes(self) -> int:

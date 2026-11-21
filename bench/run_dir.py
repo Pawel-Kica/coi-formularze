@@ -2,8 +2,9 @@
 
 For every file: extract -> make_plan -> filter_plan -> build -> check, 2 files at a time
 (Ollama has 2 slots). Saves `<out>/<file name>.txt` (extracted text), `.plan.json`,
-`.coi.json`, and `<out>/summary.json` (per file: ok/error, seconds, fields, rules problems,
-quote-filter drops). A Claude judge then compares each original with its output.
+`.coi.json`, `<out>/source.txt` (the source folder, for the review page `/review`) and
+`<out>/summary.json` (per file: ok/error, seconds, fields, rules problems, quote-filter drops).
+A Claude judge then compares each original with its output.
 
     uv run python -m bench.run_dir ~/hacknation-2026/resources/drive-formularze --out bench/runs/drive-baseline
     uv run python -m bench.run_dir <folder> --out <earlier run>   # files already done are skipped
@@ -52,6 +53,7 @@ def main() -> int:
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
+    (out / "source.txt").write_text(f"{Path(a.folder).expanduser().resolve()}\n")  # for the review page /review
     files = sorted(f for f in Path(a.folder).expanduser().iterdir() if f.is_file() and f.name not in SKIP_NAMES)
 
     def one(path: Path) -> dict:

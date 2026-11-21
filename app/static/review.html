@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Przegląd werdyktów | cyfryzacja formularzy</title>
+<link rel="icon" href="data:,">
+<!-- Dev-only page served at /review when REVIEW_RUNS_DIR is set (app/review.py), never for the jury.
+     Left: every file of a finished bench run (bad first) with the judge's verdict. Main area: original | our
+     e-service (the same /preview?embed=1 the upload page uses, or JSON). Per file "zgadzam się / nie zgadzam się"
+     + a note, appended to <run>/judge/human.jsonl. No model calls, styles follow index.html. -->
+<style>
+  :root {
+    --navy: #0052a5; --navy-dark: #003b78; --text: #1b1b1b; --muted: #5a6470;
+    --line: #d5dbe3; --bg: #f4f6f9; --ok: #1a7f37; --err: #b3261e; --warn: #9a4d00;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--text);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); line-height: 1.5; height: 100vh; display: flex; flex-direction: column; }
+  header { background: var(--navy); color: #fff; flex: none; }
+  .bar { padding: 10px 16px; display: flex; gap: 16px; align-items: center; }
+  .bar h1 { font-size: 1.15rem; margin: 0; flex: 1; }
+  .bar small { display: block; font-weight: 400; opacity: .85; }
+  .bar select { font: inherit; padding: 4px 8px; border-radius: 4px; border: 1px solid #fff; max-width: 360px; }
+  main { flex: 1; min-height: 0; padding: 12px 16px 16px; display: grid; gap: 12px;
+         grid-template-columns: minmax(260px, 340px) 1fr; }
+  main.login { display: block; overflow: auto; }
+  #login { max-width: 420px; margin: 40px auto; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 16px; min-height: 0; min-width: 0; }
+  #list { display: flex; flex-direction: column; overflow: auto; }
+  #detail { display: flex; flex-direction: column; padding: 12px 16px 16px; }
+  h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  h3 { font-size: .95rem; margin: 0; }
+  label { display: block; font-weight: 600; margin: 12px 0 4px; }
+  input[type=text], input[type=password], textarea {
+    width: 100%; padding: 8px 10px; font: inherit; border: 1px solid #8a94a0; border-radius: 4px; }
+  button, a.button { font: inherit; cursor: pointer; border-radius: 4px; padding: 8px 14px; text-decoration: none;
+           border: 1px solid var(--navy); background: #fff; color: var(--navy); }
+  button.primary, a.button { background: var(--navy); color: #fff; }
+  button:hover, a.button:hover { background: var(--navy-dark); border-color: var(--navy-dark); color: #fff; }
+  button:disabled { opacity: .45; cursor: default; pointer-events: none; }
+  .small { padding: 4px 10px !important; font-size: .9rem; }
+  header button { border-color: #fff; color: #fff; background: transparent; }
+  :focus-visible { outline: 3px solid #ffb800; outline-offset: 2px; }
+  .error { color: var(--err); }
+  .muted { color: var(--muted); font-size: .9rem; }
+  ul.files { list-style: none; padding: 0; margin: 0; }
+  ul.files li { margin-bottom: 6px; }
+  ul.files .pick { width: 100%; text-align: left; border-color: var(--line); color: var(--text); padding: 6px 10px; }
+  ul.files .pick[aria-pressed=true] { border-color: var(--navy); box-shadow: inset 4px 0 0 var(--navy); background: #f3f7fc; }
+  ul.files .pick:hover { background: #eef3f9; color: var(--text); }
+  .name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .sub { display: flex; flex-wrap: wrap; gap: 2px 8px; font-size: .8rem; color: var(--muted); }
+  .reasons { display: block; font-size: .8rem; color: var(--text); white-space: normal; overflow-wrap: anywhere; }
+  .v-bad { color: var(--err); font-weight: 600; } .v-good { color: var(--ok); font-weight: 600; } .v-none { color: var(--warn); }
+  .human { margin-left: auto; font-weight: 600; }
+  /* detail: verdict and our review on top, then original | ours */
+  .detail-head { flex: none; display: grid; grid-template-columns: 1fr minmax(260px, 420px); gap: 8px 16px; margin-bottom: 10px; }
+  .detail-head h2 { margin: 0; overflow-wrap: anywhere; }
+  .detail-head ul { margin: 4px 0 0; padding-left: 20px; font-size: .9rem; }
+  #review textarea { height: 3.2em; resize: vertical; font-size: .9rem; padding: 4px 8px; }
+  #review .actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+  .panes { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .pane-head { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 6px 10px;
+               background: #f8fafc; border-bottom: 1px solid var(--line); min-height: 46px; }
+  .pane-head h3 { margin-right: auto; }
+  .pane-head a.button { background: #fff; color: var(--navy); }
+  .pane-head a.button:hover { background: var(--navy-dark); color: #fff; }
+  .pane-body { flex: 1; min-height: 0; overflow: auto; }
+  .pane-body iframe { display: block; width: 100%; height: 100%; border: 0; }
+  .pane-body img { display: block; width: 100%; height: auto; }
+  .pane-body pre { margin: 0; padding: 10px; font: .85rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                   white-space: pre-wrap; overflow-wrap: anywhere; }
+  .note { padding: 24px; }
+  .note p { margin: 0 0 12px; }
+  .switch { display: inline-flex; }
+  .switch button { border-radius: 0; }
+  .switch button:first-child { border-radius: 4px 0 0 4px; }
+  .switch button:last-child { border-radius: 0 4px 4px 0; border-left: 0; }
+  .switch button[aria-pressed=true] { background: var(--navy); color: #fff; }
+  @media (max-width: 1000px) {
+    body { height: auto; display: block; }
+    main, .panes, .detail-head { grid-template-columns: 1fr; }
+    .pane { height: 80vh; }
+  }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>Przegląd werdyktów sędziego<small>Oryginał obok naszej e-usługi, tylko do pracy nad jakością (nie dla jury)</small></h1>
+    <select id="run" aria-label="Przebieg" hidden></select>
+    <button id="logout" type="button" hidden>Wyloguj</button>
+  </div>
+</header>
+
+<main id="main" class="login">
+  <section class="card" id="login" aria-labelledby="login-title">
+    <h2 id="login-title">Zaloguj się</h2>
+    <form id="login-form">
+      <label for="username">Login</label>
+      <input id="username" name="username" type="text" autocomplete="username" required>
+      <label for="password">Hasło</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <p id="login-error" class="error" role="alert"></p>
+      <button class="primary" type="submit">Zaloguj</button>
+    </form>
+  </section>
+
+  <section class="card" id="list" aria-labelledby="list-title" hidden>
+    <h2 id="list-title">Pliki</h2>
+    <p id="counts" class="muted"></p>
+    <ul class="files" id="files" aria-labelledby="list-title"></ul>
+  </section>
+
+  <section class="card" id="detail" aria-labelledby="detail-title" hidden>
+    <p id="detail-empty" class="muted">Wybierz plik z listy.</p>
+    <div class="detail-head" id="detail-head" hidden>
+      <div>
+        <h2 id="detail-title"></h2>
+        <div id="verdict" class="sub"></div>
+        <ul id="reasons"></ul>
+      </div>
+      <form id="review">
+        <textarea id="note" aria-label="Notatka do werdyktu" placeholder="Notatka (co sędzia przeoczył albo co naprawdę jest źle)"></textarea>
+        <div class="actions">
+          <button type="button" class="small primary" data-agree="true">Zgadzam się z sędzią</button>
+          <button type="button" class="small" data-agree="false">Nie zgadzam się</button>
+          <span id="saved" class="muted" role="status"></span>
+        </div>
+      </form>
+    </div>
+    <div class="panes" id="panes" hidden>
+      <div class="pane" role="region" aria-labelledby="original-title">
+        <div class="pane-head">
+          <h3 id="original-title">Oryginał</h3>
+          <div class="switch" role="group" aria-label="Widok oryginału">
+            <button type="button" class="small" data-left="file" aria-pressed="true">Plik</button>
+            <button type="button" class="small" data-left="text" aria-pressed="false">Tekst z ekstrakcji</button>
+          </div>
+          <a id="original-download" class="button small">Pobierz plik</a>
+        </div>
+        <div class="pane-body" id="original"></div>
+        <div class="pane-body" id="text" hidden><pre></pre></div>
+      </div>
+      <div class="pane" role="region" aria-labelledby="output-title">
+        <div class="pane-head">
+          <h3 id="output-title">Nasza e-usługa</h3>
+          <div class="switch" role="group" aria-label="Widok wyniku">
+            <button type="button" class="small" data-right="preview" aria-pressed="true">Podgląd formularza</button>
+            <button type="button" class="small" data-right="json" aria-pressed="false">JSON</button>
+          </div>
+        </div>
+        <div class="pane-body">
+          <div class="note" id="output-note" role="status" hidden></div>
+          <iframe id="preview-frame" src="/preview?embed=1" title="Podgląd e-usługi"></iframe>
+          <pre id="json" hidden></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (selector) => document.querySelector(selector);
+const state = {
+  token: sessionStorage.getItem("token"), run: null, files: [], selected: null, coi: null, ticket: 0,
+  left: "file", right: localStorage.getItem("coi-view") === "json" ? "json" : "preview",
+  originalUrl: null, previewReady: false,
+};
+const MIME = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", jpe: "image/jpeg", png: "image/png" };
+const ext = (name) => name.split(".").pop().toLowerCase();
+const detail = (data, response) => (typeof data.detail === "string" ? data.detail : `Błąd ${response.status}`);
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+// fetch with the Bearer token; a 401 logs out. path parts are encoded by the caller.
+async function api(path, options = {}) {
+  const response = await fetch(path, { ...options, headers: { ...options.headers, Authorization: `Bearer ${state.token}` } });
+  if (response.status === 401) {
+    logout("Sesja wygasła. Zaloguj się ponownie.");
+    throw new Error("401");
+  }
+  return response;
+}
+const fileUrl = (name, kind) => `/api/review/runs/${encodeURIComponent(state.run)}/files/${encodeURIComponent(name)}/${kind}`;
+
+// --- login (same token as the upload page) ---
+
+function showScreens() {
+  const loggedIn = Boolean(state.token);
+  $("#main").classList.toggle("login", !loggedIn);
+  $("#login").hidden = loggedIn;
+  $("#list").hidden = $("#detail").hidden = $("#logout").hidden = !loggedIn;
+  if (!loggedIn) $("#run").hidden = true;
+}
+
+function logout(reason = "") {
+  state.token = null;
+  sessionStorage.removeItem("token");
+  $("#login-error").textContent = reason;
+  showScreens();
+}
+
+$("#login-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  $("#login-error").textContent = "";
+  try {
+    const response = await fetch("/api/auth/token", { method: "POST", body: new URLSearchParams(new FormData(event.target)) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return ($("#login-error").textContent = detail(data, response));
+    state.token = data.access_token;
+    sessionStorage.setItem("token", state.token);
+    $("#password").value = "";
+    showScreens();
+    loadRuns();
+  } catch {
+    $("#login-error").textContent = "Brak połączenia z serwerem.";
+  }
+});
+$("#logout").addEventListener("click", () => logout());
+
+// --- runs and files ---
+
+async function loadRuns() {
+  const runs = await (await api("/api/review/runs")).json();
+  if (!runs.length) {
+    $("#counts").textContent = "Brak przebiegów: w REVIEW_RUNS_DIR nie ma folderu z source.txt (zapisuje go bench/run_dir.py).";
+    return;
+  }
+  const picker = $("#run");
+  picker.replaceChildren(...runs.map((r) => Object.assign(el("option", "", `${r.name} (${r.source})`), { value: r.name })));
+  picker.hidden = runs.length < 2;
+  const saved = localStorage.getItem("review-run");
+  picker.value = runs.some((r) => r.name === saved) ? saved : runs[0].name;
+  loadRun(picker.value);
+}
+$("#run").addEventListener("change", (event) => {
+  localStorage.setItem("review-run", event.target.value);
+  loadRun(event.target.value);
+});
+
+async function loadRun(run) {
+  state.run = run;
+  const data = await (await api(`/api/review/runs/${encodeURIComponent(run)}`)).json();
+  state.files = data.files;
+  const bad = state.files.filter((f) => f.verdict?.verdict === "źle").length;
+  const good = state.files.filter((f) => f.verdict?.verdict === "dobrze").length;
+  $("#list-title").textContent = `Pliki: ${data.source}`;
+  renderList();
+  $("#counts").textContent = `${run} · źle ${bad} · dobrze ${good} · bez werdyktu ${state.files.length - bad - good}`;
+  select(state.files.find((f) => f.file === state.selected?.file) ?? state.files[0] ?? null);
+}
+
+const verdictText = (v) => (v ? v.verdict : "brak werdyktu");
+const verdictClass = (v) => (!v ? "v-none" : v.verdict === "źle" ? "v-bad" : "v-good");
+const humanText = (h) => (!h ? "" : h.agree ? "✓ zgoda" : "✗ sprzeciw");
+
+// One line of facts per file: verdict, category, coverage, seconds, fields (or the run error).
+function facts(f) {
+  const out = [el("span", verdictClass(f.verdict), verdictText(f.verdict))];
+  const v = f.verdict;
+  if (v?.category) out.push(el("span", "", v.category));
+  if (v && Number.isInteger(v.covered)) out.push(el("span", "", `pokrycie ${v.covered}/${v.paper_elements}`));
+  if (f.ok === null) out.push(el("span", "", "nie przetworzony"));
+  else if (!f.ok) out.push(el("span", "error", "błąd przebiegu"));
+  if (f.s != null) out.push(el("span", "", `${f.s} s`));
+  if (f.fields != null) out.push(el("span", "", `${f.fields} pól`));
+  return out;
+}
+
+function renderList() {
+  $("#files").replaceChildren(...state.files.map((f) => {
+    const pick = el("button", "pick");
+    pick.type = "button";
+    pick.title = f.file;
+    pick.setAttribute("aria-pressed", String(f.file === state.selected?.file));
+    pick.addEventListener("click", () => select(f));
+    const sub = el("span", "sub");
+    sub.append(...facts(f), el("span", "human", humanText(f.human)));
+    pick.append(el("span", "name", f.file), sub, el("span", "reasons", (f.verdict?.reasons ?? []).join(" · ") || f.error || ""));
+    f.pick = pick;
+    const li = el("li");
+    li.append(pick);
+    return li;
+  }));
+}
+
+// --- one file: verdict + our review on top, original | ours below ---
+
+async function select(f) {
+  state.selected = f;
+  const ticket = ++state.ticket; // a slower earlier click must not overwrite this one
+  for (const other of state.files) other.pick?.setAttribute("aria-pressed", String(other === f));
+  $("#detail-empty").hidden = Boolean(f);
+  $("#detail-head").hidden = $("#panes").hidden = !f;
+  if (!f) return;
+  $("#detail-title").textContent = f.file;
+  const v = f.verdict;
+  $("#verdict").replaceChildren(...facts(f), ...(v?.basis ? [el("span", "", `sędzia patrzył na: ${v.basis}`)] : []));
+  $("#reasons").replaceChildren(...(v?.reasons ?? (f.error ? [f.error] : [])).map((r) => el("li", "", r)));
+  $("#note").value = f.human?.note ?? "";
+  showSaved(f);
+  for (const button of document.querySelectorAll("[data-agree]")) button.disabled = !v;
+
+  state.left = MIME[ext(f.file)] ? "file" : "text";
+  state.coi = null;
+  $("#original").replaceChildren(el("p", "note muted", "Wczytuję…"));
+  $("#text pre").textContent = "";
+  showOutput("Wczytuję…");
+  const [source, text, coi] = await Promise.all([
+    api(fileUrl(f.file, "source")).then((r) => (r.ok ? r.blob() : null)),
+    f.has_text ? api(fileUrl(f.file, "text")).then((r) => (r.ok ? r.text() : "")) : "",
+    f.has_coi ? api(fileUrl(f.file, "coi")).then((r) => (r.ok ? r.json() : null)) : null,
+  ]).catch(() => [null, "", null]);
+  if (ticket !== state.ticket) return;
+  showOriginal(f.file, source);
+  $("#text pre").textContent = text || "(brak tekstu z ekstrakcji w tym przebiegu)";
+  state.coi = coi;
+  showOutput(coi ? "" : f.error ? `Brak wyniku: ${f.error}` : "Brak wyniku w tym przebiegu (plik nie został jeszcze przetworzony).");
+}
+
+// PDF in an iframe, JPG/PNG as an image, other formats only as a download (text view next to it).
+function showOriginal(name, blob) {
+  if (state.originalUrl) URL.revokeObjectURL(state.originalUrl);
+  state.originalUrl = null;
+  const pane = $("#original");
+  const download = $("#original-download");
+  download.hidden = !blob;
+  if (!blob) return pane.replaceChildren(el("p", "note error", "Nie udało się wczytać oryginału."));
+  const type = MIME[ext(name)];
+  state.originalUrl = URL.createObjectURL(type ? new Blob([blob], { type }) : blob);
+  Object.assign(download, { href: state.originalUrl, download: name });
+  if (type === "application/pdf") {
+    pane.replaceChildren(Object.assign(el("iframe"), { title: `Oryginał: ${name}`, src: state.originalUrl }));
+  } else if (type) {
+    pane.replaceChildren(Object.assign(el("img"), { alt: `Oryginał: ${name}`, src: state.originalUrl }));
+  } else {
+    const note = el("div", "note");
+    const link = Object.assign(el("a", "button", "Pobierz oryginał"), { href: state.originalUrl, download: name });
+    note.append(el("p", "", `Przeglądarka nie wyświetli pliku ${ext(name).toUpperCase()}. Pobierz go i otwórz w edytorze, a obok przełącz na „Tekst z ekstrakcji”.`), link);
+    pane.replaceChildren(note);
+  }
+  showLeft();
+}
+
+function showLeft() {
+  for (const button of document.querySelectorAll("[data-left]")) button.setAttribute("aria-pressed", String(button.dataset.left === state.left));
+  $("#original").hidden = state.left !== "file";
+  $("#text").hidden = state.left !== "text";
+}
+for (const button of document.querySelectorAll("[data-left]")) button.addEventListener("click", () => { state.left = button.dataset.left; showLeft(); });
+
+// Right pane: a note while loading or without a result, otherwise the preview or the JSON.
+function showOutput(message) {
+  const note = $("#output-note");
+  note.hidden = !message;
+  note.className = `note ${message.startsWith("Brak wyniku:") ? "error" : "muted"}`;
+  note.textContent = message;
+  if (state.coi) {
+    $("#json").textContent = JSON.stringify(state.coi, null, 2);
+    sendPreview();
+  }
+  for (const button of document.querySelectorAll("[data-right]")) button.setAttribute("aria-pressed", String(button.dataset.right === state.right));
+  $("#preview-frame").hidden = !state.coi || state.right !== "preview";
+  $("#json").hidden = !state.coi || state.right !== "json";
+}
+for (const button of document.querySelectorAll("[data-right]")) {
+  button.addEventListener("click", () => {
+    state.right = button.dataset.right;
+    localStorage.setItem("coi-view", state.right);
+    showOutput($("#output-note").hidden ? "" : $("#output-note").textContent);
+  });
+}
+
+// Same hand-off as the upload page: the embedded /preview?embed=1 rebuilds its form on every message.
+function sendPreview() {
+  if (state.previewReady && state.coi)
+    $("#preview-frame").contentWindow.postMessage({ type: "coi-preview", json: JSON.stringify(state.coi) }, location.origin);
+}
+$("#preview-frame").addEventListener("load", () => { state.previewReady = true; sendPreview(); });
+
+// --- our review: one POST per click, appended to <run>/judge/human.jsonl ---
+
+const when = (iso) => new Date(iso).toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+function showSaved(f) {
+  $("#saved").className = "muted";
+  $("#saved").textContent = f.human ? `Zapisano ${when(f.human.time)}: ${f.human.agree ? "zgadzam się" : "nie zgadzam się"}` : "";
+}
+
+for (const button of document.querySelectorAll("[data-agree]")) {
+  button.addEventListener("click", async () => {
+    const f = state.selected;
+    try {
+      const response = await api(`/api/review/runs/${encodeURIComponent(state.run)}/human`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file: f.file, agree: button.dataset.agree === "true", note: $("#note").value }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(detail(data, response));
+      f.human = data;
+      if (f === state.selected) showSaved(f);
+      f.pick.querySelector(".human").textContent = humanText(data);
+    } catch (error) {
+      if (error.message === "401") return;
+      $("#saved").className = "error";
+      $("#saved").textContent = `Nie zapisano: ${error.message}`;
+    }
+  });
+}
+
+showScreens();
+if (state.token) loadRuns().catch(() => {});
+</script>
+</body>
+</html>
