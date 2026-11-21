@@ -12,7 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from app import pipeline, review
+from app import history, pipeline, review
 from app.dictionaries import propose as propose_dictionaries
 from app.config import settings
 from app.extract import extract
@@ -32,6 +32,7 @@ app = FastAPI(
     version="0.1.0",
 )
 app.include_router(review.router)  # dev-only /review, 404 unless REVIEW_RUNS_DIR is set
+app.include_router(history.router)  # /api/history: upload page history in SQLite (HISTORY_DB)
 
 
 class Credentials(BaseModel):

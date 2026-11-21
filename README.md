@@ -57,6 +57,7 @@ Zmienne środowiskowe albo plik `.env` (wzór: `.env.example`).
 | Zmienna | Domyślnie | Opis |
 |---|---|---|
 | `MAX_FILE_SIZE_MB` | `10` | Maksymalny rozmiar pliku (MiB) |
+| `HISTORY_DB` | `history.sqlite3` (katalog repo) | Plik SQLite z historią strony (wgrane pliki i wyniki) |
 | `AUTH_ENABLED` | `0` | `0` = API otwarte, strony bez logowania (na razie domyślnie). `1` = każde wywołanie wymaga tokenu `Bearer` JWT, strony pokazują logowanie |
 | `JWT_SECRET` | brak | Klucz podpisu tokenów, min. 32 znaki. Wymagany w produkcji; lokalnie bez niego API losuje klucz na czas życia procesu (z ostrzeżeniem w logu) |
 | `JWT_ALGORITHM` | `HS256` | Algorytm podpisu (z `JWT_JWKS_URL` np. `RS256`) |
@@ -91,6 +92,7 @@ Kolumna „Autoryzacja” dotyczy `AUTH_ENABLED=1`; przy domyślnym `0` wszystko
 | `POST /api/forms/convert` | `Bearer` JWT | Jeden plik w polu `file` (multipart) → JSON COI, bez żadnej otoczki. Z `?evidence=1` → `{"coi": ..., "evidence": {id elementu: {"source": "paper" \| "model" \| "code", "quote": cytat z papieru, "page": ...}}}` (tego używa strona: cytaty w podglądzie i w edytorze) |
 | `POST /api/forms/text` | `Bearer` JWT | Jeden plik w polu `file` (multipart) → `{"text": tekst odczytany z pliku, "method": sposób odczytu}`, bez modelu. Strona pokazuje go jako oryginał dla formatów, których przeglądarka nie wyświetla (DOC, DOCX, ODS, XLSX, XLS) |
 | `POST /api/forms/check` | `Bearer` JWT | JSON COI (np. po poprawkach urzędnika) → `{"problems": [{"id": id elementu lub null, "message": opis po polsku, "detail": reguła}]}`; pusta lista = gotowe do importu, te same reguły co przy konwersji |
+| `GET/POST/DELETE /api/history`, `GET /api/history/{id}/file`, `PUT/DELETE /api/history/{id}` | `Bearer` JWT | Historia strony na serwerze (SQLite, `HISTORY_DB`): lista bez bajtów pliku, najnowsze pierwsze; oryginał pliku; nowy wpis (multipart `record` JSON + `file`) → `{id}`; zmiana stanu (JSON); usunięcie jednego lub wszystkich. Skrypty dopisują gotowy wynik przez `uv run python -m bench.history_add <plik> <coi.json>` |
 | `GET /health` | brak | `{"status": "ok", "llm": "ok" \| "model_missing" \| "busy" \| "unreachable" \| "no_api_key", "llm_backend": ..., "llm_model": ...}` |
 | `GET /` | brak | Strona do wgrywania plików (kilka plików przetwarza po kolei): oryginał obok e-usługi w widokach „Podgląd” (cytat z papieru pod każdym polem), „Edytuj”, „JSON” i „Słowniki”. „Edytuj” obok pola otwiera edytor na tym polu: urzędnik poprawia je w panelu, a każdą zmianę sprawdzają reguły COI (z problemami nie pobierze JSON-a) |
 | `GET /docs` | brak | OpenAPI / Swagger UI (przycisk „Authorize” loguje loginem i hasłem) |
