@@ -5,7 +5,8 @@ For every file: extract -> make_plan -> filter_plan -> build -> check. Saves
 JSON produced (1), COI rules problems (2), quote-filter drops (hallucination
 proxy), score vs the gold plan, for forms 1 and 5 score vs the COI reference (3)
 plus `walid=` (validator F1 vs gold/coi/formN.json, the reference with hand-added
-validation), and per form the consistency of plans across formats vs the PDF plan (4).
+validation; `(+N unscored)` = its validators on fields `score_coi` did not match, not in
+the F1), and per form the consistency of plans across formats vs the PDF plan (4).
 
     uv run python -m bench.run_all                       # 9 COI forms, all formats
     uv run python -m bench.run_all --forms 1,5 --formats pdf
@@ -69,12 +70,16 @@ def run_file(form: str, path: Path, out: Path, rebuild: bool = False) -> dict:
     ext = path.suffix.lower().lstrip(".")
     plan_path, coi_path = out / form / f"{ext}.plan.json", out / form / f"{ext}.coi.json"
     row = {"form": form, "ext": ext, "file": path.name}
-    if coi_path.exists() and plan_path.exists():
-        plan, coi = Plan.model_validate_json(plan_path.read_text()), json.loads(coi_path.read_text())
+    if rebuild and not plan_path.exists():  # --rebuild never calls the model
+        return row | {"ok": False, "error": "not cached (--rebuild)"}
+    if plan_path.exists() and (rebuild or coi_path.exists()):
+        plan = Plan.model_validate_json(plan_path.read_text())
         row["cached"] = True
         if rebuild:  # builder changed: rebuild the COI JSON from the cached plan
             coi = build(plan)
             coi_path.write_text(json.dumps(coi, ensure_ascii=False, indent=1))
+        else:
+            coi = json.loads(coi_path.read_text())
     else:
         t = time.time()
         try:
@@ -99,6 +104,7 @@ def run_file(form: str, path: Path, out: Path, rebuild: bool = False) -> dict:
         if (GOLD_COI / f"form{form}.json").exists():
             row["walid"] = rep["validation"]["f1"]
             row["walid_missing"], row["walid_extra"] = rep["validation"]["missing"], rep["validation"]["extra"]
+            row["walid_unmatched"] = rep["validation"]["unmatched"]  # gold validators on unmatched fields, not in F1
     return row
 
 
@@ -135,7 +141,7 @@ def main() -> int:
         status = "OK " if r.get("ok") and not r.get("problems") else "ERR"
         extra = (f"rules={len(r.get('problems', []))} drop={len(r.get('dropped', []))} fields={r.get('fields')}"
                  f" gold={r.get('gold', '-')} ref={r.get('ref', '-')}"
-                 + (f" walid={r['walid']:.2f}" if "walid" in r else "") if r.get("ok") else r["error"])
+                 + (f" walid={r['walid']:.2f} (+{r['walid_unmatched']} unscored)" if "walid" in r else "") if r.get("ok") else r["error"])
         print(f"{status} {form:>3} {r['ext']:5} {r.get('s', 0):4}s {extra}", flush=True)
     cons = consistency(rows, out)
     summary = {"files": len(rows), "json_ok": sum(bool(r.get("ok")) for r in rows),

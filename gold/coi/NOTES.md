@@ -38,16 +38,18 @@ Rules applied:
 - Adres zamieszkania / Numer lokalu: no REQUIRED. Same, "Brak numeru lokalu" checkbox not expressible; most houses have no flat number.
 - Adres zamieszkania / Kod pocztowy (abroad): no REQUIRED, no ZIP_CODE. Standards: "kod pocztowy bez walidacji", escape checkbox "Brak kodu pocztowego".
 - Adres zamieszkania / Ulica (abroad): no REQUIRED (escape checkbox, as above).
+- Adres zamieszkania / Kod pocztowy (Polska): the Standards also list "Dodatkowa walidacja: Kod pocztowy" on Polish Ulica; a copy error, ignored.
 - Adres siedziby, Adres zamieszkania innej osoby: same block, same calls as Adres zamieszkania.
 - Dane podmiotu / Nazwa: REQUIRED (Standards).
 - Dane podmiotu / NIP: REQUIRED, NIP (Standards).
 - Dane podmiotu / REGON (form 1 only): REQUIRED, REGON (Standards).
-- Dane podmiotu / Numer KRS (form 1 only): no validator. Standards: "pole opcjonalne" + a Pattern regex, which is not in the allowed list. The screenshot shows no "(opcjonalnie)"; the Standards win.
+- Dane podmiotu / Numer KRS (form 1 only): no validator. Standards: "pole opcjonalne" + a Pattern regex; Pattern is not an allowed validator. The screenshot shows no "(opcjonalnie)"; the Standards win.
 - Potwierdzenie, że jesteś reprezentantem / Plik z odpisem danych: REQUIRED. The section exists only to collect this proof; no "(opcjonalnie)" in the screenshot.
 - Dane innej osoby / Imię, Nazwisko: REQUIRED (Standards).
+- Dane innej osoby / Numer PESEL: the Standards make it REQUIRED, but the references have no such field, so the gold cannot carry it. The builder emits it (REQUIRED, PESEL, `app/builder/standard.py` "Dane innej osoby").
 - Pełnomocnictwo / file (form 1 "Dokument z potwierdzeniem...", form 5 "Plik dokumentu z pełnomocnictwem"): REQUIRED (Standards).
 - Opłata skarbowa / Czy złożenie pełnomocnictwa wymaga opłaty skarbowej?: REQUIRED (Standards).
-- Opłata skarbowa / Potwierdzenie przelewu (form 1) / Plik z potwierdzeniem przelewu (form 5): REQUIRED (Standards; shown only after "Tak").
+- Opłata skarbowa / Potwierdzenie przelewu (form 1) / Plik z potwierdzeniem przelewu (form 5): REQUIRED (Standards "pole wymagane"; shown only after "Tak"). This is the precedent for REQUIRED on a field that is only visible under a condition (Nazwa podatku, Numer rachunku below).
 - Opłata skarbowa za pełnomocnictwo / Potwierdzenie przelewu (_2): REQUIRED (Standards, wersja 2).
 
 ## Both forms, contact page
@@ -67,17 +69,23 @@ Rules applied:
 - Wybierz, co mamy zrobić z nadpłatą: REQUIRED (paper "Kwotę nadpłaty proszę: 1) ... 2) ...").
 - Nazwa podatku (shown for "Zaliczyć..."): REQUIRED. Contested: the paper's line is needed to know which liability to credit; required only while visible.
 - Numer rachunku (shown for "Zwrócić przelewem..."): REQUIRED. Contested like above: a transfer needs an account. No IBAN validator exists.
-- Plik deklaracji podatkowej: REQUIRED. Contested: the paper pre-prints "w załączeniu: 1) korekta deklaracji" (art. 75 § 3 Ordynacji), but for taxes set by decision (e.g. property tax of a natural person) there is no declaration to correct.
+- Plik deklaracji podatkowej: REQUIRED. Strongest evidence: COI's own form 5 visualisation docx (image13) shows it without "(opcjonalnie)"; the paper also pre-prints "w załączeniu: 1) korekta deklaracji" (art. 75 § 3 Ordynacji). Counter-argument: for taxes set by decision (e.g. property tax of a natural person) there is no declaration to correct. Open call for Paweł.
 
 ## Model runs (qwen3:30b, `bench/run_all.py`, 21.11)
 Runs: `bench/runs/walid-e2e` (form 1 all 8 formats, form 5 DOC; stopped early to keep
 one bench on the shared Ollama) and `bench/runs/walid-cached` (form 5 PDF plan, rebuilt).
-`walid=1.00` on every file: no missing or extra validator on matched fields.
+Result, both numbers: `walid=1.00` on every file on matched fields (no missing or extra
+validator there). With the hand-checked subject page below counted in: about 0.99 on
+form 1 (Ulica extra REQUIRED) and about 0.976 on form 5 (Nazwa podatku and Numer
+rachunku REQUIRED missing). `run_all` prints the unscored gold validators next to the
+score, e.g. `walid=1.00 (+7 unscored)`.
 
 `walid=` only scores fields that `score_coi` matches. The model names the subject page
 differently ("Informacje o nieruchomości", "Wniosek o stwierdzenie nadpłaty podatku"),
 `score_coi` does not match that tab, so its fields count as missing structure (`ref=`)
 and their validators as `unmatched` (form 1: 3-4, form 5: 7), not as `walid=` misses.
+The scorer never counts extra validators on our own unmatched fields either (the
+model's extra subject fields add nothing to `walid=`).
 Hand check of those plan fields (`required` comes from the model):
 - Form 1, Ulica: model `required: true` in all 8 formats, gold no REQUIRED. Model limit (it ignores the paper's "Dane nieobowiązkowe" footnote).
 - Form 1, extra fields (Numer budynku, Numer lokalu, Kod pocztowy, "Czy chcesz podać adres ulicy?", "Czy wniosek jest składany w formie elektronicznej?"): not in the reference, structure, not validation.

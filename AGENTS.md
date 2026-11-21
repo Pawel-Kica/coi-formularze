@@ -5,6 +5,8 @@ Paweł's HackNation 2026 solution to the COI "Cyfryzacja Formularzy" task: a RES
 ## Hard rules
 - **NEVER call Eden AI or any external model API** (no runs, smoke tests or measurements) without Paweł's explicit OK for that specific run. `.env` holds no key; never open, print, log or commit `.env`.
 - The local Ollama model (`qwen3:30b-a3b-instruct-2507-q4_K_M`) has 2 parallel slots (32k context each) shared by every thread, the dev server and benches: run small, expect queueing beyond 2 requests (a form takes 40-150 s). Ollama runs as launchd agent `com.pawel.ollama` (log `~/Library/Logs/ollama.log`, restart `launchctl kickstart -k gui/$(id -u)/com.pawel.ollama`).
+- The Mac is at its memory limit. Only ONE model-heavy bench/eval at a time across all threads: check `pgrep -fl "bench\.|eval\.py|eval_all"` first; if one runs, do non-model work or wait. No full-set runs unless that is your job. Never load a second Ollama model; no model benchmarks or new pulls. Don't start dev servers, Playwright, Chrome or extra Python workers you don't need, and stop the ones you started.
+- Bonus II (dictionaries) owns `app/dictionaries.py`, `app/llm/dictionaries.py`, `gold/dictionaries/`, `bench/dictionaries.py`, `tests/test_dictionaries.py` and its block in `app/api.py` and `app/static/index.html`; never rewrite that block.
 - Shared working tree: other threads have uncommitted work here. Commit only your own paths (`git commit -- <paths>`), never `git stash`, `reset`, `checkout .` or rewrite others' hunks; re-read a file before editing it.
 - Commits: author Paweł Kica only, no Claude lines (the local `.git/hooks/commit-msg` strips them). Push to `main`.
 - Never delete files: `mv <path> /tmp/`.
@@ -27,13 +29,13 @@ file → text (`app/extract/`) → model plan (`app/llm/planner.py`, contract `a
 - `app/rules.py` COI JSON Schema + "Reguły techniczne" checker, `check(coi)` → list of problems.
 - `app/dictionaries.py` + `app/llm/dictionaries.py` bonus II: new dictionary proposals next to the COI JSON, model proposes, code filters.
 - `app/static/index.html` upload page (history, batch, ZIP); `app/static/preview.html` e-service preview (bonus V). `app/text.py` shared text helpers.
-- `bench/` `run_all.py` end-to-end definition-of-done table, `score.py` scorer (plan vs gold, COI vs reference), `run_models.py` model comparison, `extract_report.py` extraction/OCR consistency, `dictionaries.py` bonus II bench, `MODELS.md` measurements and decisions; runs go to `bench/runs/` (gitignored).
-- `gold/plans/formN.json` Claude's gold plans for all 9 forms, `gold/notes/formN.md` the reasoning per form (TEXT_BLOCK: `label` = heading, `description` = text); `gold/dictionaries/` bonus II key (9 COI + BIP forms); `gold/coi/formN.json` COI references 1 and 5 with hand-added validation (only `validation` differs, decisions in `gold/coi/NOTES.md`), scored by `walid=`.
-- `tests/` pytest per module. `output/` deliverable JSONs. `data/coi` symlink to `~/hacknation-2026/resources/formularze` (the 9 COI form packs, references, Standards; gitignored).
+- `bench/` `run_all.py` end-to-end definition-of-done table, `score.py` scorer (plan vs gold, COI vs reference), `run_models.py` model comparison (not allowed now), `extract_report.py` extraction/OCR consistency, `dictionaries.py` bonus II bench, `MODELS.md` measurements and decisions; runs go to `bench/runs/` (gitignored).
+- `gold/plans/formN.json` Claude's gold plans for all 9 forms, `gold/notes/formN.md` the reasoning for the 7 forms without a COI reference (2-4, 6-9) (TEXT_BLOCK: `label` = heading, `description` = text); `gold/dictionaries/` bonus II key (9 COI + BIP forms); `gold/coi/formN.json` COI references 1 and 5 with hand-added validation (only `validation` differs, decisions in `gold/coi/NOTES.md`), scored by `walid=`.
+- `tests/` pytest per module. `output/` deliverable JSONs (empty until submission). `data/coi` symlink to `~/hacknation-2026/resources/formularze` (the 9 COI form packs, references, Standards; gitignored).
 
 ## Commands
 - Tests: `uv run pytest`
-- End to end: `uv run python -m bench.run_all [--forms 1,5] [--formats pdf] [--bip] [--out bench/runs/<name>]` (uses the local model); `--rebuild` re-runs only the builder on cached plans; forms 1 and 5 print `walid=` (validator F1 vs `gold/coi/`, matched fields only) next to `ref=`
+- End to end: `uv run python -m bench.run_all [--forms 1,5] [--formats pdf] [--bip] [--out bench/runs/<name>]` (uses the local model); `--rebuild` re-runs only the builder on cached plans, never the model (files without one: "not cached"); forms 1 and 5 print `walid=` (validator F1 vs `gold/coi/`, matched fields only, `(+N unscored)` = gold validators on unmatched fields) next to `ref=`
 - Score one file: `uv run python bench/score.py coi|plan <ours.json> <ref.json>`
 - Dev server: launchd agent `com.pawel.coi-api` keeps the API on http://localhost:8010 (login admin / haslo, `--reload` on `app/`), log `~/Library/Logs/coi-api.log`. Restart: `launchctl kickstart -k gui/$(id -u)/com.pawel.coi-api`. Never put `--` inside an XML comment in its plist (a heartbeat check parses it with plistlib).
 - Native run, Docker, config table, API: `README.md` (jury-facing, keep it human).

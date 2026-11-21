@@ -58,7 +58,8 @@ def test_gold_validation_is_valid(form):
 def test_builder_from_gold_plan_hits_walid(form):
     coi = build(Plan.model_validate_json((ROOT / "gold" / "plans" / f"form{form}.json").read_text()))
     rep = score.score_coi(coi, gold_coi(form))
-    assert rep["validation"]["f1"] >= 0.95, rep["validation"]
+    v = rep["validation"]
+    assert not v["missing"] and not v["extra"], v
 
 
 def test_score_validation_counts_pairs():
