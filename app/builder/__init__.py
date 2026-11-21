@@ -28,7 +28,7 @@ from app.builder.core import (
     section,
     tab,
 )  # fmt: skip
-from app.builder.registry import address_source, pesel_links
+from app.builder.registry import address_links, pesel_links
 from app.builder.standard import (
     CONTACT,
     DANE,
@@ -171,6 +171,7 @@ def _plan_pages(ctx: Ctx, plan: Plan, known: dict[str, dict]) -> list[dict]:
     own, own_q = own_filing(plan.applicant)
     variants = [(True, own_q), (False, negate(own_q))] if own_q else [(True, None)]
     links = pesel_links(plan, titles) if own else {}
+    address_feeds = address_links(plan, titles) if own else {}
     tabs = []
     for title, page in zip(titles, plan.pages):
         sections = []
@@ -178,7 +179,7 @@ def _plan_pages(ctx: Ctx, plan: Plan, known: dict[str, dict]) -> list[dict]:
             st = sec_tech[id(s)]
             desc = html_paragraphs(s.description) if s.description.strip() else ""
             if s.address and not s.repeating:
-                source = address_source(s, title, plan.title) if own else None
+                source = address_feeds.get(id(s))
                 # the Standards block replaced the paper's address lines: their quotes back the section
                 quote = " / ".join(dict.fromkeys(f.quote for f in s.fields))
                 show_q = _query(s.show_if, locs, st)

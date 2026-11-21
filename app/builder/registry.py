@@ -8,8 +8,8 @@ wnioskodawcy", "Twoje dane"...). The page title never counts. A registry field i
 ("Dane inicjalne"), so the citizen cannot fix a wrong link: a repeating section, any word about
 another person or a second applicant anywhere around it means no link.
 Forms that change the registration or PESEL data are skipped (the register holds the old value).
-Usage: `pesel_links(plan, page_titles)`, `address_source(section, page_title, plan_title)`; the
-builder wires the results.
+Usage: `pesel_links(plan, page_titles)`, `address_links(plan, page_titles)`; the builder wires the
+results.
 """
 
 import re
@@ -59,10 +59,10 @@ _OTHER = re.compile(
     r"|malzenstw|\bzon(a|e|y|ie)\b|\bm(az|eza|ezem|ezowi|ezu)\b|nabywc|zbywc|sprzedawc|inwestor|dluzn"
     r"|wierzyciel|pracownik|pracodawc|lokator|najemc|uzytkownik|\bw imieniu\b|\binna niz\b|nie jest wnioskodawc"
     r"|wnucz|dziad|babc|tesci?|ziec|zieci|krewn|krewie|pokrewien|stosun\w* do|\bwiez|powiaz|relacj|student"
-    r"|zainteresowan|ubezpieczon|niepelnospraw|cudzoziem|swiadczeniobiorc|zglasza(n|sz)"
+    r"|zainteresowan|ubezpieczon|niepelnospraw|niepelnolet|ubezwlasnowol|cudzoziem|swiadczeniobiorc|zglasza(n|sz)"
     r"|\bosob(a|y|e|ie|om|ami|ach)?\b(?! (wnioskujac|skladajac))"  # the noun only: "osobowe" passes
 )
-_SECOND = re.compile(r"wspol|\bdrug(i|a|iego|iej)\b|kolejn|pozostal|\d|wnioskodawcow")
+_SECOND = re.compile(r"wspol|\bdrug(i|a|iego|iej)\b|pierwsz|kolejn|pozostal|\d|wnioskodawcow")
 _SECOND_TITLE = re.compile(r"\bnr\b|\b(ii|iii|iv)\b")  # titles only: a sibling "Nr domu" is fine
 # The form changes the registration, the PESEL data or citizenship: the register holds the old value.
 _CHANGE_FORM = re.compile(
@@ -73,7 +73,8 @@ _CHANGED = re.compile(r"bledn|prawidlow|poprawn|sprostow|zmian|aktualiz|poprzedn
                       r"|\bnow(y|a|e|ego|ej|ych|ym|ymi)\b")
 _IF = re.compile(r"\b(jesli|jezeli|w przypadku|o ile|gdy|kiedy|brak\w*)\b")  # conditional: may be meant empty
 # An address section description that offers another address.
-_ALT_ADDRESS = re.compile(r"\b(lub|albo|inn\w*|rozn\w*|zamieszk\w*|pobyt\w*|korespond\w*|czasow\w*)\b")
+_ALT_ADDRESS = re.compile(r"\b(lub|albo|inn\w*|rozn\w*|zamieszk\w*|pobyt\w*|korespond\w*|czasow\w*|ostatni\w*"
+                          r"|przed|w dniu|na dzien|wyjazd\w*|granic\w*)\b|\d")  # or one tied to a past date
 
 
 def _fold(*parts: str) -> str:
@@ -132,6 +133,13 @@ def pesel_links(plan: Plan, page_titles: list[str]) -> dict[int, str]:
     return {k: a for k, a in found.items() if counts[a] == 1}
 
 
+def address_links(plan: Plan, page_titles: list[str]) -> dict[int, dict[str, str]]:
+    """`id(section)` -> attribute map, like `pesel_links`: two qualifying address sections link neither."""
+    found = {id(s): src for title, page in zip(page_titles, plan.pages) for s in page.sections
+             if (src := address_source(s, title, plan.title))}
+    return found if len(found) == 1 else {}
+
+
 def address_source(s: Section, page_title: str, plan_title: str) -> dict[str, str] | None:
     """Attribute map for an address section that is exactly the applicant's permanent registered
     address ("Adres zameldowania wnioskodawcy", "Twój adres stałego zameldowania"), else None."""
@@ -141,9 +149,12 @@ def address_source(s: Section, page_title: str, plan_title: str) -> dict[str, st
     if not _SELF_ADDRESS.fullmatch(title) or not re.search(r"^twoj|wnioskodawcy\b", title):
         return None
     page = _title(page_title)
-    if _CHANGE_FORM.search(page.replace("adres zameldowania", "")) or _CHANGED.search(_fold(page, s.description)):
-        return None  # a page about (re)registration or changed data, e.g. "Przemeldowanie"
-    if _ALT_ADDRESS.search(_fold(s.description)) or _IF.search(_fold(s.description)):
+    rest = page.replace("adres zameldowania", "")
+    if _CHANGE_FORM.search(rest) or _ALT_ADDRESS.search(rest) or _CHANGED.search(page):
+        return None  # a page about (re)registration, another address or changed data ("Przemeldowanie")
+    # what the section and its paper lines say: another address, a condition, a past date, changed data
+    said = _fold(s.description, *(f.label for f in s.fields), *(f.description for f in s.fields))
+    if _ALT_ADDRESS.search(said) or _IF.search(said) or _CHANGED.search(said):
         return None
     if _OTHER.search(_fold(title, s.description, page, *(f.label for f in s.fields))):
         return None

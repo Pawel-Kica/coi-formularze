@@ -134,6 +134,31 @@ def _addr(title, plan_title="Wniosek o stypendium", page="Sprawa", labels=("Ulic
     return address_source(sec, page, plan_title)
 
 
+def test_round5_negatives():
+    for desc in ("Adres zameldowania na dzień 31 grudnia 2025", "Adres w dniu zdarzenia",
+                 "Adres ostatniego zameldowania w Polsce", "Adres zameldowania przed wyjazdem za granicę"):
+        assert _addr("Adres zameldowania wnioskodawcy", description=desc) is None, desc
+    assert _addr("Adres zameldowania wnioskodawcy", labels=("Ulica (pobyt czasowy)",)) is None
+    assert _addr("Twój adres zameldowania", page="Adres zameldowania za granicą") is None
+    assert _addr("Adres zameldowania wnioskodawcy", labels=("Miejscowość", "Ulica", "Nr domu", "Kod pocztowy")) \
+        == PERMANENT_ADDRESS
+    for section in ("Wnioskodawca (niepełnoletni)", "Wnioskodawca (ubezwłasnowolniony)",
+                    "Dane pierwszego wnioskodawcy"):
+        assert _attr("Data urodzenia", "DATEPICKER", section=section) is None, section
+
+
+def test_two_qualifying_address_sections_link_neither():
+    def addr(i):
+        return Section(id=f"a{i}", title="Adres zameldowania wnioskodawcy", address=True,
+                       fields=[PlanField(id=f"u{i}", label="Ulica", type="TEXT_FIELD", quote=f"u{i}")])
+    plan = Plan(title="Wniosek o test", addressee="Burmistrz Miasta Testowo", applicant=SOLO, pages=[
+        Page(title="Wnioskodawca A", sections=[addr(1)]), Page(title="Wnioskodawca B", sections=[addr(2)])])
+    coi = build(plan)
+    assert check(coi) == []
+    assert not any(f.get("defaultValueType") == "EXTERNAL_SYSTEM" for t in coi["tabs"][1:-2]
+                   for f in _fields({"tabs": [t]}))
+
+
 def test_address_description_offering_another_address():
     for desc in ("Jeżeli nie masz zameldowania, wpisz adres pobytu.",
                  "Wpisz adres, jeśli różni się od adresu zamieszkania",
