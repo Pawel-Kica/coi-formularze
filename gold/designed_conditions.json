@@ -1,0 +1,8 @@
+{
+  "_doc": "Per form: target ids (field or section) of gold conditions whose trigger question the gold designed (no such choice is printed on paper; the paper only has a conditional sentence). Metric v2 (bench/score.py) reports their recall apart and keeps them out of the headline recall. Tagged by hand 21.11 from the paper texts.",
+  "3": ["f5", "f6"],
+  "4": ["s4"],
+  "6": ["f24", "f25"],
+  "8": ["f4", "s4", "s8"],
+  "9": ["s8"]
+}

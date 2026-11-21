@@ -5,13 +5,16 @@
                            `validation`: F1 of (field, validator) pairs on matched
                            fields (meaningful against gold/coi/formN.json, the COI
                            references with hand-added validation).
-    score_plan(ours, gold) a model's Plan vs a hand-written gold Plan (7 forms):
+    score_plan(ours, gold, paper=None, designed=())
+                           a model's Plan vs a hand-written gold Plan (9 forms):
                            field recall/precision, types, options, conditions,
-                           applicant/addressee agreement.
+                           applicant/addressee agreement. `score` = old gold=;
+                           `v2` = metric v2 headline (see `score_plan`).
+    lints(plan, paper)     gold-free checks of a Plan against its paper text.
 
 CLI:
     uv run python bench/score.py coi  <ours.json> <ref.json>  [--json]
-    uv run python bench/score.py plan <ours.json> <gold.json> [--json]
+    uv run python bench/score.py plan <ours.json> <gold.json> [--json] [--paper <text file>]
 
 Both return a dict; `report["summary"]` is a short readable text.
 """
@@ -54,7 +57,7 @@ def sim(a: str, b: str) -> float:
     return 0.5 * fuzz.ratio(na, nb) + 0.5 * fuzz.token_set_ratio(na, nb)
 
 
-def pair(refs: list, ours: list, score) -> list[tuple[int, int, float]]:
+def pair(refs: list, ours: list, score, threshold: float = THRESHOLD) -> list[tuple[int, int, float]]:
     """Greedy one-to-one matching, best pairs first; returns (ref index, our index, score)."""
     cands = sorted(
         ((score(r, o), i, j) for i, r in enumerate(refs) for j, o in enumerate(ours)),
@@ -62,7 +65,7 @@ def pair(refs: list, ours: list, score) -> list[tuple[int, int, float]]:
     )
     used_r, used_o, out = set(), set(), []
     for s, i, j in cands:
-        if s >= THRESHOLD and i not in used_r and j not in used_o:
+        if s >= threshold and i not in used_r and j not in used_o:
             used_r.add(i)
             used_o.add(j)
             out.append((i, j, s))
@@ -312,21 +315,77 @@ def _plan_fields(plan: Plan) -> list[dict]:
     return out
 
 
-def _options_f1(gold: list[str], ours: list[str]) -> float:
+def _options_f1(gold: list[str], ours: list[str], score=sim) -> float:
     if not gold and not ours:
         return 1.0
     if not gold or not ours:
         return 0.0
-    m = len(pair(gold, ours, sim))
+    m = len(pair(gold, ours, score))
     p, r = m / len(ours), m / len(gold)
     return 0.0 if m == 0 else 2 * p * r / (p + r)
 
 
-def score_plan(ours: Plan, gold: Plan) -> dict:
+def _f1(r: float, p: float) -> float:
+    return round(2 * r * p / (r + p), 4) if r + p else 0.0
+
+
+class PaperOptions:
+    """Option similarity "after normalizing to paper": gold rewords options ("Właściciel lub
+    współwłaściciel"), the model copies them off the paper. Two options are the same when their
+    labels match (`sim`) or when both sit on the same spot of the paper (best fuzzy alignment
+    inside one paper line, spans overlap). Options shorter than 5 letters (Tak, Nie) only by label."""
+
+    def __init__(self, paper: str):
+        from app.quotes import normalize
+
+        self._norm = normalize
+        self.lines = [n for n in (normalize(line) for line in paper.splitlines()) if n]
+        self._cache: dict[str, tuple[int, int, int] | None] = {}
+
+    def anchor(self, option: str) -> tuple[int, int, int] | None:
+        if option not in self._cache:
+            q, best = self._norm(option), None
+            if len(q) >= 5:
+                for i, line in enumerate(self.lines):
+                    al = fuzz.partial_ratio_alignment(q, line)
+                    if al and al.score >= 85 and (best is None or al.score > best[0]):
+                        best = (al.score, i, al.dest_start, al.dest_end)
+            self._cache[option] = best[1:] if best else None
+        return self._cache[option]
+
+    def sim(self, a: str, b: str) -> float:
+        s = sim(a, b)
+        if s >= THRESHOLD:
+            return s
+        x, y = self.anchor(a), self.anchor(b)
+        if x and y and x[0] == y[0]:
+            inter = min(x[2], y[2]) - max(x[1], y[1])
+            if inter > 0.5 * min(x[2] - x[1], y[2] - y[1]):
+                return float(THRESHOLD)
+        return s
+
+
+def load_designed(form: str) -> set[str]:
+    """Target ids of gold conditions whose trigger question the gold itself designed (`gold/designed_conditions.json`)."""
+    path = Path(__file__).resolve().parents[1] / "gold" / "designed_conditions.json"
+    return set(json.loads(path.read_text()).get(str(form), []))
+
+
+def score_plan(ours: Plan, gold: Plan, paper: str | None = None, designed: set[str] | frozenset = frozenset()) -> dict:
     """Compare a model Plan with a gold Plan. Fields are matched across the whole plan
     (label, or the paper quote as a fallback), with a bonus for sitting on the matched
-    page, so a different page split does not hide correct fields."""
+    page, so a different page split does not hide correct fields.
+
+    `metrics["score"]` is the old gold= (unchanged). Metric v2 (`metrics["v2"]`, the headline) =
+    mean of fields F1, required agreement, options after normalizing to `paper` (`options_paper`,
+    plain label match without `paper`) and conditions F1 v2 (`conditions_f1`: recall over the gold
+    conditions printed on paper, i.e. not in `designed` = gold target ids whose trigger the gold
+    designed; precision over all of ours; a condition on a section with one field counts as the
+    condition on that field; sections matched by title or by where their fields went).
+    Pages (matched by field overlap) and statements are reported, not in the headline."""
     from app.builder.standard import is_organ
+
+    osim = PaperOptions(paper).sim if paper else sim
 
     page_pairs = pair(gold.pages, ours.pages, lambda g, o: max(
         sim(g.title, o.title),
@@ -386,6 +445,64 @@ def score_plan(ours: Plan, gold: Plan) -> dict:
     cpairs = pair(gconds, oconds, cscore)
     cm = {i for i, _, _ in cpairs}
 
+    # --- metric v2: conditions ---
+    gsec_fields = [[gid[f.id] for f in sec.fields] for sec in gsec]
+    osec_fields = [[oid[f.id] for f in sec.fields] for sec in osec]
+    o_where = {j: k for k, js in enumerate(osec_fields) for j in js}
+
+    def sec_v2(gi, oj):
+        moved = [fmap[i] for i in gsec_fields[gi] if i in fmap]
+        share = sum(o_where.get(j) == oj for j in moved) / len(gsec_fields[gi]) if gsec_fields[gi] else 0.0
+        return max(sim(gsec[gi].title, osec[oj].title), 50 + 50 * share if share >= 0.5 else 0.0)
+
+    smap2 = {i: j for i, j, _ in pair(list(range(len(gsec))), list(range(len(osec))), sec_v2)}
+
+    def conds_v2(plan_fields, sections, sec_fields, designed_ids=frozenset()):
+        """[(target key, condition, designed)]; a one-field section's condition = its field's."""
+        out = []
+        for k, sec in enumerate(sections):
+            if sec.show_if:
+                key = ("field", sec_fields[k][0]) if len(sec_fields[k]) == 1 else ("section", k)
+                out.append((key, sec.show_if, sec.id in designed_ids))
+        have = {key for key, _, _ in out}
+        for k, x in enumerate(plan_fields):
+            if x["field"].show_if and ("field", k) not in have:
+                out.append((("field", k), x["field"].show_if, x["field"].id in designed_ids))
+        return out
+
+    gc2, oc2 = conds_v2(gf, gsec, gsec_fields, designed), conds_v2(of, osec, osec_fields)
+
+    def cscore2(g, o):
+        (gkind, gk), gc, _ = g
+        (okind, ok), oc, _ = o
+        target = fmap.get(gk) if gkind == "field" else smap2.get(gk)
+        trig_g, trig_o = gid.get(gc.field), oid.get(oc.field)
+        if gkind != okind or target != ok or trig_g is None or fmap.get(trig_g) != trig_o or gc.negate != oc.negate:
+            return 0.0
+        return 100.0 * _options_f1(gc.options, oc.options, osim)
+
+    cp2 = pair(gc2, oc2, cscore2)
+    hit2 = {i for i, _, _ in cp2}
+    on_paper = [i for i, c in enumerate(gc2) if not c[2]]
+    des = [i for i, c in enumerate(gc2) if c[2]]
+    c_recall = _recall(sum(i in hit2 for i in on_paper), len(on_paper))
+    c_precision = _recall(len(cp2), len(oc2)) if oc2 else (1.0 if not on_paper else 0.0)
+    if not on_paper and not oc2:
+        c_f1 = 1.0
+    else:
+        c_f1 = _f1(c_recall if on_paper else 1.0, c_precision)
+
+    # --- metric v2: pages by field overlap (Dice of their fields, >= 0.5) ---
+    gpf = [{k for k, x in enumerate(gf) if x["page"] == pi} for pi in range(len(gold.pages))]
+    opf = [{k for k, x in enumerate(of) if x["page"] == pj} for pj in range(len(ours.pages))]
+
+    def page_v2(pi, pj):
+        m = sum(fmap.get(k) in opf[pj] for k in gpf[pi])
+        n = len(gpf[pi]) + len(opf[pj])
+        return 100.0 * 2 * m / n if n else 0.0
+
+    pages_v2 = pair(list(range(len(gold.pages))), list(range(len(ours.pages))), page_v2, threshold=50)
+
     def cond_label(c, plan_fields, sections):
         kind, k, cond = c
         target = plan_fields[k]["field"].label if kind == "field" else sections[k].title
@@ -415,6 +532,22 @@ def score_plan(ours: Plan, gold: Plan) -> dict:
     metrics["score"] = round(sum(metrics[k] for k in (
         "fields_f1", "type_agreement", "options_agreement", "conditions_recall", "applicant_agreement",
     )) / 5, 4)  # fmt: skip
+    opt_paper = []
+    for i, j in fmap.items():
+        g, o = gf[i]["field"], of[j]["field"]
+        if g.options or o.options:
+            opt_paper.append(_options_f1(g.options, o.options, osim))
+    metrics.update({
+        "options_paper": round(sum(opt_paper) / len(opt_paper), 4) if opt_paper else 1.0,
+        "conditions_recall_paper": c_recall,
+        "conditions_recall_designed": _recall(sum(i in hit2 for i in des), len(des)),
+        "conditions_precision_v2": c_precision,
+        "conditions_f1": c_f1,
+        "conditions_n": f"{len(oc2)}/{len(on_paper)}+{len(des)}",  # ours / gold on paper + gold designed
+        "pages_v2": _recall(len(pages_v2), len(gold.pages)),
+    })
+    metrics["v2"] = round(sum(metrics[k] for k in (
+        "fields_f1", "required_agreement", "options_paper", "conditions_f1")) / 4, 4)
     report = {
         "metrics": metrics,
         "applicant": applicant,
@@ -423,10 +556,20 @@ def score_plan(ours: Plan, gold: Plan) -> dict:
         "type_diff": type_diff,
         "options_diff": opt_diff,
         "missing_conditions": [cond_label(c, gf, gsec) for i, c in enumerate(gconds) if i not in cm],
+        "missing_conditions_v2": [f"{'designed: ' if c[2] else ''}{_target_label(c[0], gf, gsec)} <- {c[1].field} in {c[1].options}"
+                                  for i, c in enumerate(gc2) if i not in hit2],
+        "extra_conditions_v2": [f"{_target_label(c[0], of, osec)} <- {c[1].field} in {c[1].options}"
+                                f"{' (negated)' if c[1].negate else ''}"
+                                for j, c in enumerate(oc2) if j not in {j for _, j, _ in cp2}],
         "addressee": {"gold": gold.addressee, "ours": ours.addressee},
     }
     report["summary"] = _plan_summary(report)
     return report
+
+
+def _target_label(key, plan_fields, sections) -> str:
+    kind, k = key
+    return plan_fields[k]["field"].label if kind == "field" else f"[{sections[k].title}]"
 
 
 def _plan_summary(rep: dict) -> str:
@@ -438,6 +581,11 @@ def _plan_summary(rep: dict) -> str:
         f"| pages {m['pages_recall']:.0%} | statements {m['statements_recall']:.0%} "
         f"| applicant {m['applicant_agreement']:.0%} | addressee {'ok' if m['addressee_ok'] else 'WRONG'}"
     )]
+    lines.append(
+        f"v2 {m['v2']:.0%} | fields F1 {m['fields_f1']:.0%} | required {m['required_agreement']:.0%} "
+        f"| options/paper {m['options_paper']:.0%} | conditions F1 {m['conditions_f1']:.0%} "
+        f"(R paper {m['conditions_recall_paper']:.0%}, R designed {m['conditions_recall_designed']:.0%}, "
+        f"P {m['conditions_precision_v2']:.0%}, n {m['conditions_n']}) | pages v2 {m['pages_v2']:.0%}")
     lines += [f"  applicant.{k} differs" for k, ok in rep["applicant"].items() if not ok]
     if not m["addressee_ok"]:
         lines.append(f"  addressee: gold {rep['addressee']['gold']!r}, ours {rep['addressee']['ours']!r}")
@@ -445,11 +593,72 @@ def _plan_summary(rep: dict) -> str:
     lines += [f"  extra field: {x}" for x in rep["extra_fields"]]
     lines += [f"  type: {x}" for x in rep["type_diff"]]
     lines += [f"  options: {x}" for x in rep["options_diff"]]
-    lines += [f"  missing condition: {x}" for x in rep["missing_conditions"]]
+    lines += [f"  missing condition: {x}" for x in rep["missing_conditions_v2"]]
+    lines += [f"  extra condition: {x}" for x in rep["extra_conditions_v2"]]
     return "\n".join(lines)
 
 
+# --- gold-free lints --------------------------------------------------------------------
+
+# a paper line that makes something conditional ("wypełnić tylko w przypadku", "dotyczy wyłącznie", "(jeśli ...)")
+_COND_LINE = re.compile(
+    r"wypełni\w*,? (tylko|jeżeli|jeśli|w przypadku|gdy|wyłącznie)|dotyczy (tylko|wyłącznie)|\((jeżeli|jeśli|w przypadku|gdy)\b")
+_BOX = re.compile(r"[☐☑☒□■]|\[ ?[xX]? ?\]")
+
+
+def lints(plan: Plan, paper: str) -> dict:
+    """Gold-free checks of a Plan against its paper text (counts + examples):
+    - vacuous: a condition on every option of its trigger (negated: never shown once answered; plain: always shown);
+    - late_trigger: the trigger comes after its target in the plan;
+    - box_group_no_field: a paper line with 2+ check boxes none of whose options is an option of a choice field;
+    - conditional_no_condition: a conditional paper line ("wypełnić tylko ...") no condition quotes."""
+    from app.quotes import normalize, quote_lines
+
+    out: dict[str, list[str]] = {k: [] for k in ("vacuous", "late_trigger", "box_group_no_field", "conditional_no_condition")}
+    order, fields = {}, {}
+    for sec in (s for p in plan.pages for s in p.sections):
+        order[sec.id] = len(order)
+        for f in sec.fields:
+            order[f.id] = len(order)
+            fields[f.id] = f
+    targets = [(sec.id, sec) for p in plan.pages for sec in p.sections]
+    targets += [(f.id, f) for f in fields.values()]
+    cond_spans = []
+    for tid, t in targets:
+        c = t.show_if
+        if c is None:
+            continue
+        cond_spans += quote_lines(c.quote, paper)
+        trig = fields.get(c.field)
+        if trig and trig.options and {normalize(o) for o in trig.options} <= {normalize(o) for o in c.options}:
+            out["vacuous"].append(f"{tid} <- {'NOT ' if c.negate else ''}{c.field} all {len(trig.options)} options")
+        if c.field in order and order[c.field] > order[tid]:
+            out["late_trigger"].append(f"{tid} <- {c.field}")
+    choice_opts = [o for f in fields.values() if f.options for o in f.options]
+    lines = [line for line in paper.splitlines() if line.strip()]
+    for line in lines:
+        if len(_BOX.findall(line)) < 2:
+            continue
+        parts = [x.strip(" |:-*") for x in _BOX.split(line)[1:]]
+        parts = [x for x in parts if len(norm(x)) >= 2]
+        if parts and not any(sim(x, o) >= THRESHOLD or (len(norm(o)) >= 4 and fuzz.partial_ratio(norm(o), norm(x)) >= 90)
+                             for x in parts for o in choice_opts):
+            out["box_group_no_field"].append(line.strip()[:90])
+    # quote_lines counts the lines that are not empty after normalize
+    for i, line in enumerate(x for x in lines if normalize(x)):
+        if not _COND_LINE.search(line.lower()):
+            continue
+        if not any(a - 1 <= i <= b + 1 for a, b in cond_spans):
+            out["conditional_no_condition"].append(line.strip()[:90])
+    return {"counts": {k: len(v) for k, v in out.items()}, **out}
+
+
 def main(argv: list[str]) -> int:
+    paper = None
+    if "--paper" in argv:
+        i = argv.index("--paper")
+        paper = Path(argv[i + 1]).read_text()
+        argv = argv[:i] + argv[i + 2:]
     args = [a for a in argv if a != "--json"]
     if len(args) != 3 or args[0] not in ("coi", "plan"):
         print(__doc__)
@@ -458,8 +667,10 @@ def main(argv: list[str]) -> int:
     if kind == "coi":
         rep = score_coi(json.loads(Path(ours_path).read_text()), json.loads(Path(ref_path).read_text()))
     else:
+        m = re.search(r"form(\d+)\.json$", ref_path)
         rep = score_plan(Plan.model_validate_json(Path(ours_path).read_text()),
-                         Plan.model_validate_json(Path(ref_path).read_text()))
+                         Plan.model_validate_json(Path(ref_path).read_text()),
+                         paper, load_designed(m.group(1)) if m else frozenset())
     print(json.dumps(rep, ensure_ascii=False, indent=2, default=str) if "--json" in argv else rep["summary"])
     return 0
 
