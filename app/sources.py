@@ -190,7 +190,8 @@ def locate(paper: Paper, coi: dict | None, evidence: dict) -> dict[str, dict | N
     """Element id -> where its quote is on paper, for every element with a quote:
     {page (1-based), pages, boxes: one [x0, y0, x1, y1] per text line of the quote, fractions of the page}, or for
     text formats {lines: [first, last] in the extracted text's lines, text: those lines}, or None = not found.
-    An element whose SHOW condition has its own quote gets that place too, as `condition` (same shape, or None)."""
+    An element whose SHOW condition has its own quote gets that place too, as `condition` (same shape, or None).
+    A section without a quote gets the place of its paper heading (`_heading_places`)."""
     items = quote_items(coi, evidence)
     places = place_quotes(items, paper.text)
     keys = {key for key, _, _ in items}
@@ -201,6 +202,29 @@ def locate(paper: Paper, coi: dict | None, evidence: dict) -> dict[str, dict | N
         out[key] = where = _where(paper, places[key]) if key in places else None
         if where is not None and key + _COND in keys:
             where["condition"] = _where(paper, places[key + _COND]) if key + _COND in places else None
+    if coi:
+        out.update(_heading_places(paper, coi, evidence, out))
+    return out
+
+
+def _heading_places(paper: Paper, coi: dict, evidence: dict, done: dict) -> dict[str, dict]:
+    """A section without a quote of its own ("Źródło" of its "W dokumencie: ..." line): the place of its paper heading,
+    the same line `app.headings` names, so the button shows where the heading came from."""
+    from app.headings import section_headings  # app.headings imports this module
+    found = section_headings(paper, coi, evidence)
+    joined, starts = _paper_lines(paper.text)
+    out = {}
+    for t in coi["tabs"]:
+        for q in t["questions"]:
+            sid = q["field"]["id"]
+            key = (evidence.get(sid) or {}).get("plan_id")
+            if sid in done or key not in found:
+                continue
+            h, line = found[key]
+            end, stop = line, starts[line] + len(normalize(h))  # a heading broken over lines: the lines it takes, no more
+            while end + 1 < len(starts) and starts[end + 1] - 1 < stop:
+                end += 1
+            out[sid] = _where(paper, (starts[line], starts[end + 1] - 1 if end + 1 < len(starts) else len(joined)))
     return out
 
 
