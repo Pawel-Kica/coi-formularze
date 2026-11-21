@@ -116,9 +116,29 @@ def test_round3_negatives():
     assert _attr("Obywatelstwo", description="Wpisz, jeśli inne niż polskie") is None
 
 
-def _addr(title, plan_title="Wniosek o stypendium", page="Sprawa", labels=("Ulica", "Kod pocztowy")):
+def test_round4_negatives():
+    assert _attr("Data urodzenia wnioskodawcy", "DATEPICKER", section="Wnioskodawca nr II") is None
+    assert _attr("Data urodzenia", "DATEPICKER", section="Dane osobowe wnioskodawcy", page="Wnioskodawca II") is None
+    for desc in ("Wypełnij, gdy brak numeru PESEL", "Poprzednie obywatelstwo", "Wpisz nowe obywatelstwo"):
+        assert _attr("Obywatelstwo", description=desc) is None, desc
+    sec = Section(id="s1", title="Dane wnioskodawcy", description="Wypełnij, jeśli nie masz obywatelstwa polskiego",
+                  fields=[_f("Obywatelstwo")])
+    assert pesel_attribute(sec.fields[0], sec, "Sprawa", "Wniosek o stypendium") is None
+    assert _attr("Obywatelstwo", section="Dane wnioskodawcy (przed zawarciem małżeństwa)") is None
+    assert _attr("Data urodzenia", "DATEPICKER", siblings=("Powiązanie z wnioskodawcą",)) is None
+
+
+def _addr(title, plan_title="Wniosek o stypendium", page="Sprawa", labels=("Ulica", "Kod pocztowy"), description=""):
     fields = [PlanField(id=f"a{i}", label=lab, type="TEXT_FIELD", quote="q") for i, lab in enumerate(labels)]
-    return address_source(Section(id="s1", title=title, address=True, fields=fields), page, plan_title)
+    sec = Section(id="s1", title=title, address=True, description=description, fields=fields)
+    return address_source(sec, page, plan_title)
+
+
+def test_address_description_offering_another_address():
+    for desc in ("Jeżeli nie masz zameldowania, wpisz adres pobytu.",
+                 "Wpisz adres, jeśli różni się od adresu zamieszkania",
+                 "Wypełnij tylko jeśli jesteś zameldowany na pobyt czasowy"):
+        assert _addr("Adres zameldowania wnioskodawcy", description=desc) is None, desc
 
 
 def test_address_source():
@@ -143,6 +163,13 @@ def test_address_source():
         assert _addr(f"Adres zameldowania wnioskodawcy {tail}") is None, tail
     assert _addr("Twój adres zameldowania (albo do korespondencji)") is None
     assert _addr("2. Adres zameldowania wnioskodawcy") == PERMANENT_ADDRESS
+    for tail in ("(po zmianie)", "(zmieniony)", "(prawidłowy)", "(za granicą)", "(przed wyjazdem)",
+                 "(jeżeli dotyczy)", "(docelowy)", "(błędny)"):
+        assert _addr(f"Adres zameldowania wnioskodawcy {tail}") is None, tail
+    assert _addr("Adres zameldowania wnioskodawcy (aktualny)") == PERMANENT_ADDRESS
+    for page in ("Zgłoszenie zameldowania", "Przemeldowanie", "Pobyt czasowy", "Wymeldowanie"):
+        assert _addr("Adres zameldowania wnioskodawcy", page=page) is None, page
+    assert _addr("Adres zameldowania wnioskodawcy", page="Adres zameldowania") == PERMANENT_ADDRESS
     assert _addr("Adres zameldowania wnioskodawcy", page="Dane osobowe") == PERMANENT_ADDRESS
     for title in ("Formularz meldunkowy", "Wniosek o przemeldowanie", "Wniosek o zmianę adresu"):
         assert _addr("Adres zameldowania wnioskodawcy", plan_title=title) is None, title

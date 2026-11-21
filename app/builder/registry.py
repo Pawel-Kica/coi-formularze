@@ -46,7 +46,9 @@ _SELF_SECTION = re.compile(
     r"twoje dane( osobowe)?|wnioskodawca|dane( osobowe)? wnioskodawcy|dane osoby wnioskujacej"
     r"|(dane )?(osoby )?skladajace(go|j)( wniosek| deklaracje)?|skladajacy( wniosek| deklaracje)?"
 )
-_SELF_ADDRESS = re.compile(r"(twoj )?adres (stalego )?zameldowania( na pobyt staly)?( wnioskodawcy)?")
+# The whole address title (numbering stripped): any other "(...)" may offer another address.
+_SELF_ADDRESS = re.compile(r"(twoj )?adres (stalego )?zameldowania( na pobyt staly)?( wnioskodawcy)?"
+                           r"( \((staly|aktualny|na pobyt staly|(jesli|jezeli) posiada(sz)?)\))?:?")
 _OTHER = re.compile(
     r"dzie(c|ck)|malzon|pelnomocn|wlasciciel|odpowiedzialn|\bczlon|kandydat|mocodawc|opiekun|\brodzic"
     r"|\bmat(k|ce)|\boj(c|ciec)|zmarl|\bchor|\bucz(en|ni)|zawodnik|uczestnik|najem|dzierzaw|spadk"
@@ -54,23 +56,24 @@ _OTHER = re.compile(
     r"|poszkodowan|maloletn|nieletn|podopieczn|\bswiad(ek|k)|kierownik|wykonawc|przedstawiciel"
     r"|reprezentant|reprezentowan|upowazn|uprawnion|zarzadc|posiadacz|lekarz|pacjent|gospodarstw"
     r"|\brodzin|partner|wnuk|\brodzenstw|\bbrat|siostr|\bsyn(a|em|owi|u|ow)?\b|\bcor(k|ce)"
-    r"|\bzon(a|e|y|ie)\b|\bm(az|eza|ezem|ezowi|ezu)\b|nabywc|zbywc|sprzedawc|inwestor|dluzn"
+    r"|malzenstw|\bzon(a|e|y|ie)\b|\bm(az|eza|ezem|ezowi|ezu)\b|nabywc|zbywc|sprzedawc|inwestor|dluzn"
     r"|wierzyciel|pracownik|pracodawc|lokator|najemc|uzytkownik|\bw imieniu\b|\binna niz\b|nie jest wnioskodawc"
-    r"|wnucz|dziad|babc|tesci?|ziec|zieci|krewn|krewie|pokrewien|stosun\w* do|\bwiez|relacj|student"
+    r"|wnucz|dziad|babc|tesci?|ziec|zieci|krewn|krewie|pokrewien|stosun\w* do|\bwiez|powiaz|relacj|student"
     r"|zainteresowan|ubezpieczon|niepelnospraw|cudzoziem|swiadczeniobiorc|zglasza(n|sz)"
     r"|\bosob(a|y|e|ie|om|ami|ach)?\b(?! (wnioskujac|skladajac))"  # the noun only: "osobowe" passes
 )
 _SECOND = re.compile(r"wspol|\bdrug(i|a|iego|iej)\b|kolejn|pozostal|\d|wnioskodawcow")
+_SECOND_TITLE = re.compile(r"\bnr\b|\b(ii|iii|iv)\b")  # titles only: a sibling "Nr domu" is fine
 # The form changes the registration, the PESEL data or citizenship: the register holds the old value.
 _CHANGE_FORM = re.compile(
     r"meldow|meldun|pobyt|zmian\w* adres|przeprowadz|pesel|sprostow|transkrypc|uzupelnien\w* akt|obywatel"
 )
 # A page or section about corrected or changed data: the register holds the value being fixed.
-_CHANGED = re.compile(r"bledn|prawidlow|poprawn|sprostow|zmian|aktualiz|\bnow(y|a|e|ego|ej)\b")
-_IF = re.compile(r"\b(jesli|jezeli|w przypadku|o ile)\b")  # a conditional field: the paper may want it empty
-# An address title that offers another address or a past one.
-_NOT_THIS = re.compile(r"\b(lub|albo|brak\w*|zamieszk\w*|pobytu|korespond\w*|poprzedn\w*|dotychczas\w*|byl\w*"
-                       r"|star\w*|now\w*|ostatni\w*|dawn\w*)\b|czasow")
+_CHANGED = re.compile(r"bledn|prawidlow|poprawn|sprostow|zmian|aktualiz|poprzedn|dotychczas|\bdawn"
+                      r"|\bnow(y|a|e|ego|ej|ych|ym|ymi)\b")
+_IF = re.compile(r"\b(jesli|jezeli|w przypadku|o ile|gdy|kiedy|brak\w*)\b")  # conditional: may be meant empty
+# An address section description that offers another address.
+_ALT_ADDRESS = re.compile(r"\b(lub|albo|inn\w*|rozn\w*|zamieszk\w*|pobyt\w*|korespond\w*|czasow\w*)\b")
 
 
 def _fold(*parts: str) -> str:
@@ -96,7 +99,7 @@ def pesel_attribute(f: PlanField, s: Section, page_title: str, plan_title: str) 
     registry value, else None. Use `pesel_links` for a whole plan (it also drops duplicates)."""
     if s.repeating or _CHANGE_FORM.search(_fold(plan_title)):
         return None
-    if _CHANGED.search(_fold(_title(page_title), _title(s.title), s.description)):
+    if _CHANGED.search(_fold(_title(page_title), _title(s.title), s.description, f.description)):
         return None
     label = _fold(f.label).rstrip(":").strip()
     core = _core(f.label)
@@ -106,9 +109,12 @@ def pesel_attribute(f: PlanField, s: Section, page_title: str, plan_title: str) 
     if core == label and not _SELF_SECTION.fullmatch(_heading(s.title)):
         return None  # neither the label nor the section names the applicant
     rest = label.replace(core, " ")  # "imie ojca" itself must not trip the other-person check
-    if _OTHER.search(_fold(rest, f.description, s.title, s.description, page_title)) or _IF.search(_fold(f.description)):
+    if _OTHER.search(_fold(rest, f.description, s.title, s.description, page_title)):
         return None
-    if _SECOND.search(_fold(rest, _title(s.title), _title(page_title))):
+    if _IF.search(_fold(f.description, s.description)):
+        return None
+    titles = _fold(_title(s.title), _title(page_title))
+    if _SECOND.search(_fold(rest, titles)) or _SECOND_TITLE.search(titles):
         return None
     # a section that also asks about someone else ("Imię małżonka", "Stopień pokrewieństwa")
     others = [_fold(g.label) for g in s.fields if g is not f and _core(g.label) not in _PESEL]
@@ -131,15 +137,16 @@ def address_source(s: Section, page_title: str, plan_title: str) -> dict[str, st
     address ("Adres zameldowania wnioskodawcy", "Twój adres stałego zameldowania"), else None."""
     if not s.address or s.repeating or _CHANGE_FORM.search(_fold(plan_title)):
         return None
-    title = _heading(s.title)
-    if not _SELF_ADDRESS.fullmatch(title) or not re.search(r"^twoj|wnioskodawcy$", title):
+    title = _title(s.title)
+    if not _SELF_ADDRESS.fullmatch(title) or not re.search(r"^twoj|wnioskodawcy\b", title):
         return None
-    # the full title too: a trailing "(...)" was cut only for the allow-list match
-    full = _title(s.title)
-    if _NOT_THIS.search(full.replace("na pobyt staly", "")) or _CHANGED.search(_fold(_title(page_title), s.description)):
+    page = _title(page_title)
+    if _CHANGE_FORM.search(page.replace("adres zameldowania", "")) or _CHANGED.search(_fold(page, s.description)):
+        return None  # a page about (re)registration or changed data, e.g. "Przemeldowanie"
+    if _ALT_ADDRESS.search(_fold(s.description)) or _IF.search(_fold(s.description)):
         return None
-    if _OTHER.search(_fold(full, s.description, page_title, *(f.label for f in s.fields))):
+    if _OTHER.search(_fold(title, s.description, page, *(f.label for f in s.fields))):
         return None
-    if _SECOND.search(_fold(full, _title(page_title))):
+    if _SECOND.search(page) or _SECOND_TITLE.search(page):
         return None
     return PERMANENT_ADDRESS
