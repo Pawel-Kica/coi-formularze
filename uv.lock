@@ -67,6 +67,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "jsonata-python" },
     { name = "jsonschema" },
     { name = "olefile" },
     { name = "openpyxl" },
@@ -92,6 +93,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.165.0" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "jsonata-python", specifier = ">=0.7.2" },
     { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "olefile", specifier = ">=0.47" },
     { name = "openpyxl", specifier = ">=3.1.5" },
@@ -200,6 +202,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/01/e1/2069291243c926a2ff1cd706c7f3eeb9b62144bf60f77c9fb9ff2fb26bd3/iniconfig-2.3.1.tar.gz", hash = "sha256:67f4b9c50da0dedf52af349e7749a80a9057a5031199791b906c3bb3ae878960", size = 21209, upload-time = "2026-10-06T22:48:38.076Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/56/43/4ca9e49d27a1fcf6bece6f6aec0ea46bb9112489b93d4b688fb415457bdb/iniconfig-2.3.1-py3-none-any.whl", hash = "sha256:9121e2c1fdb355232495be3194c8dfe87ccc2d5dee45947b78e68f499790d7a7", size = 7552, upload-time = "2026-10-06T22:48:36.959Z" },
+]
+
+[[package]]
+name = "jsonata-python"
+version = "0.7.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/23/cb/b910679e8c0b2b4c4ccb2e6a0b6290666f0945f50224302de943b7f6f679/jsonata_python-0.7.2.tar.gz", hash = "sha256:f976c3bf06a675cf0076f65cbe224af73afdd1ac0f959133c6b0763d2af7b165", size = 378620, upload-time = "2026-11-13T06:56:56.964Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fa/3d/bba32705315777133ebc4c0d504d01791cae36c5d096a06ca544599490ee/jsonata_python-0.7.2-py3-none-any.whl", hash = "sha256:70c3ae7c9fce7c23497eca463deb3dec58544325739075dc30e428e63b76a710", size = 91236, upload-time = "2026-11-13T06:56:55.84Z" },
 ]
 
 [[package]]

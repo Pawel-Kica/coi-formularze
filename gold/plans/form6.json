@@ -1,0 +1,124 @@
+{
+  "title": "Wniosek o wydanie zezwolenia na zajęcie pasa drogowego w celu prowadzenia robót",
+  "addressee": "Urząd Miasta i Gminy Miasteczko",
+  "addressee_quote": "Urząd Miasta i Gminy",
+  "applicant": {
+    "person": true,
+    "entity": true,
+    "entity_ids": [],
+    "pesel": false,
+    "proxy": true
+  },
+  "pages": [
+    {
+      "title": "Miejsce i zakres robót",
+      "sections": [
+        {
+          "id": "s1",
+          "title": "Droga i miejsce robót",
+          "fields": [
+            {"id": "f1", "label": "Numer drogi gminnej", "type": "TEXT_FIELD", "required": true, "quote": "nazwa drogi oraz jej nr"},
+            {"id": "f2", "label": "Nazwa drogi", "type": "TEXT_FIELD", "required": false, "description": "Na przykład nazwa ulicy.", "quote": "nazwa drogi oraz jej nr"},
+            {"id": "f3", "label": "Miejscowość", "type": "TEXT_FIELD", "required": true, "quote": "w miejscowości"},
+            {"id": "f4", "label": "Numer ewidencyjny działki", "type": "TEXT_FIELD", "required": true, "quote": "działka nr ewid."}
+          ]
+        },
+        {
+          "id": "s2",
+          "title": "Roboty",
+          "fields": [
+            {"id": "f5", "label": "Rodzaj robót", "type": "TEXT_FIELD", "required": true, "quote": "rodzaj robót i sposób wykonania"},
+            {"id": "f6", "label": "Sposób wykonania robót", "type": "TEXTAREA", "required": true, "quote": "rodzaj robót i sposób wykonania"}
+          ]
+        },
+        {
+          "id": "s3",
+          "title": "Zajmowana powierzchnia",
+          "repeating": true,
+          "fields": [
+            {"id": "f7", "label": "Część pasa drogowego", "type": "RADIO", "required": true,
+             "options": [
+               "Jezdnia (zajęcie do 20% szerokości)",
+               "Jezdnia (zajęcie powyżej 20% do 50% szerokości)",
+               "Jezdnia (zajęcie powyżej 50% szerokości)",
+               "Chodnik"
+             ],
+             "description": "Każdą zajmowaną część pasa drogowego dodaj osobno.",
+             "quote": "Powierzchnia pasa drogowego potrzebna do zajęcia w celu realizacji w/w zakresu robót"},
+            {"id": "f8", "label": "Długość (m)", "type": "NUMBER", "required": true, "quote": "długość"},
+            {"id": "f9", "label": "Szerokość (m)", "type": "NUMBER", "required": true, "quote": "szerokość"},
+            {"id": "f10", "label": "Powierzchnia (m²)", "type": "NUMBER", "required": true, "quote": "razem"}
+          ]
+        },
+        {
+          "id": "s4",
+          "title": "Całkowita powierzchnia",
+          "fields": [
+            {"id": "f11", "label": "Całkowita powierzchnia zajęcia (m²)", "type": "NUMBER", "required": true, "quote": "Całkowita powierzchnia zajęcia"}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Termin i wykonawca robót",
+      "sections": [
+        {
+          "id": "s5",
+          "title": "Termin robót",
+          "fields": [
+            {"id": "f12", "label": "Data rozpoczęcia robót", "type": "DATEPICKER", "required": true, "quote": "Roboty będą realizowane w terminie od dnia"},
+            {"id": "f13", "label": "Data zakończenia robót", "type": "DATEPICKER", "required": true, "quote": "Roboty będą realizowane w terminie od dnia"},
+            {"id": "f14", "label": "Liczba dni robót", "type": "NUMBER", "required": true, "description": "Termin musi być zgodny z harmonogramem robót.", "quote": "dni, zgodnie z załączonym harmonogramem"}
+          ]
+        },
+        {
+          "id": "s6",
+          "title": "Wykonawca robót",
+          "fields": [
+            {"id": "f15", "label": "Wykonawca robót", "type": "TEXT_FIELD", "required": true, "description": "Wpisz nazwę firmy albo imię i nazwisko.", "quote": "nazwa przedsiębiorstwa lub osoby fizycznej"}
+          ]
+        },
+        {
+          "id": "s7",
+          "title": "Osoba odpowiedzialna za roboty",
+          "fields": [
+            {"id": "f16", "label": "Imię", "type": "TEXT_FIELD", "required": true, "description": "Ta osoba odpowiada za wykonanie robót zgodnie z projektem i za odtworzenie pasa drogowego.", "quote": "osobą odpowiedzialną za wykonanie robót zgodnie z projektem"},
+            {"id": "f17", "label": "Nazwisko", "type": "TEXT_FIELD", "required": true, "quote": "osobą odpowiedzialną za wykonanie robót zgodnie z projektem"},
+            {"id": "f18", "label": "Adres zamieszkania", "type": "TEXT_FIELD", "required": true, "quote": "zam."},
+            {"id": "f19", "label": "Numer telefonu", "type": "TEXT_FIELD", "required": true, "quote": "tel."}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Załączniki",
+      "sections": [
+        {
+          "id": "s8",
+          "title": "Plany i harmonogram",
+          "fields": [
+            {"id": "f20", "label": "Ogólny plan orientacyjny", "type": "FILE_UPLOADER", "required": true, "description": "Plan w skali 1:10 000 lub 1:25 000 z zaznaczonym zajmowanym odcinkiem pasa drogowego.", "quote": "Ogólny plan orientacyjny w skali 1:10 000 lub 1:25 000"},
+            {"id": "f21", "label": "Szczegółowy plan sytuacyjny", "type": "FILE_UPLOADER", "required": true, "description": "Plan w skali 1:1000 lub 1:500 z granicami i wymiarami planowanej powierzchni zajęcia.", "quote": "Szczegółowy plan sytuacyjny w skali 1:1000 lub 1:500"},
+            {"id": "f22", "label": "Szczegółowy harmonogram robót", "type": "FILE_UPLOADER", "required": true, "quote": "Szczegółowy harmonogram robót."}
+          ]
+        },
+        {
+          "id": "s9",
+          "title": "Organizacja ruchu",
+          "fields": [
+            {"id": "f23", "label": "Czy zajęcie pasa drogowego wpływa na ruch drogowy?", "type": "RADIO", "required": true, "options": ["Tak", "Nie"],
+             "description": "Wybierz Tak, jeśli zajęcie pasa ogranicza widoczność na drodze albo zmienia organizację ruchu pojazdów lub pieszych.",
+             "quote": "jeżeli zajęcie pasa drogowego wpływa na ruch drogowy"},
+            {"id": "f24", "label": "Zatwierdzony projekt organizacji ruchu", "type": "FILE_UPLOADER", "required": true, "quote": "Zatwierdzony projekt organizacji ruchu",
+             "show_if": {"field": "f23", "options": ["Tak"], "quote": "jeżeli zajęcie pasa drogowego wpływa na ruch drogowy"}},
+            {"id": "f25", "label": "Informacja o sposobie zabezpieczenia robót", "type": "FILE_UPLOADER", "required": true, "quote": "Informację o sposobie zabezpieczenia robót",
+             "show_if": {"field": "f23", "options": ["Nie"], "quote": "jeżeli nie jest wymagany projekt organizacji ruchu"}}
+          ]
+        }
+      ]
+    }
+  ],
+  "statements": [
+    {"text": "Zgadzam się na przetwarzanie moich danych osobowych przez Urząd Miasta i Gminy.", "required": true, "quote": "Wyrażam zgodę na przetwarzanie przez Urząd Miasta i Gminy"}
+  ]
+}

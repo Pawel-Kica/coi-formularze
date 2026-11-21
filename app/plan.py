@@ -5,8 +5,8 @@ in plain language). Code then turns the Plan into the full COI JSON (UUIDs,
 techNames, grid, predefined sections, JSONata, validators, dictionaries).
 
 Rules every producer of a Plan must follow:
-- Every page/section/field/statement carries `quote`: a verbatim fragment of the
-  paper text it comes from. Code drops items whose quote is not found in the text.
+- Every field, condition and statement carries `quote`: a verbatim fragment of
+  the paper text it comes from (pages and sections are design groupings, no quote). Code drops items whose quote is not found in the text.
   Synthesized trigger questions (paper says "fill only if ..." but has no field
   for it) quote that sentence.
 - `id`s are short, stable and unique within the plan ("s1", "f3"). Conditions
@@ -66,6 +66,7 @@ class Section(BaseModel):
     id: str
     title: str
     repeating: bool = False  # e.g. "kolejny pies", "kolejna nieruchomość"
+    description: str = ""  # short intro shown under the section title (plain language), optional
     fields: list[PlanField] = Field(min_length=1)
     show_if: Condition | None = None
 

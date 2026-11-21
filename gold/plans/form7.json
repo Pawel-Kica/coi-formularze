@@ -1,0 +1,256 @@
+{
+  "title": "Wniosek o wydanie zezwolenia na hodowanie lub utrzymywanie psów ras uznawanych za agresywne",
+  "addressee": "Urząd Miejski Wrocławia, Wydział Środowiska",
+  "addressee_quote": "Urząd Miejski Wrocławia",
+  "applicant": {
+    "person": true,
+    "entity": false,
+    "entity_ids": [],
+    "pesel": false,
+    "proxy": true
+  },
+  "pages": [
+    {
+      "title": "Psy objęte wnioskiem",
+      "quote": "INFORMACJA O POSIADANYM PSIE",
+      "sections": [
+        {
+          "id": "s_zakres",
+          "title": "Zakres zezwolenia",
+          "quote": "proszę o wydanie zezwolenia na hodowanie/utrzymywanie",
+          "fields": [
+            {
+              "id": "zakres",
+              "label": "Na co chcesz uzyskać zezwolenie?",
+              "type": "RADIO",
+              "required": true,
+              "options": ["Hodowanie", "Utrzymywanie"],
+              "quote": "proszę o wydanie zezwolenia na hodowanie/utrzymywanie"
+            },
+            {
+              "id": "rodzaj_psow",
+              "label": "Jakich psów dotyczy wniosek?",
+              "type": "CHECKBOX",
+              "required": true,
+              "options": ["Chart rasowy", "Mieszaniec charta"],
+              "description": "Jeśli masz charty rasowe i mieszańce chartów, zaznacz obie odpowiedzi.",
+              "quote": "lub mieszańca charta/mieszańców chartów"
+            }
+          ]
+        },
+        {
+          "id": "s_pies",
+          "title": "Pies",
+          "repeating": true,
+          "quote": "w przypadku więcej niż jednego psa pobrać odpowiednią liczbę",
+          "fields": [
+            {
+              "id": "rasa",
+              "label": "Rasa",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "Rasa psa:"
+            },
+            {
+              "id": "data_urodzenia",
+              "label": "Data urodzenia",
+              "type": "DATEPICKER",
+              "required": true,
+              "quote": "Data urodzenia psa:"
+            },
+            {
+              "id": "plec",
+              "label": "Płeć",
+              "type": "RADIO",
+              "required": true,
+              "options": ["Pies", "Suka"],
+              "quote": "Płeć:"
+            },
+            {
+              "id": "oznakowanie",
+              "label": "Jak pies jest oznakowany?",
+              "type": "RADIO",
+              "required": true,
+              "options": ["Mikroprocesor", "Tatuaż", "Brak"],
+              "quote": "Sposób oznakowania psa / nr ident.:"
+            },
+            {
+              "id": "nr_mikroprocesora",
+              "label": "Numer mikroprocesora",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "mikroprocesor",
+              "show_if": {
+                "field": "oznakowanie",
+                "options": ["Mikroprocesor"],
+                "quote": "Sposób oznakowania psa / nr ident.:"
+              }
+            },
+            {
+              "id": "nr_tatuazu",
+              "label": "Numer tatuażu",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "tatuaż",
+              "show_if": {
+                "field": "oznakowanie",
+                "options": ["Tatuaż"],
+                "quote": "Sposób oznakowania psa / nr ident.:"
+              }
+            },
+            {
+              "id": "metryka",
+              "label": "Numer metryki",
+              "type": "TEXT_FIELD",
+              "required": false,
+              "quote": "Pochodzenie psa (metryka**"
+            },
+            {
+              "id": "rodowod",
+              "label": "Numer rodowodu",
+              "type": "TEXT_FIELD",
+              "required": false,
+              "quote": "numer rodowodu**"
+            },
+            {
+              "id": "poprz_imie",
+              "label": "Imię poprzedniego właściciela",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "imię, nazwisko i adres poprzedniego właściciela"
+            },
+            {
+              "id": "poprz_nazwisko",
+              "label": "Nazwisko poprzedniego właściciela",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "imię, nazwisko i adres poprzedniego właściciela"
+            },
+            {
+              "id": "poprz_adres",
+              "label": "Adres poprzedniego właściciela",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "imię, nazwisko i adres poprzedniego właściciela"
+            },
+            {
+              "id": "data_szczepienia",
+              "label": "Data szczepienia przeciwko wściekliźnie",
+              "type": "DATEPICKER",
+              "required": false,
+              "quote": "Data szczepienia (w przypadku jego braku)"
+            },
+            {
+              "id": "szczepienie_plik",
+              "label": "Kopia zaświadczenia o szczepieniu przeciwko wściekliźnie",
+              "type": "FILE_UPLOADER",
+              "required": true,
+              "quote": "w załączeniu kopia dla każdego psa"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Miejsce utrzymywania psów",
+      "quote": "Adres miejsca utrzymywania psa/psów:",
+      "sections": [
+        {
+          "id": "s_adres",
+          "title": "Adres miejsca utrzymywania psów",
+          "quote": "Adres miejsca utrzymywania psa/psów:",
+          "fields": [
+            {
+              "id": "adr_miejscowosc",
+              "label": "Miejscowość",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "Adres miejsca utrzymywania psa/psów:"
+            },
+            {
+              "id": "adr_kod",
+              "label": "Kod pocztowy",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "Adres miejsca utrzymywania psa/psów:"
+            },
+            {
+              "id": "adr_ulica",
+              "label": "Ulica",
+              "type": "TEXT_FIELD",
+              "required": false,
+              "quote": "Adres miejsca utrzymywania psa/psów:"
+            },
+            {
+              "id": "adr_nr_budynku",
+              "label": "Numer budynku",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "Adres miejsca utrzymywania psa/psów:"
+            },
+            {
+              "id": "adr_nr_lokalu",
+              "label": "Numer lokalu",
+              "type": "TEXT_FIELD",
+              "required": false,
+              "quote": "Adres miejsca utrzymywania psa/psów:"
+            }
+          ]
+        },
+        {
+          "id": "s_warunki",
+          "title": "Warunki utrzymywania psów",
+          "quote": "Opis miejsca i warunków w jakich wnioskodawca zamierza utrzymywać psa/psy:",
+          "fields": [
+            {
+              "id": "opis_warunkow",
+              "label": "Opisz miejsce i warunki, w jakich będą przebywać psy",
+              "type": "TEXTAREA",
+              "required": true,
+              "description": "Na przykład: ogrodzenie, kojec, budynek, wybieg.",
+              "quote": "Opis miejsca i warunków w jakich wnioskodawca zamierza utrzymywać psa/psy:"
+            }
+          ]
+        },
+        {
+          "id": "s_oplata",
+          "title": "Opłata skarbowa",
+          "quote": "Opłata skarbowa – 82 zł.",
+          "fields": [
+            {
+              "id": "oplata_info",
+              "label": "Opłata skarbowa za zezwolenie",
+              "type": "TEXT_BLOCK",
+              "description": "Opłata skarbowa wynosi 82 zł. Przelej ją na konto: 12 1223 1232 1233 2312 2342 2342. Potwierdzenie przelewu dołącz poniżej.",
+              "quote": "Opłata skarbowa – 82 zł."
+            },
+            {
+              "id": "oplata_plik",
+              "label": "Potwierdzenie zapłaty opłaty skarbowej",
+              "type": "FILE_UPLOADER",
+              "required": true,
+              "quote": "Numer konta: 12 1223 1232 1233 2312 2342 2342"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "statements": [
+    {
+      "text": "Psy nie będą wykorzystywane do polowań.",
+      "required": true,
+      "quote": "Oświadczam, że psy nie będą wykorzystywane do polowań."
+    },
+    {
+      "text": "Wszystkie psy objęte wnioskiem są zaszczepione przeciwko wściekliźnie.",
+      "required": true,
+      "quote": "Oświadczam, że zaszczepiono psa/psy przeciwko wściekliźnie"
+    },
+    {
+      "text": "Zapewniam psom warunki utrzymywania zgodne z rozporządzeniem Ministra Rolnictwa i Rozwoju Wsi z dnia 5 lipca 2010 r.",
+      "required": true,
+      "quote": "Oświadczam, że zapewniam warunki utrzymywania psa, zgodnie z rozporządzeniem Ministra"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "title": "Wniosek o wydanie zaświadczenia",
+  "addressee": "Urząd Miasta i Gminy Młynary",
+  "addressee_quote": "Urząd Miasta i Gminy Młynary",
+  "applicant": {
+    "person": true,
+    "entity": false,
+    "entity_ids": [],
+    "pesel": true,
+    "proxy": true
+  },
+  "pages": [
+    {
+      "title": "Zaświadczenie",
+      "sections": [
+        {
+          "id": "s1",
+          "title": "Rodzaj zaświadczenia",
+          "fields": [
+            {"id": "f1", "label": "Czego ma dotyczyć zaświadczenie?", "type": "CHECKBOX", "required": true,
+             "description": "Możesz wybrać więcej niż jedną odpowiedź.",
+             "options": [
+               "Powierzchni posiadanych użytków rolnych w hektarach fizycznych i przeliczeniowych",
+               "Powierzchni dzierżawionych użytków rolnych w hektarach fizycznych i przeliczeniowych",
+               "Okresu posiadania gospodarstwa rolnego",
+               "Nieposiadania użytków rolnych lub gospodarstwa rolnego na terenie Gminy Młynary",
+               "Inne"
+             ],
+             "quote": "Proszę o wydanie zaświadczenia o:"},
+            {"id": "f2", "label": "Czego ma dotyczyć inne zaświadczenie?", "type": "TEXTAREA", "required": true, "quote": "inne",
+             "show_if": {"field": "f1", "options": ["Inne"], "quote": "inne"}}
+          ]
+        },
+        {
+          "id": "s2",
+          "title": "Cel zaświadczenia",
+          "fields": [
+            {"id": "f3", "label": "Gdzie przedstawisz zaświadczenie?", "type": "TEXT_FIELD", "required": true, "description": "Wpisz nazwę instytucji, która potrzebuje zaświadczenia.", "quote": "Zaświadczenie potrzebne jest celem przedłożenia w"}
+          ]
+        },
+        {
+          "id": "s3",
+          "title": "Opłata skarbowa",
+          "fields": [
+            {"id": "f4", "label": "Opłata skarbowa", "type": "TEXT_BLOCK",
+             "description": "Opłata za wydanie zaświadczenia wynosi 17 zł za każdy egzemplarz. Zapłać ją przed złożeniem wniosku w kasie urzędu albo przelewem na konto Urzędu Miasta i Gminy Młynary: Bank PKO BP S.A. 12 1234 1234 1234 1234 1234 1234. Zwolnienia z opłaty określają art. 2 i art. 7 ustawy o opłacie skarbowej.",
+             "quote": "Opłata za wydanie zaświadczenia wynosi 17 zł (od każdego egzemplarza)"},
+            {"id": "f5", "label": "Czy musisz zapłacić opłatę skarbową?", "type": "RADIO", "required": true, "options": ["Tak", "Nie"],
+             "description": "Wybierz Nie, jeśli Twoja sprawa jest zwolniona z opłaty.",
+             "quote": "Zwolnienie z opłaty skarbowej określa art. 2"},
+            {"id": "f6", "label": "Potwierdzenie zapłaty", "type": "FILE_UPLOADER", "required": true, "quote": "Opłatę skarbową należy wnieść w kasie lub bezgotówkowo na rachunek",
+             "show_if": {"field": "f5", "options": ["Tak"], "quote": "Obowiązek uiszczenia opłaty skarbowej powstaje z chwilą złożenia wniosku"}}
+          ]
+        }
+      ]
+    }
+  ],
+  "statements": []
+}
