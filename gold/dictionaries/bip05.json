@@ -1,0 +1,30 @@
+{
+  "id": "bip05",
+  "root": "bip",
+  "file": "05-falkow-deklaracja-odpady/*",
+  "expected": [
+    {
+      "name": "Okoliczności złożenia deklaracji",
+      "kind": "lista",
+      "match": "okolicznoś|rodzaj|cel|powód|przyczyn|deklarac",
+      "values_any": [
+        "pierwsza deklaracja",
+        "nowa deklaracja",
+        "korekta deklaracji"
+      ],
+      "why": "Ten sam ustawowy zestaw co w formularzu 8 (Gdynia): dowód, że lista powtarza się między gminami."
+    },
+    {
+      "name": "Rodzaje podmiotów zobowiązanych do złożenia deklaracji",
+      "kind": "lista",
+      "match": "podmiot|składając|tytuł|status|właściciel|rodzaj",
+      "values_any": [
+        "współwłaściciel",
+        "użytkownik"
+      ],
+      "why": "Kategorie właściciela nieruchomości z ustawy o utrzymaniu czystości, jak w formularzu 8."
+    }
+  ],
+  "acceptable": [],
+  "note": "Nowy formularz (Fałków). Kraj/Województwo/Powiat/Gmina muszą odpaść (słowniki COI), 'są / nie są kompostowane' to Tak/Nie."
+}

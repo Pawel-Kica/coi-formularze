@@ -1,0 +1,24 @@
+{
+  "id": "bip22",
+  "root": "bip",
+  "file": "22-jaslo-pies-rasy-agresywnej/*",
+  "expected": [
+    {
+      "name": "Rasy psów uznawanych za agresywne",
+      "kind": "puste_pole",
+      "match": "\\bras(a|y|ę|ą|ie)\\b",
+      "why": "Puste pole 'psa rasy ____' i '(określenie rasy psa)': zamknięty wykaz ras z rozporządzenia MSWiA."
+    }
+  ],
+  "acceptable": [
+    {
+      "name": "Sposoby oznakowania zwierząt",
+      "match": "oznakowan|identyfik"
+    },
+    {
+      "name": "Płeć zwierzęcia",
+      "match": "płeć|płci"
+    }
+  ],
+  "note": "Nowy formularz (Jasło), ta sama procedura co formularz 7, inny układ."
+}

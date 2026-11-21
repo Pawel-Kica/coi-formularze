@@ -1,0 +1,25 @@
+{
+  "id": "bip01",
+  "root": "bip",
+  "file": "01-piaseczno-usuniecie-drzew/*",
+  "expected": [
+    {
+      "name": "Gatunki drzew i krzewów",
+      "kind": "puste_pole",
+      "match": "gatun",
+      "why": "Puste pole 'Nazwa gatunku drzewa lub krzewu': zamknięta klasyfikacja gatunków, dziś wpisywana różnie."
+    }
+  ],
+  "acceptable": [
+    {
+      "name": "Przeznaczenie terenu działki",
+      "match": "przeznacz|teren|działk",
+      "values_any": [
+        "budowlana",
+        "leśna",
+        "rolna"
+      ]
+    }
+  ],
+  "note": "Nowy formularz (Piaseczno), API go nie widziało."
+}

@@ -1,0 +1,13 @@
+{
+  "id": "bip12",
+  "root": "bip",
+  "file": "12-buczkowice-informacja-publiczna/*",
+  "expected": [],
+  "acceptable": [
+    {
+      "name": "Sposoby udostępnienia informacji publicznej",
+      "match": "spos[oó]b\\w*|\\bform[aęy]\\b"
+    }
+  ],
+  "note": "Nowy formularz (Buczkowice), prawie same dowolne pola. Brak oczekiwanego słownika."
+}

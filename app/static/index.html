@@ -187,6 +187,32 @@
         </div>
       </div>
     </div>
+    <!-- Bonus II block (thread "propozycje słowników"): proposals of new shared COI dictionaries for the selected file,
+         from POST /api/dictionaries/proposals, called next to /api/forms/convert. The COI JSON never references them. -->
+    <section id="dicts" aria-labelledby="dicts-title" hidden>
+      <style>
+        #dicts { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; }
+        #dicts .dicts-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        #dicts .dicts-head h3 { margin-right: auto; }
+        #dicts-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+        #dicts-list > li { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: #fbfcfe; }
+        #dicts-list h4 { margin: 0; font-size: .95rem; display: flex; gap: 8px; align-items: baseline; }
+        #dicts-list h4 span { margin-left: auto; }
+        #dicts .chip { font-size: .75rem; padding: 1px 8px; border-radius: 999px; background: #e8f0fa; color: var(--navy-dark); white-space: nowrap; }
+        #dicts .chip.fill { background: #fff3e0; color: var(--warn); }
+        #dicts-list p { margin: 4px 0 0; font-size: .85rem; }
+        #dicts code { font-size: .8rem; }
+        #dicts details { margin-top: 8px; font-size: .85rem; }
+      </style>
+      <div class="dicts-head">
+        <h3 id="dicts-title">Proponowane słowniki</h3>
+        <span class="muted">Propozycje dla COI obok JSON-a; formularz ich nie wymaga.</span>
+        <button type="button" class="small" id="dicts-download" disabled>Pobierz słowniki (JSON)</button>
+      </div>
+      <p id="dicts-status" class="muted" role="status"></p>
+      <ul id="dicts-list"></ul>
+      <details id="dicts-dropped" hidden><summary></summary><ul class="muted"></ul></details>
+    </section>
   </section>
 </main>
 
@@ -669,6 +695,79 @@ fetch("/health").then((r) => r.json()).then((health) => {
   $("#llm").textContent = `Model AI: ${text}`;
   $("#llm").title = health.llm_model;
 }).catch(() => ($("#llm").textContent = "Model AI: brak danych"));
+
+// --- Bonus II block (thread "propozycje słowników"): dictionary proposals next to the COI JSON ---
+// Wraps convert() and select() instead of editing them: every converted file also gets
+// POST /api/dictionaries/proposals (in parallel), the result lives in item.dicts and in
+// localStorage "coi-dicts-<history id>" so it survives a reload; select() renders the panel.
+const DICTS_KEY = (item) => `coi-dicts-${item.id}`;
+
+async function fetchDicts(item) {
+  item.dicts = { status: "working" };
+  if (item === state.selected) renderDicts(item);
+  try {
+    const body = new FormData();
+    body.append("file", item.file);
+    const response = await fetch("/api/dictionaries/proposals", { method: "POST", headers: { Authorization: `Bearer ${state.token}` }, body });
+    const data = await response.json().catch(() => ({}));
+    item.dicts = response.ok ? { status: "done", result: data } : { status: "error", error: detail(data, response) };
+  } catch {
+    item.dicts = { status: "error", error: "Brak połączenia z serwerem." };
+  }
+  if (item.id !== undefined && item.dicts.status === "done") localStorage.setItem(DICTS_KEY(item), JSON.stringify(item.dicts));
+  if (item === state.selected) renderDicts(item);
+}
+
+function renderDicts(item) {
+  if (item && !item.dicts && item.id !== undefined) {
+    const saved = localStorage.getItem(DICTS_KEY(item));
+    if (saved) item.dicts = JSON.parse(saved);
+  }
+  const d = item?.dicts;
+  $("#dicts").hidden = !d;
+  if (!d) return;
+  const proposals = d.result?.proposals ?? [];
+  const dropped = d.result?.dropped ?? [];
+  $("#dicts-download").disabled = !proposals.length;
+  $("#dicts-status").className = d.status === "error" ? "error" : "muted";
+  $("#dicts-status").textContent = d.status === "working" ? "Szukam kandydatów na nowe słowniki…"
+    : d.status === "error" ? `Błąd: ${d.error}`
+    : proposals.length ? `Model zaproponował, kod sprawdził: ${proposals.length} do rozważenia przez COI.`
+    : "Brak propozycji nowych słowników dla tego formularza.";
+  $("#dicts-list").replaceChildren(...proposals.map((p) => {
+    const li = el("li");
+    const head = el("h4", "", p.name);
+    const chip = el("span", p.items.length ? "chip" : "chip fill", p.items.length ? `${p.items.length} wartości z formularza` : "wartości do uzupełnienia przez urząd/COI");
+    head.append(chip);
+    const values = p.items.length ? p.items.slice(0, 12).map((i) => i.nazwa).join(", ") + (p.items.length > 12 ? `, … (+${p.items.length - 12})` : "") : p.note;
+    const download = el("button", "small", "Pobierz");
+    download.type = "button";
+    download.addEventListener("click", () => saveDicts(item, [p], p.code.toLowerCase()));
+    const field = el("p");
+    field.append(el("strong", "", "Pole: "), document.createTextNode(`${p.field.label} `), el("span", "muted", `(${p.field.types.join(" / ")})`));
+    const structure = el("p", "muted");
+    structure.append("Struktura: ", el("code", "", p.structure.map((c) => c.name).join(" + ")), ` · kod słownika: `, el("code", "", p.code));
+    li.append(head, field, el("p", "", `Wartości: ${values}`), el("p", "muted", p.reason), structure, download);
+    return li;
+  }));
+  const box = $("#dicts-dropped");
+  box.hidden = !dropped.length;
+  box.querySelector("summary").textContent = `Odrzucone przez kod (${dropped.length})`;
+  box.querySelector("ul").replaceChildren(...dropped.map((text) => el("li", "", text)));
+}
+
+// File "<form>.slowniki.json": {source, proposals: [{name, code, reason, field, structure, status, note, items: [{kod, nazwa}]}]}.
+function saveDicts(item, proposals, suffix = "slowniki") {
+  const data = { source: item.dicts.result.source, proposals };
+  saveBlob(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }), jsonName(item.file).replace(/\.json$/, `.${suffix}.json`));
+}
+$("#dicts-download").addEventListener("click", () => saveDicts(state.selected, state.selected.dicts.result.proposals));
+
+{
+  const convertCoi = convert, selectItem = select;
+  convert = async (item) => { await Promise.all([convertCoi(item), fetchDicts(item)]); };
+  select = (item) => { selectItem(item); renderDicts(item); };
+}
 
 showScreens();
 loadHistory();

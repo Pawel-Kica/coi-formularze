@@ -1,0 +1,29 @@
+{
+  "id": "bip20",
+  "root": "bip",
+  "file": "20-ciezkowice-ewidencja-szamb/*",
+  "expected": [
+    {
+      "name": "Technologie wykonania zbiornika bezodpływowego",
+      "kind": "lista",
+      "match": "technolog|materiał|wykonan|zbiornik|szamb|rodzaj",
+      "values_any": [
+        "kręgi betonowe",
+        "plastikowy",
+        "metalowy"
+      ],
+      "why": "Kręgi betonowe / zalewany / metalowy / plastikowy: ten sam podział w gminnych ewidencjach szamb."
+    }
+  ],
+  "acceptable": [
+    {
+      "name": "Tytuły władania nieruchomością",
+      "match": "tytuł|właściciel\\w* nieruchom|inna forma"
+    },
+    {
+      "name": "Okresy (częstotliwość opróżniania)",
+      "match": "okres|częstotliw"
+    }
+  ],
+  "note": "Nowy formularz (Ciężkowice). Tak/Nie o umowie musi odpaść."
+}

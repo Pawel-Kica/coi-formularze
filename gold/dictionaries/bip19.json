@@ -1,0 +1,36 @@
+{
+  "id": "bip19",
+  "root": "bip",
+  "file": "19-bielsk-podlaski-przydomowa-oczyszczalnia/*",
+  "expected": [
+    {
+      "name": "Rodzaje ścieków",
+      "kind": "lista",
+      "match": "ściek|rodzaj",
+      "values_any": [
+        "ścieki bytowe",
+        "bytowe"
+      ],
+      "why": "Bytowe / przemysłowe / komunalne: definicje z Prawa wodnego, wspólne dla wszystkich zgłoszeń."
+    }
+  ],
+  "acceptable": [
+    {
+      "name": "Metody oczyszczania ścieków",
+      "match": "metod|oczyszcz|emisj",
+      "values_any": [
+        "biologiczn",
+        "mechaniczn"
+      ]
+    },
+    {
+      "name": "Przeznaczenie oczyszczalni",
+      "match": "przeznacz",
+      "values_any": [
+        "gospodarstwa domowego",
+        "gospodarstwa rolnego"
+      ]
+    }
+  ],
+  "note": "Nowy formularz (Bielsk Podlaski)."
+}

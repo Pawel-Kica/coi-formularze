@@ -1,0 +1,35 @@
+{
+  "id": "bip07",
+  "root": "bip",
+  "file": "07-warszawa-zezwolenie-alkohol/*",
+  "expected": [
+    {
+      "name": "Rodzaje napojów alkoholowych (A, B, C)",
+      "kind": "lista",
+      "match": "napoj|napój|alkohol",
+      "values_any": [
+        "piwo",
+        "do 4 5",
+        "z wyjątkiem piwa",
+        "powyżej 18",
+        "18 alkoholu"
+      ],
+      "why": "Ustawowe kategorie A/B/C z ustawy o wychowaniu w trzeźwości, takie same w każdej gminie."
+    }
+  ],
+  "acceptable": [
+    {
+      "name": "Rodzaje zezwoleń (detal / gastronomia)",
+      "match": "detal|gastronom|sprzedaż|zezwol",
+      "values_any": [
+        "detal",
+        "gastronomia"
+      ]
+    },
+    {
+      "name": "Rodzaje punktów sprzedaży",
+      "match": "rodzaj\\w* punkt|typ\\w* punkt"
+    }
+  ],
+  "note": "Nowy formularz (Warszawa)."
+}

@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from app import pipeline
+from app.dictionaries import propose as propose_dictionaries
 from app.config import settings
 from app.llm.client import health as llm_health
 from app.security import authenticate, current_user, issue_token, local_login_enabled
@@ -91,6 +92,29 @@ async def convert(request: Request, _user: Annotated[str, Depends(current_user)]
     except ValueError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Nie udało się odczytać formularza: {error}")
     return JSONResponse(coi)
+
+
+@app.post(
+    "/api/dictionaries/proposals",
+    openapi_extra=_FILE_BODY,
+    tags=["forms"],
+    response_description="Propozycje nowych słowników COI dla tego formularza (osobno od JSON-a e-usługi)",
+)
+async def dictionary_proposals(request: Request, _user: Annotated[str, Depends(current_user)]) -> JSONResponse:
+    """Bonus II: the same upload as /api/forms/convert, back come proposals of new shared dictionaries
+    (name, structure kod + nazwa, values or "to fill", the field they fit) plus what code rejected.
+    The COI JSON itself never references them; the upload page calls both endpoints in parallel."""
+    filename, data = await read_single_file(request, settings.max_file_size_bytes)
+    validate_upload(filename, data)
+    try:
+        result = await run_in_threadpool(propose_dictionaries, data, filename)
+    except httpx.HTTPStatusError:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Model językowy zwrócił błąd.")
+    except httpx.TransportError, ConnectionError, TimeoutError:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Model językowy jest niedostępny.")
+    except ValueError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Nie udało się odczytać formularza: {error}")
+    return JSONResponse(result)
 
 
 @app.get("/health", tags=["ops"])

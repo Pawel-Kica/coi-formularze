@@ -1,0 +1,21 @@
+{
+  "id": "form2",
+  "root": "coi",
+  "file": "2. *skarbowej*/Wniosek o zwrot opłaty skarbowej.pdf",
+  "expected": [],
+  "acceptable": [
+    {
+      "name": "Sposoby zwrotu należności",
+      "match": "zwrot|wypłat",
+      "values_any": [
+        "gotówk",
+        "przelew"
+      ]
+    },
+    {
+      "name": "Organy podatkowe",
+      "match": "nazw\\w* organ"
+    }
+  ],
+  "note": "Gotówka/przelew to wybór specyficzny dla zwrotu, ewentualnie wspólny 'sposób wypłaty'. Brak oczekiwanego słownika."
+}
