@@ -1,7 +1,7 @@
 """PIPELINE=images: any form file -> page images -> Markdown, one vision-model call per page.
 
     from app.llm.transcribe import transcribe
-    doc = transcribe(data, filename)   # Document(text=<Markdown of all pages>, method="vlm-md")
+    doc = transcribe(data, filename)   # Document(text=<Markdown of all pages>, method="vlm-md", pages=<per page>)
     plan = make_plan(doc.text)         # the planner reads the Markdown instead of extracted text
 
 Every format becomes page images with open-source tools only: PDF via pypdfium2 (PDFium, BSD/Apache),
@@ -60,7 +60,7 @@ def transcribe(data: bytes, filename: str = "") -> Document:
         raise UnsupportedFile(f"no pages to read in {filename or 'file'}")
     with ThreadPoolExecutor(max(1, settings.transcribe_workers)) as pool:
         texts = list(pool.map(lambda i: transcribe_page(pages[i], i + 1, len(pages)), range(len(pages))))
-    return Document(text="\n\n".join(texts), method="vlm-md")
+    return Document(text="\n\n".join(texts), method="vlm-md", pages=texts)
 
 
 def transcribe_page(img: Image.Image, n: int = 1, total: int = 1, side: int | None = None) -> str:

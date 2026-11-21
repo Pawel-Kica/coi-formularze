@@ -2,12 +2,14 @@
 
 read (PIPELINE=text: extract file -> text; PIPELINE=images: file -> page images -> Markdown) ->
 llm planner (text -> Plan; with LLM_VISION=1 also page images) -> quotes (drop items not backed by
-the paper) -> builder (Plan -> COI JSON) -> rules (technical checks).
+the paper) -> builder (Plan -> COI JSON; with evidence also the paper heading of each page and section,
+`app.headings`) -> rules (technical checks).
 """
 
 from app.builder import build_with_evidence
 from app.config import settings
 from app.extract import Document, extract
+from app.headings import add_headings, pdf_text_pages
 from app.llm.planner import make_plan
 from app.llm.transcribe import transcribe
 from app.llm.vision import Pages, images_only, page_images
@@ -30,11 +32,13 @@ def convert(data: bytes, filename: str) -> dict:
 
 def convert_with_evidence(data: bytes, filename: str) -> tuple[dict, dict]:
     """The same conversion, plus the evidence map (COI element id -> paper quote, see
-    `app.builder.build_with_evidence`) for the upload page's editor."""
+    `app.builder.build_with_evidence`; pages and sections also get their paper heading, `app.headings`)
+    for the upload page's editor."""
     doc, pages = read(data, filename)
     plan = make_plan(doc.text, pages)
     plan, _dropped = filter_plan(plan, doc.text, threshold_for(doc.method, images_only(pages)))
     coi, evidence = build_with_evidence(plan)
+    add_headings(evidence, coi, plan, doc.text, doc.pages or pdf_text_pages(data, filename))
     problems = check(coi)
     if problems:
         raise ValueError(f"generated JSON breaks COI rules: {problems}")

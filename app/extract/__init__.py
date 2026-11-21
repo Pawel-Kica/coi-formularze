@@ -35,6 +35,7 @@ class Document:
     text: str
     method: str  # "pdf-text", "pdf-ocr", "docx", "doc", "ods", "odt", "xlsx", "xls", "ocr", "vlm"
     warnings: list[str] = field(default_factory=list)
+    pages: list[str] = field(default_factory=list)  # per-page text when the reader keeps it (PIPELINE=images), for `app.headings`
 
 
 OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"

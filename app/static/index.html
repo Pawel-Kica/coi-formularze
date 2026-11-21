@@ -7,7 +7,8 @@
 <!-- One self-contained page served by the API at "/": log in, drop forms, check each result against its original.
      Left column = one file at a time, or many with "Wgraj wiele plików naraz" (sent one by one), plus history (on the server,
      /api/history) with a ZIP of all results. Main area = original document | e-service, one of three views: "Podgląd" (the form
-     with the paper quote under every field and, to its right, the collapsible "Edycja" sidebar of /editor.js: "Edytuj"
+     with the paper quote under every field and the paper heading of every page and section, a click on it shows that
+     place in the original (showPaper); to its right, the collapsible "Edycja" sidebar of /editor.js: "Edytuj"
      next to an element opens it there; edits are saved in history and checked with the COI rules), "JSON" (tree) and
      "Słowniki" (bonus II proposals). The history column is always visible; when room runs out the original pane
      gives way first (narrower, then a one-click strip), see layoutPanes.
@@ -106,6 +107,7 @@
   /* original of a format browsers cannot display: the text read from it */
   .doc-note { margin: 0; padding: 8px 12px; background: #f8fafc; border-bottom: 1px solid var(--line); }
   .doc-text { margin: 0; padding: 12px; font: .85rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .doc-text mark { background: var(--hit); }
   #dicts-view { height: 100%; overflow: auto; }
   #dicts-view #dicts { border: 0; padding: 12px; }
   .switch { display: inline-flex; }
@@ -644,6 +646,36 @@ function showOriginal(item) {
   }
 }
 
+// "Na papierze: <heading>, str. N" clicked in the preview: the original shows that place. A PDF opens again at page N
+// (a fresh frame: the viewer reads #page only on load); the text of a DOC/DOCX/ODS/XLSX/XLS gets the heading line
+// marked and scrolled into view; an image stays as it is. A collapsed original pane comes back first.
+function showPaper(heading, page) {
+  if ($("#panes").classList.contains("no-original")) $("#original-strip").click();
+  const pane = $("#original"), frame = pane.querySelector("iframe"), pre = pane.querySelector(".doc-text");
+  if (frame && page && state.originalUrl) {
+    const fresh = frame.cloneNode();
+    fresh.src = `${state.originalUrl}#page=${page}&navpanes=0&view=FitH`;
+    frame.replaceWith(fresh);
+  }
+  if (!pre || !heading) return;
+  const norm = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const key = norm(heading).slice(0, 40), text = pre.textContent;
+  pre.textContent = text; // drops the previous mark
+  let at = 0;
+  for (const line of text.split("\n")) {
+    const n = norm(line); // a long heading may be broken over lines: its first line is enough
+    if (n && (n.includes(key) || (n.length >= 12 && key.startsWith(n)))) {
+      const range = document.createRange();
+      range.setStart(pre.firstChild, at);
+      range.setEnd(pre.firstChild, at + line.length);
+      const mark = el("mark");
+      range.surroundContents(mark);
+      return mark.scrollIntoView({ block: "center" });
+    }
+    at += line.length + 1;
+  }
+}
+
 // Text of the item's file (cached on the item), "" when the server could not read it.
 async function originalText(item) {
   if (item.text === undefined) {
@@ -755,6 +787,7 @@ window.addEventListener("message", (event) => {
   if (event.origin !== location.origin || event.source !== $("#preview-frame").contentWindow) return;
   const data = event.data || {};
   if (data.type === "coi-drop") return void addFiles([...data.files]); // a form dropped on the preview
+  if (data.type === "coi-paper") return showPaper(String(data.heading || ""), Number(data.page) || 0);
   if (data.type === "coi-sidebar") { // the "Edycja" sidebar was opened or collapsed: the original pane gives it room or gets it back
     state.sidebar = Boolean(data.open);
     showView();

@@ -110,6 +110,7 @@ body.notes .src{display:block}
 .card>.src+.src{margin-top:-.7rem}
 #pageHeading~.src,.legend{margin:0 0 1rem}
 .legend{border-left-color:#1e7b34}
+.src .to-paper{background:none;border:0;padding:0;font:inherit;color:#0052a5;text-decoration:underline;cursor:pointer;text-align:left}
 /* "Edytuj" next to every element of the embedded preview (annotations on): one click opens the "Edycja" sidebar on it */
 .fix{display:none}
 .embed .cell{display:flow-root}
@@ -215,7 +216,8 @@ const PHONE_CODES = ["+48 Polska","+49 Niemcy","+420 Czechy","+421 Słowacja","+
 
 let cfg = null, pages = [], answers = {}, pageIdx = 0, issues = [], uidN = 0;
 // Where each element came from: {elementId: {source: "paper" | "model" | "code" | "clerk", quote, condition_quote?,
-// consent_quotes?}} from POST /api/forms/convert?evidence=1; {} for a JSON loaded from a file.
+// consent_quotes?, heading?, heading_page?}} from POST /api/forms/convert?evidence=1; {} for a JSON loaded from a file.
+// `heading` (pages and sections, app/headings.py) = the paper heading of the part they came from.
 let evidence = {};
 const conds = new Map(); // query string -> {ast} | {err}
 const $ = (s, r = document) => r.querySelector(s);
@@ -602,11 +604,22 @@ const hasEvidence = () => Object.keys(evidence).length > 0;
 const quoteLine = (label, quote) => h("p", {class: "src paper", title: quote.length > 240 ? quote : null},
   h("strong", {}, label + ": "), `„${quote.length > 240 ? quote.slice(0, 237) + "…" : quote}”`);
 
-// Annotation lines of an element (kind "tab" | "section" | "field"): the paper quote it was built from, when it
-// shows, and the quote behind that condition. Pages and sections the model grouped get no line (the legend says it
+// The paper heading a page or section came from ("Na papierze: C. OKOLICZNOŚCI ..., str. 2"); embedded, a click asks
+// the upload page to show that place in the original ({type: "coi-paper", heading, page}).
+function headingLine(ev) {
+  const text = ev.heading + (ev.heading_page ? `, str. ${ev.heading_page}` : "");
+  return h("p", {class: "src paper"}, h("strong", {}, "Na papierze: "), EMBED
+    ? h("button", {type: "button", class: "to-paper", title: "Pokaż to miejsce w oryginale",
+        onclick: () => parent.postMessage({type: "coi-paper", heading: ev.heading, page: ev.heading_page || null}, location.origin)}, text)
+    : text);
+}
+
+// Annotation lines of an element (kind "tab" | "section" | "field"): the paper heading of a page or section, the
+// paper quote it was built from, when it shows, and the quote behind that condition. Pages and sections the model grouped get no line (the legend says it
 // once), nor do fields added from the Standards (standard pages, address blocks): the page or section says it once.
 function notesOf(f, kind, standard) {
   const ev = evidence[f.id], out = [], codeField = kind === "field" && ev?.source === "code";
+  if (kind !== "field" && ev?.heading) out.push(headingLine(ev));
   if (ev?.source === "paper" && ev.quote) {
     out.push(quoteLine("Z papieru", ev.quote));
     if (kind === "section" && (f.repeatingSectionGrid || []).some(c => evidence[c.field.id]?.source === "code"))
