@@ -79,6 +79,7 @@ def address_section(ctx: Ctx, title: str, section_tech: str, suffix: str, *, reg
     poland = chosen("Polska", answer_path(tab_title, section_tech, kraj))
     abroad = negate(poland)
     reg = (lambda attr: f"MLPZ.{attr}") if registry else (lambda attr: None)
+    ro = registry  # Dane inicjalne: fields fed from a registry are read-only
     fields = [
         field(ctx, "SELECT", "Kraj", kraj, validation=["REQUIRED"], extra={
             "dictionaryName": "Kraje", "multiLevelTree": False, "searchEnabled": True,
@@ -91,11 +92,11 @@ def address_section(ctx: Ctx, title: str, section_tech: str, suffix: str, *, reg
                   "dictionaryName": "TERYT_4G_DOWODOWY", "multiLevelTree": True,
                   "searchEnabled": True, "defaultValue": []}),
         _text(ctx, "Kod pocztowy", f"kod_pocztowy{suffix}", required=True,
-              extra_validators=["ZIP_CODE"], registry=reg("postCode"), query=poland),
-        _text(ctx, "Ulica", f"ulica{suffix}", registry=reg("street"), query=poland),
+              extra_validators=["ZIP_CODE"], registry=reg("postCode"), read_only=ro, query=poland),
+        _text(ctx, "Ulica", f"ulica{suffix}", registry=reg("street"), read_only=ro, query=poland),
         _text(ctx, "Numer budynku", f"numer_budynku{suffix}", required=True,
-              registry=reg("building")),
-        _text(ctx, "Numer lokalu", f"numer_lokalu{suffix}", registry=reg("apartment")),
+              registry=reg("building"), read_only=ro),
+        _text(ctx, "Numer lokalu", f"numer_lokalu{suffix}", registry=reg("apartment"), read_only=ro),
     ]
     return section(ctx, title, section_tech, fields, query=query, description=description)
 
@@ -135,14 +136,13 @@ def dane_page(ctx: Ctx, plan: Plan) -> dict:
     if podmiot:
         sections.append(section(ctx, "Podmiot wniosku", ctx.tech("podmiot_wniosku"), podmiot))
 
-    src = "PESEL" if a.pesel else "MLPZ"
+    # Standards (they win over the trimmed references): Imię, Nazwisko, PESEL, all from MLPZ, read-only.
     own = [
-        _text(ctx, "Imię", "imie", required=True, registry=f"{src}.name", read_only=True),
-        _text(ctx, "Nazwisko", "nazwisko", required=True, registry=f"{src}.surname", read_only=True),
+        _text(ctx, "Imię", "imie", required=True, registry="MLPZ.name", read_only=True),
+        _text(ctx, "Nazwisko", "nazwisko", required=True, registry="MLPZ.surname", read_only=True),
+        _text(ctx, "Numer PESEL", "numer_pesel", required=True, extra_validators=["PESEL"],
+              registry="MLPZ.pesel", read_only=True),
     ]
-    if a.pesel:
-        own.append(_text(ctx, "Numer PESEL", "numer_pesel", required=True, extra_validators=["PESEL"],
-                         registry="PESEL.pesel", read_only=True))
     sections.append(section(ctx, "Twoje dane", ctx.tech("twoje_dane"), own))
     sections.append(address_section(ctx, "Adres zamieszkania", "adres_zamieszkania", "", registry=True,
                              query=None))

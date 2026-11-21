@@ -76,8 +76,10 @@ def test_reference_specific_switches():
     assert one["nazwa_organu"]["defaultValue"] == "Wójt Gminy Elbląg"
     assert one["nazwa_organu"]["readOnly"] is True
     assert five["nazwa_urzedu"]["defaultValue"] == "Urząd Gminy Ulan-Majorat"
-    assert one["imie"]["defaultValue"] == "MLPZ.name" and "numer_pesel" not in one
-    assert five["numer_pesel"]["defaultValue"] == "PESEL.pesel"
+    # Standards win over the trimmed references: Twoje dane always has PESEL, all from MLPZ, read-only.
+    assert one["imie"]["defaultValue"] == "MLPZ.name" and one["numer_pesel"]["defaultValue"] == "MLPZ.pesel"
+    assert five["numer_pesel"]["defaultValue"] == "MLPZ.pesel" and five["numer_pesel"]["readOnly"] is True
+    assert one["kod_pocztowy"]["readOnly"] is True and one["kod_pocztowy_zagranica"]["readOnly"] is False
     assert five["numer_pesel"]["validation"] == ["REQUIRED", "PESEL"]
     assert {"nip", "regon", "numer_krs"} <= one.keys()
     assert "nip" in five and "regon" not in five
