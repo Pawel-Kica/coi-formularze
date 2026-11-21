@@ -69,13 +69,17 @@ Rules applied:
 - Numer rachunku (shown for "Zwrócić przelewem..."): REQUIRED. Contested like above: a transfer needs an account. No IBAN validator exists.
 - Plik deklaracji podatkowej: REQUIRED. Contested: the paper pre-prints "w załączeniu: 1) korekta deklaracji" (art. 75 § 3 Ordynacji), but for taxes set by decision (e.g. property tax of a natural person) there is no declaration to correct.
 
-## Model runs (qwen3:30b, `bench/run_all.py --forms 1,5`)
-`walid=` only scores fields that `score_coi` matches. In the runs so far the model names
-the subject page differently ("Informacje o nieruchomości", "Wniosek o stwierdzenie
-nadpłaty podatku"), `score_coi` does not match that tab, so its fields count as missing
-structure (`ref=`) and their validators as `unmatched`, not as `walid=` misses. Hand check
-of those plan fields (`required` comes from the model):
-- Form 1, Ulica: model `required: true`, gold no REQUIRED. Model limit (it ignores the paper's "Dane nieobowiązkowe" footnote).
-- Form 1, extra "Czy chcesz podać adres ulicy?" radio and "Numer budynku": not in the reference (structure, not validation).
-- Form 5, "Rodzaj podatku, na który ma zostać zaliczona nadpłata" and "Numer rachunku bankowego": model `required: false`, gold REQUIRED. Model limit (conditional fields left optional).
+## Model runs (qwen3:30b, `bench/run_all.py`, 21.11)
+Runs: `bench/runs/walid-e2e` (form 1 all 8 formats, form 5 DOC; stopped early to keep
+one bench on the shared Ollama) and `bench/runs/walid-cached` (form 5 PDF plan, rebuilt).
+`walid=1.00` on every file: no missing or extra validator on matched fields.
+
+`walid=` only scores fields that `score_coi` matches. The model names the subject page
+differently ("Informacje o nieruchomości", "Wniosek o stwierdzenie nadpłaty podatku"),
+`score_coi` does not match that tab, so its fields count as missing structure (`ref=`)
+and their validators as `unmatched` (form 1: 3-4, form 5: 7), not as `walid=` misses.
+Hand check of those plan fields (`required` comes from the model):
+- Form 1, Ulica: model `required: true` in all 8 formats, gold no REQUIRED. Model limit (it ignores the paper's "Dane nieobowiązkowe" footnote).
+- Form 1, extra fields (Numer budynku, Numer lokalu, Kod pocztowy, "Czy chcesz podać adres ulicy?", "Czy wniosek jest składany w formie elektronicznej?"): not in the reference, structure, not validation.
+- Form 5 (PDF, DOC), the two conditional fields "Podatek/Rodzaj podatku, na który ma zostać zaliczona nadpłata" and "Numer rachunku bankowego": model `required: false`, gold REQUIRED. Model limit (fields shown under a condition left optional).
 - All other subject fields: model REQUIRED = gold REQUIRED.
