@@ -38,7 +38,7 @@ Rules applied:
 - Adres zamieszkania / Numer lokalu: no REQUIRED. Same, "Brak numeru lokalu" checkbox not expressible; most houses have no flat number.
 - Adres zamieszkania / Kod pocztowy (abroad): no REQUIRED, no ZIP_CODE. Standards: "kod pocztowy bez walidacji", escape checkbox "Brak kodu pocztowego".
 - Adres zamieszkania / Ulica (abroad): no REQUIRED (escape checkbox, as above).
-- Adres zamieszkania / Kod pocztowy (Polska): the Standards also list "Dodatkowa walidacja: Kod pocztowy" on Polish Ulica; a copy error, ignored.
+- Adres zamieszkania / Ulica (Polska), Standards copy error: the Standards also list "Dodatkowa walidacja: Kod pocztowy" on Polish Ulica; a copy error, ignored.
 - Adres siedziby, Adres zamieszkania innej osoby: same block, same calls as Adres zamieszkania.
 - Dane podmiotu / Nazwa: REQUIRED (Standards).
 - Dane podmiotu / NIP: REQUIRED, NIP (Standards).
@@ -84,6 +84,8 @@ score, e.g. `walid=1.00 (+7 unscored)`.
 differently ("Informacje o nieruchomości", "Wniosek o stwierdzenie nadpłaty podatku"),
 `score_coi` does not match that tab, so its fields count as missing structure (`ref=`)
 and their validators as `unmatched` (form 1: 3-4, form 5: 7), not as `walid=` misses.
+On form 1 one of the 4 is `EMAIL` on the contact page (our tab name differs from the
+reference in 7 of 8 formats, DOCX matches); our output carries it, so ~0.99 holds.
 The scorer never counts extra validators on our own unmatched fields either (the
 model's extra subject fields add nothing to `walid=`).
 Hand check of those plan fields (`required` comes from the model):

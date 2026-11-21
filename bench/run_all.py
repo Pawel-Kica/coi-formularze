@@ -131,6 +131,8 @@ def main() -> int:
     ap.add_argument("--rebuild", action="store_true", help="rebuild COI JSON from cached plans")
     ap.add_argument("--out", default=f"bench/runs/e2e-{time.strftime('%Y%m%d-%H%M')}")
     a = ap.parse_args()
+    if a.rebuild and not Path(a.out).exists():
+        ap.error("--rebuild needs --out of an earlier run")
     out = Path(a.out) / ("bip" if a.bip else "coi")
     files = bip_files() if a.bip else coi_files(set(a.forms.split(",")) if a.forms else None,
                                                 set(a.formats.split(",")) if a.formats else None)

@@ -35,7 +35,7 @@ file → text (`app/extract/`) → model plan (`app/llm/planner.py`, contract `a
 
 ## Commands
 - Tests: `uv run pytest`
-- End to end: `uv run python -m bench.run_all [--forms 1,5] [--formats pdf] [--bip] [--out bench/runs/<name>]` (uses the local model); `--rebuild` re-runs only the builder on cached plans, never the model (files without one: "not cached"); forms 1 and 5 print `walid=` (validator F1 vs `gold/coi/`, matched fields only, `(+N unscored)` = gold validators on unmatched fields) next to `ref=`
+- End to end: `uv run python -m bench.run_all [--forms 1,5] [--formats pdf] [--bip] [--out bench/runs/<name>]` (uses the local model); `--rebuild --out <earlier run>` re-runs only the builder on cached plans, never the model (files without one: "not cached"); forms 1 and 5 print `walid=` (validator F1 vs `gold/coi/`, matched fields only, `(+N unscored)` = gold validators on unmatched fields) next to `ref=`
 - Score one file: `uv run python bench/score.py coi|plan <ours.json> <ref.json>`
 - Dev server: launchd agent `com.pawel.coi-api` keeps the API on http://localhost:8010 (login admin / haslo, `--reload` on `app/`), log `~/Library/Logs/coi-api.log`. Restart: `launchctl kickstart -k gui/$(id -u)/com.pawel.coi-api`. Never put `--` inside an XML comment in its plist (a heartbeat check parses it with plistlib).
 - Native run, Docker, config table, API: `README.md` (jury-facing, keep it human).
