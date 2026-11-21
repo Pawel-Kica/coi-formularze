@@ -20,7 +20,7 @@ from fastapi import APIRouter, Body, Depends, Form, HTTPException, Response, Upl
 from app.config import settings
 from app.security import current_user
 
-SCHEMA = """CREATE TABLE IF NOT EXISTS history (
+SCHEMA = """CREATE TABLE IF NOT EXISTS uploads (  -- not "history": that name had per-field columns in the first version
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL, type TEXT NOT NULL, file BLOB NOT NULL,
     created INTEGER NOT NULL,
@@ -50,7 +50,7 @@ def add(name: str, mime: str, data: bytes, record: dict) -> int:
     created, state = _split({"status": "done", **record})
     with _db() as conn:
         return conn.execute(
-            "INSERT INTO history (name, type, file, created, state) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO uploads (name, type, file, created, state) VALUES (?, ?, ?, ?, ?)",
             (name, mime, data, created or int(time.time() * 1000), state),
         ).lastrowid
 
@@ -59,7 +59,7 @@ def records() -> list[dict]:
     """Every record without the file bytes, newest first: {id, file_name, file_type, file_size, created, **state}."""
     with _db() as conn:
         rows = conn.execute(
-            "SELECT id, name, type, length(file) AS size, created, state FROM history ORDER BY created DESC, id DESC"
+            "SELECT id, name, type, length(file) AS size, created, state FROM uploads ORDER BY created DESC, id DESC"
         ).fetchall()
     return [
         {**json.loads(r["state"]), "id": r["id"], "file_name": r["name"], "file_type": r["type"], "file_size": r["size"], "created": r["created"]}
@@ -84,7 +84,7 @@ def list_history() -> list[dict]:
 def history_file(item_id: int) -> Response:
     """The original uploaded file of one record, with its content type."""
     with _db() as conn:
-        row = conn.execute("SELECT type, file FROM history WHERE id = ?", (item_id,)).fetchone()
+        row = conn.execute("SELECT type, file FROM uploads WHERE id = ?", (item_id,)).fetchone()
     if not row:
         raise _missing()
     return Response(row["file"], media_type=row["type"] or "application/octet-stream")
@@ -111,7 +111,7 @@ def update(item_id: int, record: Annotated[dict, Body()]) -> dict:
     created, state = _split(record)
     with _db() as conn:
         found = conn.execute(
-            "UPDATE history SET state = ?, created = coalesce(?, created) WHERE id = ?", (state, created, item_id)
+            "UPDATE uploads SET state = ?, created = coalesce(?, created) WHERE id = ?", (state, created, item_id)
         ).rowcount
     if not found:
         raise _missing()
@@ -121,10 +121,10 @@ def update(item_id: int, record: Annotated[dict, Body()]) -> dict:
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete(item_id: int) -> None:
     with _db() as conn:
-        conn.execute("DELETE FROM history WHERE id = ?", (item_id,))
+        conn.execute("DELETE FROM uploads WHERE id = ?", (item_id,))
 
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
 def clear() -> None:
     with _db() as conn:
-        conn.execute("DELETE FROM history")
+        conn.execute("DELETE FROM uploads")
