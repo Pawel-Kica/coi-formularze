@@ -116,6 +116,10 @@ body.notes .src{display:block}
 .embed .cell{display:flow-root}
 body.embed.notes:not(.editmode) .fix{display:block;float:right;margin:.3rem 0 0 .75rem;background:none;color:#0052a5;border:1px solid transparent;border-radius:4px;padding:.05rem .45rem;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
 body.embed.notes:not(.editmode) .card>.fix{margin-top:.1rem}
+/* on a field it sits at the top right, on the label's line, the same place for every kind of field */
+.embed .cell{position:relative}
+body.embed.notes:not(.editmode) .cell>.fix{position:absolute;top:-.15rem;right:0;float:none;margin:0}
+body.embed.notes:not(.editmode) :is(.cell>label,.cell>.choice,.cell .group>legend,.cell>.textblock,.cell>.info){padding-right:4.2rem}
 .embed [data-bound]:hover:not(:has([data-bound]:hover))>.fix,.embed .fix:hover,.embed .fix:focus-visible{border-color:#0052a5;background:#e8f0fb}
 .ghost{display:none}
 /* a hidden element in annotation mode: one dashed line saying what would show it */
@@ -618,24 +622,22 @@ function dependentsOf(f) {
 }
 
 // "Edytuj" next to an element: asks the upload page to open the click editor on it (embedded preview only).
-// Standard pages are built by code and stay as they are, except what came from the paper: the addressee and the statements.
-function fixButton(f, kind, standard) {
+// Every element of every page has one, the standard pages and the address blocks too: nothing is locked.
+function fixButton(f, kind) {
   // a section that only wraps one field and has no condition of its own: the field's "Edytuj" is enough
-  if (kind === "section" && (f.repeatingSectionGrid || []).length === 1 && !condText(f) && fixButton(f.repeatingSectionGrid[0].field, "field", standard)) return false;
-  const editable = standard ? kind === "field" && (ADDRESSEE_FIELDS.includes(f.techName) || f.type === "CONSENT_SECTION")
-    : !(kind === "field" && evidence[f.id]?.source === "code"); // address-block fields: the section's "Edytuj" reaches them
-  return EMBED && editable && h("button", {type: "button", class: "fix", "aria-label": `Edytuj: ${labelOf(f)}`,
+  if (kind === "section" && (f.repeatingSectionGrid || []).length === 1 && !condText(f)) return false;
+  return EMBED && h("button", {type: "button", class: "fix", "aria-label": `Edytuj: ${labelOf(f)}`,
     onclick: () => parent.postMessage({type: "coi-edit-request", id: f.id}, location.origin)}, "Edytuj");
 }
 
 // One dashed line that stands in for a hidden element in annotation mode (with its own "Edytuj": the condition is
 // fixed from where it is read), or null when the element is always visible. Code-made fields (the two address
 // variants) stay simply hidden.
-function ghostOf(f, kind, standard) {
+function ghostOf(f, kind) {
   const ct = condText(f);
   if (!ct || (kind === "field" && evidence[f.id]?.source === "code")) return null;
   const what = kind === "section" ? "Ukryta sekcja" : STATIC_TYPES.includes(f.type) ? "Ukryty tekst" : "Ukryte pole";
-  return h("p", {class: "ghost"}, fixButton(f, kind, standard), h("strong", {}, `${what} „${labelOf(f)}”. `), `Pokaże się, gdy ${ct}.`);
+  return h("p", {class: "ghost"}, fixButton(f, kind), h("strong", {}, `${what} „${labelOf(f)}”. `), `Pokaże się, gdy ${ct}.`);
 }
 
 // The one line under the heading of a standard page: code built it, and what on it (if anything) is from the paper.
@@ -648,7 +650,9 @@ function standardNote(tab) {
 
 // The line under the form title: what the green quotes are, and how many elements have one.
 function renderLegend() {
-  const n = Object.values(evidence).filter(e => e.source === "paper" && e.quote).length;
+  let n = 0;  // counted over what is in the form now: an element removed in the editor no longer counts
+  const count = id => { const e = evidence[id]; if (e?.source === "paper" && e.quote) n++; };
+  if (cfg) { cfg.tabs.forEach(t => count(t.id)); eachField(f => count(f.id)); }
   $("#legend").replaceChildren(...(!hasEvidence()
     ? ["Ten plik nie ma cytatów z papieru (wczytany JSON albo starszy wynik). Wgraj formularz ponownie, aby je zobaczyć."]
     : [`Z papieru: ${n} ${plural(n, ["element", "elementy", "elementów"])}, pod każdym jest dosłowny cytat z formularza. Strony i sekcje bez cytatu tylko grupują pola.`]));
@@ -848,7 +852,7 @@ function renderQuestion(tab, q) {
 function renderSection(tab, q) {
   const f = q.field, hid = uid(), hint = hintEl(f.description);
   const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
-    ghostOf(f, "section", isStandard(tab)), fixButton(f, "section", isStandard(tab)), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q),
+    ghostOf(f, "section"), fixButton(f, "section"), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q),
     layoutGrid(f.repeatingSectionGrid, c => renderField(c, {store: answers[tab.title][f.techName], row: null, standard: isStandard(tab)})));
   card._entry = {field: f, row: null, controls: []};
   return card;
@@ -875,7 +879,7 @@ function renderRepeating(tab, q) {
   }
   drawRows();
   const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
-    ghostOf(f, "section", isStandard(tab)), fixButton(f, "section", isStandard(tab)), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q), list, addBtn);
+    ghostOf(f, "section"), fixButton(f, "section"), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q), list, addBtn);
   card._entry = {field: f, row: null, controls: []};
   return card;
 }
@@ -884,7 +888,7 @@ function renderRepeating(tab, q) {
 function renderField(cell, ctx) {
   const f = cell.field, id = uid(), t = f.type, tn = f.techName, st = ctx.store;
   const req = isRequired(f), opt = req || f.readOnly ? "" : " (opcjonalnie)", title = labelOf(f);  // read-only: user cannot fill it, so "optional" means nothing
-  const wrap = h("div", {class: "cell", "data-bound": true, "data-type": t, "data-fid": f.id}, ghostOf(f, "field", ctx.standard));
+  const wrap = h("div", {class: "cell", "data-bound": true, "data-type": t, "data-fid": f.id}, ghostOf(f, "field"));
   const entry = wrap._entry = {field: f, row: ctx.row, store: st, controls: [], id};
   const errId = id + "-err";
   const hint = STATIC_TYPES.includes(t) ? null : hintEl(f.description);
@@ -984,7 +988,8 @@ function renderField(cell, ctx) {
   }
   if (caption) wrap.append(caption);
   if (f.tooltipMessage) wrap.append(h("details", {class: "tip"}, h("summary", {}, "Pomoc"), sanitize(f.tooltipMessage)));
-  wrap.append(h("p", {class: "err", id: errId, hidden: true}), fixButton(f, "field", ctx.standard) || "", ...notesOf(f, "field", ctx.standard), ...techLines(f, cell));
+  wrap.prepend(fixButton(f, "field") || "");
+  wrap.append(h("p", {class: "err", id: errId, hidden: true}), ...notesOf(f, "field", ctx.standard), ...techLines(f, cell));
   // a wrong format (PESEL, kod pocztowy...) shows as soon as the field is left; an empty required field never blocks the preview
   wrap.addEventListener("change", () => showErr(wrap, isEmpty(st[tn]) ? null : checkField(entry)));
   return wrap;

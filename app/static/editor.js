@@ -53,11 +53,24 @@ function edFind(id) {
   return null;
 }
 
-// Standard pages (Dane, Kontakt i zgody, finish) come from the COI Standards and stay as code built them.
-const edEditable = loc => loc && (loc.kind === "title" || !isStandard(loc.tab));
-// On standard pages only what came from the paper is editable: the addressee and the statements (consents).
-const edAddressee = loc => loc.kind === "field" && ADDRESSEE_FIELDS.includes(loc.el.techName);
-const edConsents = loc => loc.kind === "field" && loc.el.type === "CONSENT_SECTION" && Array.isArray(loc.el.consentSectionConfig?.consents);
+// Nothing is locked: the standard pages (Dane, Kontakt i zgody, finish) and the address blocks are edited and
+// removed like everything else. Only what the COI rules would refuse on import is held back, with the reason
+// next to the button (edRemoveBlock).
+const edFinish = loc => loc.tab?.type === "FINISH";  // this page may hold texts only (app/rules.py)
+
+// Why this element cannot be removed (the JSON would not import), or "" when it can. The rules want one FINISH
+// page at the end, at least one page before it, and at least one field on every page.
+function edRemoveBlock(loc) {
+  if (loc.kind === "tab") {
+    if (edFinish(loc)) return "Strony końcowej nie usuniesz: każda e-usługa COI musi się nią kończyć.";
+    return cfg.tabs.filter(t => t.type !== "FINISH").length > 1 ? "" : "To jedyna strona przed końcową, a e-usługa COI musi mieć co najmniej jedną.";
+  }
+  const count = q => q.field.type === "INFO_SECTION" ? 1 : (q.field.repeatingSectionGrid || []).length;  // fields as the rules count them
+  const left = loc.tab.questions.reduce((n, q) => n + count(q), 0) - (loc.kind === "field" ? 1 : count(loc.tab.questions.find(q => q.field === loc.el)));
+  if (left > 0) return "";
+  return edFinish(loc) ? "Strona końcowa musi mieć choć jeden tekst, a to ostatni."
+    : "Na tej stronie nie zostałoby żadne pole, a taka strona nie przejdzie importu do COI. Usuń całą stronę albo najpierw dodaj inne pole.";
+}
 
 // Every element whose SHOW condition reads one of `fields`.
 function edDependents(fields) {
@@ -259,15 +272,18 @@ function edLayoutTab(tab) {
   }
 }
 
-function edNewField(title = "Nowe pole") {
-  return {id: edNewId(), type: "TEXT_FIELD", techName: edTech(title), title, description: "", options: [], validation: [],
-    readOnly: false, repeatingSectionGrid: [], states: [], questionOrder: 0, tooltipMessage: ""};
+// `text` = a TEXT_BLOCK instead of an input: the only thing the FINISH page may hold.
+function edNewField(text = false) {
+  const f = {id: edNewId(), type: "TEXT_FIELD", techName: edTech(text ? "Nowy tekst" : "Nowe pole"), title: text ? "" : "Nowe pole", description: "",
+    options: [], validation: [], readOnly: false, repeatingSectionGrid: [], states: [], questionOrder: 0, tooltipMessage: ""};
+  if (text) { edSetType(f, "TEXT_BLOCK"); f.description = edHtml("Nowy tekst", ""); }
+  return f;
 }
-function edNewSection(title = "Nowa sekcja") {
+function edNewSection(text = false, title = "Nowa sekcja") {
   const sec = {id: edNewId(), type: "SECTION", techName: edTech(title), title, description: ED_EMPTY_HTML, options: [],
     validation: [], readOnly: false, repeatingSectionGrid: [], states: [], questionOrder: 0, tooltipMessage: ""};
-  const f = edNewField();
-  f.techName = edTech("Nowe pole", sec.id);
+  const f = edNewField(text);
+  f.techName = edTech(text ? "Nowy tekst" : "Nowe pole", sec.id);
   sec.repeatingSectionGrid.push({x: 0, y: 0, rows: 1, cols: 3, field: f});
   return sec;
 }
@@ -276,7 +292,7 @@ const edMark = (...els) => { for (const el of els) evidence[el.id] = {source: "c
 // Adds a new text field to section `secId`, after field `afterId` (or at the end).
 function edAddField(secId, afterId) {
   edChange(() => {
-    const loc = edFind(secId), sec = loc.el, f = edNewField();
+    const loc = edFind(secId), sec = loc.el, f = edNewField(edFinish(loc));
     const grid = sortCells(sec.repeatingSectionGrid);
     const at = afterId ? grid.findIndex(c => c.field.id === afterId) + 1 : grid.length;
     grid.splice(at, 0, {x: 0, y: 0, rows: 1, cols: 3, field: f});
@@ -292,7 +308,7 @@ function edAddField(secId, afterId) {
 // Adds a new section (with one field) to tab `tabId`, after section `afterId` (or at the end).
 function edAddSection(tabId, afterId) {
   edChange(() => {
-    const tab = edFind(tabId).el, sec = edNewSection();
+    const tab = edFind(tabId).el, sec = edNewSection(tab.type === "FINISH");
     const qs = sortCells(tab.questions);
     const at = afterId ? qs.findIndex(q => q.field.id === afterId) + 1 : qs.length;
     qs.splice(at, 0, {x: 0, y: 0, rows: 2, cols: 3, field: sec});
@@ -317,17 +333,21 @@ function edMove(id, dir) {
     edLayoutTab(loc.tab);
   });
 }
+// Removes a field, a section with its fields, or a whole page with everything on it (one undo step).
 function edRemove(id) {
   const loc = edFind(id);
-  const gone = loc.kind === "section" ? [loc.el, ...(loc.el.repeatingSectionGrid || []).map(c => c.field)] : [loc.el];
+  if (!loc || loc.kind === "title" || edRemoveBlock(loc)) return;
+  const inside = s => [s, ...(s.repeatingSectionGrid || []).map(c => c.field)];
+  const gone = loc.kind === "tab" ? loc.tab.questions.flatMap(q => inside(q.field)) : loc.kind === "section" ? inside(loc.el) : [loc.el];
   const broken = edDependents(gone).filter(f => !gone.includes(f)), deps = broken.length;  // their conditions read what goes away
-  const what = loc.kind === "section" ? "sekcję" : "pole";
+  const what = {tab: `stronę „${loc.tab.title}” razem z jej polami`, section: "sekcję", field: "pole"}[loc.kind];
   edChange(() => {
-    if (loc.kind === "field") {
+    if (loc.kind === "tab") edRemoveTab(loc.tab);
+    else if (loc.kind === "field") {
       loc.section.repeatingSectionGrid = loc.section.repeatingSectionGrid.filter(c => c.field.id !== id);
       edLayoutSection(loc.section);
     } else loc.tab.questions = loc.tab.questions.filter(q => q.field.id !== id);
-    edLayoutTab(loc.tab);
+    if (loc.kind !== "tab") edLayoutTab(loc.tab);
     ed.sel = deps ? broken[0].id : loc.kind === "field" ? loc.section.id : null;
   }, `Usunięto ${what}. ` + (deps
     ? `${deps === 1 ? "Zależał od niego 1 element" : `Zależały od niego ${deps} ${plural(deps, ["element", "elementy", "elementów"])}`}: ` +
@@ -435,13 +455,22 @@ function edRetech(el) {
   el.techName = edTech(el.title || "pole", el.id);
 }
 
+// Takes a page out of the form and joins its neighbours in flow.links (pages are one chain, like the builder makes it).
+function edRemoveTab(tab) {
+  const i = pages.indexOf(tab), prev = pages[i - 1], next = pages[i + 1];
+  cfg.tabs = cfg.tabs.filter(t => t !== tab);
+  cfg.flow = cfg.flow || {links: []};
+  cfg.flow.links = (cfg.flow.links || []).filter(l => l.source !== tab.id && l.target !== tab.id);
+  if (prev && next) cfg.flow.links.push({id: edNewId(), source: prev.id, target: next.id});
+}
+
 /* ---------- the form in edit mode ---------- */
 const edProblemsOf = id => ed.problems.filter(p => p.id === id);
 
 // After every render in edit mode: clickable elements, problems, "add" buttons. The paper quotes and
 // conditions under each element are drawn by preview.html itself (notesOf), the same as in the preview.
 function edDecorate() {
-  const tab = pages[pageIdx], standard = isStandard(tab), page = $("#page");
+  const tab = pages[pageIdx], text = tab.type === "FINISH", page = $("#page");
   const head = $("#pageHeading"), title = $("#formTitle");
   head.dataset.fid = tab.id;
   title.dataset.fid = "__title";
@@ -457,11 +486,9 @@ function edDecorate() {
     else if (el.matches("section.card")) ($(":scope > h3", el) || el.firstChild).after(...probs);
     else el.append(...probs);
   }
-  if (!standard) {
-    for (const card of page.querySelectorAll("section.card[data-fid]"))
-      card.append(h("button", {type: "button", class: "ed-add", onclick: () => edAddField(card.dataset.fid, null)}, "+ Dodaj pole w tej sekcji"));
-    $("#page > .grid")?.after(h("button", {type: "button", class: "ed-add ed-add-section", onclick: () => edAddSection(tab.id, null)}, "+ Dodaj sekcję na tej stronie"));
-  }
+  for (const card of page.querySelectorAll("section.card[data-fid]"))
+    card.append(h("button", {type: "button", class: "ed-add", onclick: () => edAddField(card.dataset.fid, null)}, text ? "+ Dodaj tekst w tej sekcji" : "+ Dodaj pole w tej sekcji"));
+  $("#page > .grid")?.after(h("button", {type: "button", class: "ed-add ed-add-section", onclick: () => edAddSection(tab.id, null)}, "+ Dodaj sekcję na tej stronie"));
   // stepper: a red mark on pages that hold problems
   const bad = new Set(ed.problems.map(p => p.id && edFind(p.id)?.tab).filter(Boolean));
   $("#stepNav").querySelectorAll(".stepper li").forEach((li, i) => {
@@ -594,6 +621,8 @@ function edEvidenceBox(loc) {
   else if (ev.source === "paper" && ev.quote) {
     box.classList.add("paper");
     box.append(quote("Z papieru", ev.quote));
+  } else if (ev.source === "code" && (ev.consent_quotes || []).some(Boolean)) {
+    box.append(h("p", {}, "Zgody ze Standardów COI. Oświadczenia z papieru mają cytat przy sobie, poniżej."));
   } else {
     box.append(h("p", {}, {
       model: loc.kind === "tab" ? "Stronę ułożył model, grupując sekcje. Cytaty są przy polach."
@@ -605,24 +634,21 @@ function edEvidenceBox(loc) {
   }
   if (ev?.condition_quote) box.append(quote("Warunek z papieru", ev.condition_quote));
   if (ev?.condition_source === "clerk") box.append(h("p", {}, "Warunek ustawiony przez Ciebie."));
-  (ev?.consent_quotes || []).forEach((q, i) => box.append(q ? quote(`Oświadczenie ${i + 1} z papieru`, q)
-    : h("p", {}, h("strong", {}, `Oświadczenie ${i + 1}: `), i === 0 ? "standard COI (klauzula RODO), dodana automatycznie" : "dodane przez Ciebie, bez cytatu")));
-  return box;
+  return box;  // the quote of each statement is next to it in edConsentControls
 }
 
 function edElementPanel(loc) {
+  const consents = loc.el?.type === "CONSENT_SECTION";
   const kind = {title: "Tytuł e-usługi", tab: "Strona", section: ED_TYPE_NAMES[loc.el?.type] || "Sekcja", field: "Pole"}[loc.kind];
-  const name = loc.kind === "title" ? cfg.title : loc.kind === "tab" ? loc.tab.title : labelOf(loc.el);
-  const out = [h("p", {class: "ed-kind"}, kind),
-    h("h3", {class: "ed-title"}, name || "(bez tytułu)"), edEvidenceBox(loc) || "", ed.note ? "" : h("ul", {class: "ed-probs", id: "edMine"})];
+  const name = loc.kind === "title" ? cfg.title : loc.kind === "tab" ? loc.tab.title : consents && !loc.el.title ? ED_TYPE_NAMES.CONSENT_SECTION : labelOf(loc.el);
+  // "Usuń" sits in the heading row of every element; when the rules would refuse the result, it is off and says why
+  const block = loc.kind === "title" ? "" : edRemoveBlock(loc);
+  const del = loc.kind !== "title" && edBtn({tab: "Usuń stronę", section: "Usuń sekcję", field: "Usuń pole"}[loc.kind], "del",
+    () => edRemove(loc.kind === "tab" ? loc.tab.id : loc.el.id), {danger: true, disabled: Boolean(block)});
+  const out = [h("div", {class: "ed-kind-row"}, h("p", {class: "ed-kind"}, kind), del),
+    h("h3", {class: "ed-title"}, name || "(bez tytułu)"), block ? h("p", {class: "ed-hint ed-block"}, block) : "",
+    edEvidenceBox(loc) || "", ed.note ? "" : h("ul", {class: "ed-probs", id: "edMine"})];
   const head = out.length;
-  if (!edEditable(loc)) {
-    if (edAddressee(loc)) out.push(...edAddresseeControls(loc.el));
-    else if (edConsents(loc)) out.push(...edConsentControls(loc.el));
-    else out.push(h("p", {class: "ed-readonly"}, "Ta strona powstaje automatycznie według Standardów COI, taka sama w każdej e-usłudze. " +
-      "Poprawisz na takich stronach tylko to, co jest z papieru: adresata wniosku i oświadczenia."));
-    return out;
-  }
   if (loc.kind === "title") out.push(edRow("Tytuł e-usługi", edInput(cfg.title || "", "label", v => { cfg.title = v; }),
     "Zaczyna się od „Wniosek”, „Zgłoszenie”, „Deklaracja” albo „Oświadczenie”."));
   else if (loc.kind === "tab") out.push(...edTabControls(loc));
@@ -635,30 +661,34 @@ function edElementPanel(loc) {
   return out;
 }
 
-function edAddresseeControls(f) {
-  return [edRow("Adresat wniosku (urząd lub organ)", edInput(String(f.defaultValue ?? ""), "label", v => { f.defaultValue = v; }),
-    "Obywatel widzi go jako stałą wartość. Puste: urząd uzupełni adresata sam.")];
+// The addressee named on the paper is the fixed value of this Dane field.
+function edAddresseeRow(f) {
+  return edRow("Adresat wniosku (urząd lub organ)", edInput(String(f.defaultValue ?? ""), "addressee", v => { f.defaultValue = v; }),
+    "Obywatel widzi go jako stałą wartość. Puste: urząd uzupełni adresata sam.");
 }
 
-// Statements from the paper ("Oświadczam, że ...") in the consent section; the first consent is the RODO clause (code).
+// The consents of a CONSENT_SECTION: the RODO clause from the Standards and the statements from the paper
+// ("Oświadczam, że ..."), each with its text, "Wymagane" and "Usuń". In evidence.consent_quotes a quote = from the
+// paper, null = the standard clause, false = added here.
 function edConsentControls(f) {
   const list = f.consentSectionConfig.consents, quotes = () => evidence[f.id]?.consent_quotes;
   const items = list.map((c, i) => {
-    if (i === 0) return h("li", {}, h("p", {class: "ed-hint"}, "1. Klauzula RODO: standard COI, bez zmian."));
     const cb = h("input", {type: "checkbox", "data-k": `consentreq${i}`, id: "ed" + (++edUid)});
     cb.checked = c.required === true;
     cb.addEventListener("change", () => edChange(() => { c.required = cb.checked; }));
     const ta = edArea(edText(c.description), `consent${i}`, v => { c.description = edHtml(v, ""); });
     ta.setAttribute("aria-label", `Treść oświadczenia ${i + 1}`);
-    return h("li", {}, h("span", {class: "ed-label"}, `${i + 1}. Oświadczenie`), ta,
+    const q = quotes()?.[i];
+    return h("li", {}, h("span", {class: "ed-label"}, `${i + 1}. ${q === null ? "Klauzula RODO (standard COI)" : "Oświadczenie"}`), ta,
+      q ? h("p", {class: "ed-hint"}, h("strong", {}, "Z papieru: "), `„${q}”`) : q === false ? h("p", {class: "ed-hint"}, "Dodane przez Ciebie, bez cytatu.") : "",
       h("div", {class: "ed-consent-row"}, h("span", {class: "ed-check"}, cb, h("label", {for: cb.id}, "Wymagane")),
         edBtn("Usuń", `consentdel${i}`, () => edChange(() => { list.splice(i, 1); quotes()?.splice(i, 1); }), {danger: true, label: `Usuń oświadczenie ${i + 1}`})));
   });
   const add = edBtn("+ Dodaj oświadczenie", "consentadd", () => edChange(() => {
     list.push({description: edHtml("Oświadczam, że ", ""), required: true});
-    quotes()?.push(null);
+    quotes()?.push(false);
   }));
-  return [h("div", {class: "ed-row"}, h("span", {class: "ed-label"}, "Zgody i oświadczenia z papieru"), h("ol", {class: "ed-consents"}, items), add)];
+  return h("div", {class: "ed-row"}, h("span", {class: "ed-label"}, "Zgody i oświadczenia"), h("ol", {class: "ed-consents"}, items), add);
 }
 
 function edTabControls(loc) {
@@ -683,20 +713,30 @@ function edSectionControls(loc) {
   out.push(edConditionControls(loc), h("div", {class: "ed-actions"},
     edBtn("↑ W górę", "up", () => edMove(s.id, -1), {disabled: i <= 0, label: "Przesuń sekcję w górę"}),
     edBtn("↓ W dół", "down", () => edMove(s.id, 1), {disabled: i >= list.length - 1, label: "Przesuń sekcję w dół"}),
-    edBtn("+ Pole na końcu", "addfield", () => edAddField(s.id, null)),
-    edBtn("+ Sekcja poniżej", "addsec", () => edAddSection(loc.tab.id, s.id)),
-    edBtn("Usuń sekcję", "del", () => edRemove(s.id), {danger: true})));
+    edBtn(edFinish(loc) ? "+ Tekst na końcu" : "+ Pole na końcu", "addfield", () => edAddField(s.id, null)),
+    edBtn("+ Sekcja poniżej", "addsec", () => edAddSection(loc.tab.id, s.id))));
   return out;
 }
 
 function edFieldControls(loc) {
   const f = loc.el, t = f.type, list = sortCells(loc.section.repeatingSectionGrid), i = list.findIndex(c => c.field === f);
   const vs = validators(f), required = vs.includes("REQUIRED"), format = vs.find(v => v !== "REQUIRED") || "";
-  const types = ED_TYPES.some(([v]) => v === t) ? ED_TYPES : [...ED_TYPES, [t, ED_TYPE_NAMES[t] || t]];
+  const finish = edFinish(loc), allowed = finish ? ED_TYPES.filter(([v]) => v === "TEXT_BLOCK") : ED_TYPES;  // the FINISH page: texts only
+  const types = allowed.some(([v]) => v === t) ? allowed : [...allowed, [t, ED_TYPE_NAMES[t] || t]];
+  const move = h("div", {class: "ed-actions"},
+    edBtn("↑ W górę", "up", () => edMove(f.id, -1), {disabled: i <= 0, label: "Przesuń pole w górę"}),
+    edBtn("↓ W dół", "down", () => edMove(f.id, 1), {disabled: i >= list.length - 1, label: "Przesuń pole w dół"}),
+    edBtn(finish ? "+ Tekst poniżej" : "+ Pole poniżej", "addfield", () => edAddField(loc.section.id, f.id)));
+  const label = edRow(t === "TEXT_BLOCK" ? "Nagłówek (opcjonalny)" : t === "CONSENT_SECTION" ? "Tytuł" : "Etykieta",
+    edInput(f.title || "", "label", v => { f.title = v; edRetech(f); }));
+  // consents are a list of their own: no type, format or options to choose
+  if (t === "CONSENT_SECTION" && Array.isArray(f.consentSectionConfig?.consents)) return [label, edConsentControls(f), edConditionControls(loc), move];
   const out = [
-    edRow(t === "TEXT_BLOCK" ? "Nagłówek (opcjonalny)" : "Etykieta", edInput(f.title || "", "label", v => { f.title = v; edRetech(f); })),
+    label,
+    ...(ADDRESSEE_FIELDS.includes(f.techName) ? [edAddresseeRow(f)] : []),
     edRow("Typ", edSelectBox(types.map(([v, l]) => [v, l]), t, "type", v => edChange(() => edSetType(f, v),
-      ED_CHOICE.includes(v) && !ED_CHOICE.includes(t) ? "Zmieniono typ. Dodaj opcje do wyboru." : ""))),
+      ED_CHOICE.includes(v) && !ED_CHOICE.includes(t) ? "Zmieniono typ. Dodaj opcje do wyboru." : "")),
+      finish ? "Na stronie końcowej COI dopuszcza tylko teksty." : null),
   ];
   if (t !== "TEXT_BLOCK") {
     const cb = h("input", {type: "checkbox", "data-k": "req"});
@@ -715,11 +755,7 @@ function edFieldControls(loc) {
   if (ED_CHOICE.includes(t) && !f.dictionaryName) out.push(edOptionsControls(f));
   out.push(edRow(t === "TEXT_BLOCK" ? "Treść" : "Podpowiedź pod etykietą", edArea(edText(f.description), "desc", v => { f.description = edHtml(v, ""); }),
     t === "TEXT_BLOCK" ? null : "Opcjonalna, prostym językiem."));
-  out.push(edConditionControls(loc), h("div", {class: "ed-actions"},
-    edBtn("↑ W górę", "up", () => edMove(f.id, -1), {disabled: i <= 0, label: "Przesuń pole w górę"}),
-    edBtn("↓ W dół", "down", () => edMove(f.id, 1), {disabled: i >= list.length - 1, label: "Przesuń pole w dół"}),
-    edBtn("+ Pole poniżej", "addfield", () => edAddField(loc.section.id, f.id)),
-    edBtn("Usuń pole", "del", () => edRemove(f.id), {danger: true})));
+  out.push(edConditionControls(loc), move);
   return out;
 }
 
@@ -899,7 +935,8 @@ body.editmode #edPanel{display:block}
 .ed-probs li{color:#8c1d18;background:#fdecea;border-radius:4px;padding:.4rem .6rem;margin-bottom:.35rem;font-size:14px}
 .ed-link{background:none;border:0;padding:0;font:inherit;font-weight:700;color:#0052a5;text-decoration:underline;cursor:pointer;text-align:left}
 .ed-note{background:#e8f0fb;border-left:4px solid #0052a5;border-radius:4px;padding:.45rem .7rem;margin:0 0 .9rem;font-size:14px}
-.ed-readonly{background:#fff7e0;border-left:4px solid #b7791f;border-radius:4px;padding:.5rem .75rem;font-size:14px}
+.ed-kind-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem;min-height:34px}
+.ed-block{margin:0 0 .75rem}
 .ed-opts{list-style:none;margin:0 0 .4rem;padding:0}
 .ed-opts li{display:flex;gap:.3rem;margin-bottom:.35rem}
 .ed-opts input{flex:1}
