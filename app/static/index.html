@@ -423,7 +423,7 @@ async function convert(item) {
     Object.assign(item, { status: "error", error: "Brak połączenia z serwerem." });
   }
   clearInterval(ticker);
-  if (item.status === "error") checkModel();
+  if (item.status !== "queued") checkModel(); // after a failure and after the success that follows it
   if (item.deleted) return;
   await persist(item);
   if (item.status !== "queued") {
@@ -657,7 +657,7 @@ function sendPreview(select) {
 
 // Ready to download: finished, the newest edit checked (item.checking; item.lastCheck = the check asked for last,
 // item.checkFailed = it did not get through), and no rules problems.
-function exportable(item) { return item.status === "done" && !item.checking && !(item.problems?.length > 0); }
+function exportable(item) { return item.status === "done" && !item.checking && !item.checkFailed && !(item.problems?.length > 0); }
 
 // Download, copy and the status next to them follow the selected item; problems (or a check still running) block the export.
 function updateActions() {
@@ -666,8 +666,9 @@ function updateActions() {
   const status = $("#edit-status");
   status.className = bad || item?.checkFailed ? "bad" : "muted";
   // why "Pobierz JSON" is off; inside "Edytuj" the editor panel already says it and lists the problems
-  status.textContent = !done ? "" : item.checkFailed ? "Nie udało się sprawdzić zmian. Zmień cokolwiek w „Edytuj”, aby spróbować ponownie."
-    : bad && state.view !== "edit" ? `Do poprawy: ${item.problems.length}. Otwórz „Edytuj”.` : "";
+  status.textContent = !done || state.view === "edit" ? ""
+    : item.checkFailed ? "Nie udało się sprawdzić zmian. Otwórz „Edytuj”, aby sprawdzić ponownie."
+    : bad ? `Do poprawy: ${item.problems.length}. Otwórz „Edytuj”.` : "";
   renderFiles();
 }
 
@@ -705,7 +706,9 @@ async function checkRules(item, version, doc = state.doc) {
     if (!response.ok) throw new Error();
     problems = (await response.json()).problems;
   } catch {
-    item.checkFailed = true; // "Pobierz JSON" stays off, and the pane head says why
+    if (item.lastCheck.doc !== doc || item.lastCheck.version !== version) return; // a newer check has the say
+    item.checkFailed = true; // "Pobierz JSON" stays off; the editor panel (or the pane head outside "Edytuj") says why
+    if (doc === state.doc) $("#preview-frame").contentWindow.postMessage({ type: "coi-problems", failed: true, version, doc }, location.origin);
     if (item === state.selected) updateActions();
     return;
   }
@@ -876,7 +879,8 @@ $("#copy").addEventListener("click", async () => {
 
 // --- model status ---
 
-// Asked on load and again after a failed file, so the header never says "gotowy" next to "model niedostępny".
+// Asked on load and again after every file, so the header says neither "gotowy" next to a model error nor
+// "niedostępny" next to a fresh result.
 function checkModel() {
   fetch("/health").then((r) => r.json()).then((health) => {
     const text = { ok: "gotowy", model_missing: "brak modelu", unreachable: "niedostępny" }[health.llm] ?? health.llm;

@@ -11,7 +11,8 @@
      numbers the document; every message back carries it, so the parent ignores edits of a document it no longer shows.
    - here -> parent {type: "coi-edit", json, evidence, version} after every change, undo and redo;
      the parent saves it in the history entry and sends back
-     {type: "coi-problems", problems: [{id, message, detail}], version, doc}.
+     {type: "coi-problems", problems: [{id, message, detail}], version, doc}, or {..., failed: true} when the
+     check itself did not get through (the status line then offers "Sprawdź ponownie").
    - parent -> here {type: "coi-undo"} / {type: "coi-redo"}: Ctrl+Z pressed while the parent had focus.
 
    Evidence (preview.html's `evidence`, drawn under every element by its notesOf) = {elementId: {source: "paper" |
@@ -35,7 +36,7 @@ const ED_DICT_EXTRA = {
 };
 const ED_EMPTY_HTML = "<html><head></head><body></body></html>";
 
-const ed = {on: false, doc: 0, key: undefined, sel: null, version: 0, checked: -1, problems: [], undo: [], redo: [],
+const ed = {on: false, failed: false, doc: 0, key: undefined, sel: null, version: 0, checked: -1, problems: [], undo: [], redo: [],
   pending: null, timer: 0, note: "", focusLabel: false};
 
 /* ---------- where things are ---------- */
@@ -143,6 +144,12 @@ function edRewrite(visit) {
   conds.clear();
 }
 
+// True when a SHOW condition of the element reads a field that no longer exists (its trigger was deleted).
+function edBrokenCondition(f) {
+  let broken = false;
+  for (const s of f.states || []) if (s.type === "SHOW") edWalk(cond(s.query).ast, n => { if (n.op === "path" && !refField(n.ref)) broken = true; });
+  return broken;
+}
 // {field, option} when the element has exactly one SHOW condition of the form „pole” = „opcja”.
 function edSingleCondition(f) {
   const shows = (f.states || []).filter(s => s.type === "SHOW");
@@ -216,6 +223,7 @@ function edRedo() {
   edAfter();
 }
 function edPost() {
+  ed.failed = false;  // a new check is on its way
   parent.postMessage({type: "coi-edit", json: JSON.stringify(cfg, null, 2), evidence: evidence, version: ed.version, doc: ed.doc}, location.origin);
 }
 // Re-reads the whole config after a change (answers are keyed by titles and techNames) and redraws the page.
@@ -477,13 +485,15 @@ function edEnsurePanel() {
 // Status line, undo/redo buttons and the problem lists; never touches the inputs (focus stays).
 function edStatus() {
   const n = ed.problems.length, box = $("#edStatus");
-  const waiting = ed.checked !== ed.version;
-  box.className = "ed-status " + (waiting ? "wait" : n ? "bad" : "ok");
+  const waiting = ed.checked !== ed.version && !ed.failed;
+  box.className = "ed-status " + (ed.failed ? "bad" : waiting ? "wait" : n ? "bad" : "ok");
   // always says that nothing has to be saved by hand; with problems and an element open, one click shows the whole list
-  box.replaceChildren(waiting ? "Sprawdzam zgodność z regułami COI…"
+  box.replaceChildren(ed.failed ? "Nie udało się sprawdzić zmian (brak połączenia z serwerem). "
+    : waiting ? "Sprawdzam zgodność z regułami COI…"
     : n ? `Do poprawy: ${n} ${plural(n, ["problem", "problemy", "problemów"])}. Pobieranie JSON-a jest zablokowane. `
     : "Zmiany zapisują się same. Zgodne z regułami COI, możesz pobrać JSON.",
-    !waiting && n && ed.sel ? h("button", {type: "button", class: "ed-link", onclick: () => edSelect(null)}, "Pokaż listę") : "");
+    ed.failed ? h("button", {type: "button", class: "ed-link", onclick: () => { edPost(); edStatus(); }}, "Sprawdź ponownie")
+    : !waiting && n && ed.sel ? h("button", {type: "button", class: "ed-link", onclick: () => edSelect(null)}, "Pokaż listę") : "");
   $("#edUndo").disabled = !ed.undo.length && !ed.pending;
   $("#edRedo").disabled = !ed.redo.length;
   const mine = $("#edMine");
@@ -604,7 +614,8 @@ function edElementPanel(loc) {
   const kind = {title: "Tytuł e-usługi", tab: "Strona", section: ED_TYPE_NAMES[loc.el?.type] || "Sekcja", field: "Pole"}[loc.kind];
   const name = loc.kind === "title" ? cfg.title : loc.kind === "tab" ? loc.tab.title : labelOf(loc.el);
   const out = [h("p", {class: "ed-kind"}, kind),
-    h("h3", {class: "ed-title"}, name || "(bez tytułu)"), edEvidenceBox(loc) || "", h("ul", {class: "ed-probs", id: "edMine"})];
+    h("h3", {class: "ed-title"}, name || "(bez tytułu)"), edEvidenceBox(loc) || "", ed.note ? "" : h("ul", {class: "ed-probs", id: "edMine"})];
+  const head = out.length;
   if (!edEditable(loc)) {
     if (edAddressee(loc)) out.push(...edAddresseeControls(loc.el));
     else if (edConsents(loc)) out.push(...edConsentControls(loc.el));
@@ -617,6 +628,10 @@ function edElementPanel(loc) {
   else if (loc.kind === "tab") out.push(...edTabControls(loc));
   else if (loc.kind === "section") out.push(...edSectionControls(loc));
   else out.push(...edFieldControls(loc));
+  if (loc.el && edBrokenCondition(loc.el)) {  // "Kiedy widoczne" moves up: it is the thing to fix
+    const at = out.findIndex(n => n.classList?.contains("ed-cond-box"));
+    if (at > head) out.splice(head, 0, ...out.splice(at, 1));
+  }
   return out;
 }
 
@@ -740,15 +755,19 @@ function edConditionControls(loc) {
   const triggers = edTriggers(loc);
   const box = h("div", {class: "ed-row ed-cond-box"}, h("span", {class: "ed-label"}, "Kiedy widoczne"));
   const shown = single && triggers.some(t => t.f === single.field);
-  if (text && !shown) box.append(h("p", {class: "ed-hint"}, `Teraz: widoczne, gdy ${text}. Wybór poniżej zastąpi ten warunek.`));
+  const other = Boolean(text) && !shown, broken = edBrokenCondition(target);  // other: not a plain „pole” = „opcja” the selects can show
+  if (other) box.append(h("p", {class: "ed-hint" + (broken ? " ed-err" : "")}, `Teraz: widoczne, gdy ${text}. ` +
+    (broken ? "Tego pola już nie ma: wybierz inne albo „nie zależy od innego pola”." : "Wybór poniżej zastąpi ten warunek.")));
   const groups = new Map();
   for (const t of triggers) {
     if (!groups.has(t.tab)) groups.set(t.tab, []);
     groups.get(t.tab).push(t);
   }
-  const fieldSel = h("select", {"data-k": "condfield", "aria-label": "Zależy od pola"}, h("option", {value: ""}, "nie zależy od innego pola"),
+  const fieldSel = h("select", {"data-k": "condfield", "aria-label": "Zależy od pola"},
+    other && h("option", {value: "-", disabled: true}, broken ? "obecny warunek (do poprawy)" : "obecny warunek"),  // so that "nie zależy" is a real change
+    h("option", {value: ""}, "nie zależy od innego pola"),
     [...groups].map(([tab, list]) => h("optgroup", {label: tab.title}, list.map(t => h("option", {value: t.f.id}, `${labelOf(t.f)} (${t.section.title || t.section.techName})`)))));
-  fieldSel.value = shown ? single.field.id : "";
+  fieldSel.value = shown ? single.field.id : other ? "-" : "";
   fieldSel.addEventListener("change", () => {
     const trig = triggers.find(t => t.f.id === fieldSel.value)?.f;
     edChange(() => edSetCondition(target, trig || null, trig ? optionsOf(trig)[0] : null),
@@ -773,7 +792,7 @@ function edConditionControls(loc) {
 function edEnter(doc, select, key) {
   if (!cfg || $("#app").hidden) return;  // the JSON did not load: preview shows the error
   if (key === undefined || key !== ed.key) Object.assign(ed, {undo: [], redo: []});
-  Object.assign(ed, {on: true, doc, key, sel: null, version: 0, checked: -1, problems: [], pending: null, note: ""});
+  Object.assign(ed, {on: true, failed: false, doc, key, sel: null, version: 0, checked: -1, problems: [], pending: null, note: ""});
   edEnsurePanel();
   document.body.classList.add("editmode");
   applyModes();
@@ -801,7 +820,9 @@ window.addEventListener("message", e => {
   const d = e.data || {};
   if (d.type === "coi-preview") { if (d.edit) edEnter(d.doc, d.select, d.key); else if (ed.on) edLeave(); }
   if (!ed.on) return;
-  if (d.type === "coi-problems" && d.doc === ed.doc && d.version === ed.version) {
+  if (d.type === "coi-problems" && d.doc === ed.doc && d.version === ed.version && d.failed) { ed.failed = true; edStatus(); }
+  else if (d.type === "coi-problems" && d.doc === ed.doc && d.version === ed.version) {
+    ed.failed = false;
     // rules name no element for the form title: pin those on the title (h1)
     ed.problems = (Array.isArray(d.problems) ? d.problems : []).map(p => (!p.id && /^title /.test(p.detail || "") ? {...p, id: "__title"} : p));
     ed.checked = d.version;
