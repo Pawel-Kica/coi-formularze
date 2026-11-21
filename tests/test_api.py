@@ -264,6 +264,24 @@ def test_health_without_llm(client, monkeypatch):
     assert response.json()["llm"] == "unreachable"
 
 
+def test_form_text_reads_a_real_docx_without_the_model(client, auth):
+    sample = next(iter(sorted((FORM_1.parent / "2. Wniosek o zwrot opłaty skarbowej - formularze do cyfryzacji").glob("*.docx"))), None)
+    if sample is None:
+        pytest.skip("data/coi not present")
+    response = client.post("/api/forms/text", headers=auth, files={"file": (sample.name, sample.read_bytes())})
+    assert response.status_code == 200
+    assert response.json()["method"] == "docx"
+    assert "Wniosek o zwrot opłaty skarbowej" in response.json()["text"]
+
+
+def test_form_text_needs_a_token_and_a_valid_upload(client, auth):
+    assert client.post("/api/forms/text", files={"file": ("a.png", PNG)}).status_code == 401
+    assert client.post("/api/forms/text", headers=auth, files={"file": ("a.exe", b"MZ")}).status_code == 415
+    broken = client.post("/api/forms/text", headers=auth, files={"file": ("a.pdf", PDF)})
+    assert broken.status_code == 422
+    assert broken.json()["detail"].startswith("Nie udało się odczytać formularza")
+
+
 def test_upload_page(client):
     response = client.get("/")
     assert response.status_code == 200 and "text/html" in response.headers["content-type"]

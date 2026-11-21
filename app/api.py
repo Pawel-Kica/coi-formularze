@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from app import pipeline, review
 from app.dictionaries import propose as propose_dictionaries
 from app.config import settings
+from app.extract import extract
 from app.llm.client import health as llm_health
 from app.problems import explain
 from app.rules import check
@@ -111,6 +112,20 @@ async def convert(
     except ValueError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Nie udało się odczytać formularza: {error}")
     return JSONResponse(coi)
+
+
+@app.post("/api/forms/text", openapi_extra=_FILE_BODY, tags=["forms"], response_description="Tekst odczytany z formularza")
+async def form_text(request: Request, _user: Annotated[str, Depends(current_user)]) -> dict:
+    """The text read from one form (multipart field `file`), the same text the model gets:
+    `{"text", "method"}`. No model call. The upload page shows it as the original for formats a
+    browser cannot display (DOC, DOCX, ODS, XLSX, XLS)."""
+    filename, data = await read_single_file(request, settings.max_file_size_bytes)
+    validate_upload(filename, data)
+    try:
+        doc = await run_in_threadpool(extract, data, filename)
+    except ValueError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Nie udało się odczytać formularza: {error}")
+    return {"text": doc.text, "method": doc.method}
 
 
 @app.post("/api/forms/check", tags=["forms"], response_description="Problemy z regułami COI, pusta lista = gotowe do importu")

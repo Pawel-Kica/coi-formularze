@@ -26,8 +26,17 @@ a{color:#0052a5}
 .issues li{margin:.2rem 0;word-break:break-word}
 .load-error{max-width:880px;margin:1rem auto 0;padding:.75rem 1rem;border:2px solid #b3261e;background:#fff;color:#b3261e;border-radius:6px;font-weight:600}
 .load-error:empty{display:none}
-/* embed mode (/preview?embed=1, inside the upload page): the parent feeds the JSON, so no load buttons */
-.embed .tb-title,.embed #tbOpen,.embed #tbPaste{display:none}
+/* embed mode (/preview?embed=1, inside the upload page): the parent feeds the JSON, so no load buttons;
+   one light strip with a single switch instead of the dark tool bar */
+.embed .tb-title,.embed #tbOpen,.embed #tbPaste,.embed #techLabel,.embed #tbReset{display:none}
+#tbFull{display:none}
+.embed #tbFull{display:block;margin-left:auto;color:#0052a5;border-color:#c5ccd6}
+.embed #tbFull:hover{background:#e8f0fb}
+.embed .toolbar{background:#fff;color:#4b5563;border-bottom:1px solid #d5dbe3;position:sticky;top:0;z-index:5}
+.embed .toolbar label{color:#1b1f24;font-weight:600}
+.embed .toolbar :focus-visible{outline-color:#0052a5}
+.embed .issues summary{border-color:#b7791f;color:#6b2c00}
+body.editmode .toolbar{display:none}
 
 /* empty state */
 .empty{max-width:720px;margin:2rem auto;padding:0 1rem}
@@ -63,9 +72,10 @@ input.ro,textarea.ro,select:disabled{background:#f3f4f6;border-color:#f3f4f6;col
 .caption{font-size:13px;color:#4b5563;margin:.3rem 0 0}
 .err{color:#b3261e;font-size:14px;margin:.35rem 0 0;font-weight:600}
 [aria-invalid=true]{border-color:#b3261e!important;box-shadow:0 0 0 1px #b3261e}
-.errsum{border:2px solid #b3261e;background:#fff;padding:1rem 1.25rem;border-radius:8px;margin-bottom:1rem}
-.errsum h3{margin:0 0 .5rem;font-size:1.05rem;color:#b3261e}
-.errsum ul{margin:0;padding-left:1.25rem}
+.errsum{border-left:4px solid #0052a5;background:#e8f0fb;padding:.75rem 1rem;border-radius:4px;margin-bottom:1rem}
+.errsum p{margin:0 0 .4rem}
+.errsum summary{cursor:pointer;color:#0052a5;font-weight:600}
+.errsum ul{margin:.5rem 0 0;padding-left:1.25rem;font-size:14px}
 .info{background:#e8f0fb;border-left:4px solid #0052a5;padding:.75rem 1rem;border-radius:4px}
 .tip summary{cursor:pointer;color:#0052a5;font-size:14px;font-weight:600}
 .filebox{border:1px solid #8a94a6;border-radius:4px;padding:1rem;max-width:440px}
@@ -92,6 +102,35 @@ input.ro,textarea.ro,select:disabled{background:#f3f4f6;border-color:#f3f4f6;col
 .summary h4{margin:1rem 0 .5rem}
 .summary h5{margin:.5rem 0;font-size:.95rem}
 
+/* annotations ("Cytaty z papieru i warunki", always on in the editor): where an element comes from and when it shows */
+.src{display:none;font-size:13px;line-height:1.4;margin:.4rem 0 0;padding:.05rem 0 .05rem .6rem;border-left:3px solid #c5ccd6;color:#4b5563;word-break:break-word}
+body.notes .src{display:block}
+body:not(.editmode) .src.edit-only{display:none}
+.src.paper{border-left-color:#1e7b34;color:#14532d}
+.src.cond{border-left-color:#b7791f;color:#6b2c00}
+.card>.src{margin:-.5rem 0 1rem}
+.card>.src+.src{margin-top:-.7rem}
+#pageHeading~.src,.legend{margin:0 0 1rem}
+.legend{border-left-color:#1e7b34}
+/* "Popraw" on every element of the embedded preview: one click from reading a field to fixing it in the editor */
+.fix{display:none}
+.embed:not(.editmode) :is(.cell,.card){position:relative}
+.embed:not(.editmode) .fix{display:block;position:absolute;top:-.2rem;right:0;opacity:0;background:#fff;color:#0052a5;border:1px solid #0052a5;border-radius:4px;padding:.1rem .55rem;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.embed:not(.editmode) .card>.fix{top:1.1rem;right:1.25rem}
+.embed:not(.editmode) [data-bound]:hover>.fix,.embed .fix:focus-visible{opacity:1}
+.embed .fix:hover{background:#e8f0fb}
+.ghost{display:none}
+/* a hidden element in annotation mode: one dashed line saying what would show it */
+body.ghosts .cond-hidden:has(>.ghost){display:block!important}
+body.ghosts .cond-hidden>:not(.ghost){display:none!important}
+body.ghosts .cond-hidden>.ghost{display:block;margin:0;padding:.45rem .75rem;border:1px dashed #8a94a6;border-radius:6px;background:#f8fafc;color:#4b5563;font-size:13px;line-height:1.4}
+body.ghosts section.card.cond-hidden{padding:0;background:none;box-shadow:none}
+@keyframes flash{from{background:#fff3b0;box-shadow:0 0 0 6px #fff3b0}to{background:transparent;box-shadow:0 0 0 6px transparent}}
+.flash{animation:flash 1.8s ease-out;border-radius:6px}
+section.card.flash{animation-name:flash-card}
+@keyframes flash-card{from{background:#fff3b0}to{background:#fff}}
+@media (prefers-reduced-motion:reduce){.flash{animation:none}}
+
 /* conditions and tech mode */
 .cond-hidden{display:none!important}
 body.techmode .cond-hidden{display:block!important;opacity:.55;outline:2px dashed #6b7280;outline-offset:3px}
@@ -112,9 +151,11 @@ body.techmode .tech{display:block}
   <button type="button" class="tb-btn" id="tbOpen">Wczytaj plik JSON</button>
   <input type="file" id="fileInput" accept=".json,application/json" hidden>
   <button type="button" class="tb-btn" id="tbPaste">Wklej JSON</button>
-  <label><input type="checkbox" id="techToggle"> Pokaż techniczne</label>
-  <details class="issues" id="issuesBox"><summary>Uwagi (0)</summary><ol></ol></details>
-  <button type="button" class="tb-btn" id="tbReset">Zacznij od nowa</button>
+  <label><input type="checkbox" id="notesToggle" checked> Cytaty z papieru i warunki</label>
+  <label id="techLabel"><input type="checkbox" id="techToggle"> Nazwy techniczne</label>
+  <details class="issues" id="issuesBox" hidden><summary>Uwagi (0)</summary><ol></ol></details>
+  <button type="button" class="tb-btn" id="tbReset">Wyczyść odpowiedzi</button>
+  <button type="button" class="tb-btn" id="tbFull">Otwórz w nowej karcie</button>
 </header>
 <div class="load-error" id="loadError" role="alert"></div>
 
@@ -130,6 +171,7 @@ body.techmode .tech{display:block}
 
 <main class="wrap" id="app" hidden>
   <h1 id="formTitle"></h1>
+  <p class="src legend" id="legend"></p>
   <nav aria-label="Kroki wniosku" id="stepNav"></nav>
   <div id="page"></div>
 </main>
@@ -146,7 +188,7 @@ body.techmode .tech{display:block}
 
 <script>
 "use strict";
-const STORE_KEY = "coi-preview";
+const STORE_KEY = "coi-preview", EVIDENCE_KEY = "coi-preview-evidence";
 const KNOWN_TYPES = ["SECTION","REPEATING_SECTION","TEXT_FIELD","TEXTAREA","NUMBER","DATEPICKER","RADIO","SELECT","CHECKBOX","FILE_UPLOADER","TEXT_BLOCK","INFO_SECTION","CONSENT_SECTION"];
 const STATIC_TYPES = ["TEXT_BLOCK","INFO_SECTION"];
 
@@ -165,11 +207,13 @@ const COUNTRIES = ["Polska","Armenia","Australia","Austria","Belgia","Białoruś
 const PHONE_CODES = ["+48 Polska","+49 Niemcy","+420 Czechy","+421 Słowacja","+380 Ukraina","+370 Litwa","+44 Wielka Brytania",
   "+33 Francja","+353 Irlandia","+1 USA i Kanada"];
 
-let cfg = null, pages = [], answers = {}, pageIdx = 0, visited = new Set(), issues = [], uidN = 0;
+let cfg = null, pages = [], answers = {}, pageIdx = 0, issues = [], uidN = 0;
+// Where each element came from: {elementId: {source: "paper" | "model" | "code" | "clerk", quote, condition_quote?,
+// consent_quotes?}} from POST /api/forms/convert?evidence=1; {} for a JSON loaded from a file.
+let evidence = {};
 const conds = new Map(); // query string -> {ast} | {err}
 const $ = (s, r = document) => r.querySelector(s);
 const uid = () => "u" + (++uidN);
-const isTech = () => document.body.classList.contains("techmode") || document.body.classList.contains("editmode");  // every step clickable
 
 // Builds an element: h("div", {class: "x", onclick: fn}, child, "text"). Null/false attrs and children are skipped.
 function h(tag, attrs, ...kids) {
@@ -191,6 +235,7 @@ function issue(msg) {
 
 function renderIssues() {
   const box = $("#issuesBox");
+  box.hidden = !issues.length;
   box.classList.toggle("has", issues.length > 0);
   $("summary", box).textContent = `Uwagi (${issues.length})`;
   $("ol", box).replaceChildren(...(issues.length ? issues.map(m => h("li", {}, m)) : [h("li", {}, "Brak uwag.")]));
@@ -482,6 +527,100 @@ function findRef(ref) {
   return {sec, f};
 }
 
+const refField = ref => { const r = findRef(ref); return typeof r === "string" ? null : r.f; };
+
+// A condition in plain words: „Pole” = „opcja” lub ...
+function describeCond(n, parentOp) {
+  const name = ref => { const f = refField(ref); return f ? `„${labelOf(f)}”` : "(usunięte pole)"; };
+  switch (n.op) {
+    case "in": case "=": case "!=": {
+      const lit = [n.l, n.r].find(x => x.op === "lit"), path = [n.l, n.r].find(x => x.op === "path");
+      if (!lit || !path) return "…";
+      return `${name(path.ref)} ${n.op === "!=" ? "≠" : "="} „${lit.v}”`;
+    }
+    case "not": return `nie: ${describeCond(n.e, "not")}`;
+    case "or": case "and": {
+      const s = describeCond(n.l, n.op) + (n.op === "and" ? " i " : " lub ") + describeCond(n.r, n.op);
+      return parentOp && parentOp !== n.op ? `(${s})` : s;
+    }
+    case "path": return name(n.ref);
+    default: return String(n.v);
+  }
+}
+// All SHOW conditions of an element in plain words, "" when it is always visible.
+function condText(f) {
+  return (f.states || []).filter(s => s.type === "SHOW").map(s => {
+    const c = cond(s.query);
+    return c.ast ? describeCond(c.ast) : "warunek nieczytelny";
+  }).join(" i ");
+}
+
+/* ---------- annotations: paper quotes and conditions ---------- */
+// Standard pages (Dane, Kontakt i zgody, finish) come from the COI Standards: code builds them, the paper has no such page.
+function isStandard(tab) {
+  const src = evidence[tab.id]?.source;
+  return src ? src === "code" : tab.type === "FINISH" || ["Dane", "Kontakt i zgody"].includes(tab.title);
+}
+const hasEvidence = () => Object.keys(evidence).length > 0;
+const quoteLine = (label, quote) => h("p", {class: "src paper", title: quote.length > 240 ? quote : null},
+  h("strong", {}, label + ": "), `„${quote.length > 240 ? quote.slice(0, 237) + "…" : quote}”`);
+
+// Annotation lines of an element (kind "tab" | "section" | "field"): the paper quote it was built from, when it
+// shows, and the quote behind that condition. Lines that only matter while editing carry "edit-only".
+// Fields that code added (standard pages, address blocks) get no line of their own: the page or section says it once.
+function notesOf(f, kind, standard) {
+  const ev = evidence[f.id], out = [], codeField = kind === "field" && ev?.source === "code";
+  if (ev?.source === "paper" && ev.quote) {
+    out.push(quoteLine("Z papieru", ev.quote));
+    if (kind === "section" && (f.repeatingSectionGrid || []).some(c => evidence[c.field.id]?.source === "code"))
+      out.push(h("p", {class: "src"}, "Pola adresu w tej sekcji układa kod według Standardów COI (słowniki krajów i TERYT)."));
+  } else if (ev && !standard) {
+    const text = {clerk: "Dodane w edytorze, bez cytatu z papieru.", code: "Dodane przez kod według Standardów COI, bez cytatu z papieru.",
+      model: kind === "tab" ? "Stronę ułożył model, grupując sekcje. Cytaty są przy polach." : "Sekcję ułożył model, grupując pola. Cytaty są przy polach."}[ev.source];
+    if (text) out.push(h("p", {class: "src" + (ev.source === "clerk" ? "" : " edit-only")}, text));
+  }
+  if (kind !== "tab" && !codeField) {
+    const ct = condText(f);
+    if (ct) out.push(h("p", {class: "src cond"}, h("strong", {}, "Widoczne, gdy: "), ct));
+    if (ev?.condition_quote) out.push(quoteLine("Warunek z papieru", ev.condition_quote));
+    else if (ct && ev?.condition_source === "clerk") out.push(h("p", {class: "src"}, "Warunek ustawiony w edytorze."));
+  }
+  (ev?.consent_quotes || []).forEach((q, i) => { if (q) out.push(quoteLine(`Oświadczenie ${i + 1} z papieru`, q)); });
+  return out;
+}
+
+// "Popraw": asks the upload page to open the click editor on this element (embedded preview only).
+const fixButton = f => h("button", {type: "button", class: "fix", "aria-label": `Popraw: ${labelOf(f)}`,
+  onclick: () => parent.postMessage({type: "coi-edit-request", id: f.id}, location.origin)}, "Popraw");
+
+// One dashed line that stands in for a hidden element in annotation mode, or null when the element is always
+// visible. Code-made fields (the two address variants) stay simply hidden.
+function ghostOf(f, kind) {
+  const ct = condText(f);
+  if (!ct || (kind === "field" && evidence[f.id]?.source === "code")) return null;
+  const what = kind === "section" ? "Ukryta sekcja" : STATIC_TYPES.includes(f.type) ? "Ukryty tekst" : "Ukryte pole";
+  return h("p", {class: "ghost"}, h("strong", {}, `${what} „${labelOf(f)}”. `), `Pokaże się, gdy ${ct}.`);
+}
+
+// The line under the form title: what the green quotes are, and how many elements have one.
+function renderLegend() {
+  const n = Object.values(evidence).filter(e => e.source === "paper" && e.quote).length;
+  $("#legend").textContent = !hasEvidence()
+    ? "Ten plik nie ma cytatów z papieru (wczytany JSON albo starszy wynik). Wgraj formularz ponownie, aby je zobaczyć."
+    : `Z papieru: ${n} ${plural(n, ["element", "elementy", "elementów"])}, pod każdym jest dosłowny cytat z formularza. ` +
+      "Strony „Dane”, „Kontakt i zgody” i końcową dodaje kod według Standardów COI.";
+}
+// Polish plural: plural(3, ["pole", "pola", "pól"]) -> "pola".
+const plural = (n, [one, few, many]) => n === 1 ? one : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? few : many;
+
+// Body classes: "notes" = annotations visible (always while editing), "ghosts" = hidden elements shown as one line.
+function applyModes() {
+  const b = document.body.classList, edit = b.contains("editmode");
+  b.toggle("techmode", $("#techToggle").checked && !edit);
+  b.toggle("notes", $("#notesToggle").checked || edit);
+  b.toggle("ghosts", b.contains("notes") && !b.contains("techmode") && !edit);
+}
+
 // Checks that every path in a condition exists and that compared literals are real options.
 function checkRefs(n, where, parent) {
   if (!n || typeof n !== "object") return;
@@ -521,7 +660,7 @@ function eachField(cb) {
 function normalize(obj) {
   obj.tabs = obj.tabs.filter((t, i) => {
     const ok = t && typeof t === "object";
-    if (!ok) issue(`tabs[${i}] nie jest obiektem – pominięto`);
+    if (!ok) issue(`tabs[${i}] nie jest obiektem, pominięto`);
     return ok;
   });
   obj.tabs.forEach((t, i) => {
@@ -549,7 +688,7 @@ function orderPages() {
     for (let t = starts[0]; t && !seen.has(t.id); t = byId.get(next.get(t.id))) { chain.push(t); seen.add(t.id); }
     if (chain.length === tabs.length) return chain;
   }
-  issue("flow.links nie tworzy jednego łańcucha przez wszystkie strony – użyto kolejności z tablicy tabs");
+  issue("flow.links nie tworzy jednego łańcucha przez wszystkie strony, użyto kolejności z tablicy tabs");
   return tabs.slice();
 }
 
@@ -557,7 +696,7 @@ function orderPages() {
 function precheck() {
   const titles = new Set();
   for (const t of cfg.tabs) {
-    if (titles.has(t.title)) issue(`Dwie strony mają ten sam tytuł „${t.title}” – warunki i odpowiedzi mogą się mieszać`);
+    if (titles.has(t.title)) issue(`Dwie strony mają ten sam tytuł „${t.title}”, warunki i odpowiedzi mogą się mieszać`);
     titles.add(t.title);
     const secs = new Set();
     for (const q of t.questions) {
@@ -576,16 +715,16 @@ function precheck() {
     const where = `${tab.title} › ${parent ? parent.techName + "." : ""}${f.techName}`;
     if (!parent && f.type !== "SECTION" && f.type !== "REPEATING_SECTION") issue(`${where}: pole ${f.type} poza sekcją`);
     if (parent && (f.type === "SECTION" || f.type === "REPEATING_SECTION")) issue(`${where}: zagnieżdżona sekcja (nieobsługiwane)`);
-    if (!KNOWN_TYPES.includes(f.type)) issue(`${where}: nieznany typ „${f.type}” – pokazano jako pole tekstowe`);
+    if (!KNOWN_TYPES.includes(f.type)) issue(`${where}: nieznany typ „${f.type}”, pokazano jako pole tekstowe`);
     if (f.validation != null && !Array.isArray(f.validation)) issue(`${where}: validation jest obiektem zamiast tablicy`);
     for (const v of validators(f)) if (!knownV.includes(v)) issue(`${where}: nieznany walidator ${v}`);
-    if (f.dictionaryName && !dictFor(f.dictionaryName)) issue(`${where}: nieznany słownik „${f.dictionaryName}” – użyto opcji pola`);
+    if (f.dictionaryName && !dictFor(f.dictionaryName)) issue(`${where}: nieznany słownik „${f.dictionaryName}”, użyto opcji pola`);
     if ((f.type === "RADIO" || f.type === "SELECT") && !optionsOf(f).length) issue(`${where}: ${f.type} bez opcji`);
     if (f.type === "CONSENT_SECTION" && !consentsOf(f).length) issue(`${where}: sekcja zgód bez zgód`);
     for (const s of f.states || []) {
       if (s.type !== "SHOW" && s.type !== "READ_ONLY") issue(`${where}: nieznany typ stanu ${s.type}`);
       const c = cond(s.query);
-      if (c.err) issue(`${where}: warunek nie do odczytania (${c.err}) – element zawsze widoczny`);
+      if (c.err) issue(`${where}: warunek nie do odczytania (${c.err}), element zawsze widoczny`);
       else checkRefs(c.ast, where, parent);
     }
   });
@@ -593,14 +732,15 @@ function precheck() {
 
 function showLoadError(msg) { $("#loadError").textContent = msg; }
 
-// Parses and starts a config; saves it to localStorage for the next visit.
-function loadText(text, save = true) {
+// Parses and starts a config; saves it to localStorage for the next visit. `ev` = its evidence map, if any.
+function loadText(text, save = true, ev = null) {
   let obj;
   try { obj = JSON.parse(text); } catch (e) { return showLoadError("To nie jest poprawny JSON: " + e.message); }
   if (!obj || typeof obj !== "object" || !Array.isArray(obj.tabs) || !obj.tabs.length)
-    return showLoadError("W pliku brak niepustej tablicy „tabs” – to nie wygląda na konfigurację e-usługi COI.");
-  if (save) { try { localStorage.setItem(STORE_KEY, text); } catch (e) { /* quota or private mode: preview still works */ } }
+    return showLoadError("W pliku brak niepustej tablicy „tabs”: to nie wygląda na konfigurację e-usługi COI.");
+  if (save) { try { localStorage.setItem(STORE_KEY, text); localStorage.removeItem(EVIDENCE_KEY); } catch (e) { /* quota or private mode: preview still works */ } }
   showLoadError("");
+  evidence = ev && typeof ev === "object" ? ev : {};
   start(obj);
 }
 
@@ -611,11 +751,12 @@ function start(obj) {
   precheck();
   resetAnswers();
   renderIssues();
-  visited = new Set();
+  renderLegend();
+  applyModes();
   $("#empty").hidden = true;
   $("#app").hidden = false;
   $("#formTitle").textContent = cfg.title || "Formularz bez tytułu";
-  document.title = (cfg.title || "Formularz") + " – podgląd COI";
+  document.title = (cfg.title || "Formularz") + " | podgląd COI";
   go(0, false);
 }
 
@@ -657,15 +798,15 @@ function renderQuestion(tab, q) {
   const f = q.field;
   if (f.type === "SECTION") return renderSection(tab, q);
   if (f.type === "REPEATING_SECTION") return renderRepeating(tab, q);
-  return renderField(q, {store: answers[tab.title].__root, row: null});
+  return renderField(q, {store: answers[tab.title].__root, row: null, standard: isStandard(tab)});
 }
 
 // A white card with a heading and its child fields.
 function renderSection(tab, q) {
   const f = q.field, hid = uid(), hint = hintEl(f.description);
   const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
-    h("h3", {id: hid}, f.title || f.techName), hint, techLines(f, q),
-    layoutGrid(f.repeatingSectionGrid, c => renderField(c, {store: answers[tab.title][f.techName], row: null})));
+    ghostOf(f, "section"), h("h3", {id: hid}, f.title || f.techName), fixButton(f), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q),
+    layoutGrid(f.repeatingSectionGrid, c => renderField(c, {store: answers[tab.title][f.techName], row: null, standard: isStandard(tab)})));
   card._entry = {field: f, row: null, controls: []};
   return card;
 }
@@ -686,21 +827,21 @@ function renderRepeating(tab, q) {
         h("div", {class: "row-head"}, h("h4", {id: rh, tabindex: "-1"}, `Pozycja ${i + 1}`),
           i >= min && h("button", {type: "button", class: "btn-link danger", "aria-label": `Usuń pozycję ${i + 1}`,
             onclick: () => { rows.splice(i, 1); drawRows(); refreshStates(); addBtn.focus(); }}, "Usuń")),
-        layoutGrid(f.repeatingSectionGrid, c => renderField(c, {store: r, row: i})));
+        layoutGrid(f.repeatingSectionGrid, c => renderField(c, {store: r, row: i, standard: isStandard(tab)})));
     }));
   }
   drawRows();
   const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
-    h("h3", {id: hid}, f.title || f.techName), hint, techLines(f, q), list, addBtn);
+    ghostOf(f, "section"), h("h3", {id: hid}, f.title || f.techName), fixButton(f), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q), list, addBtn);
   card._entry = {field: f, row: null, controls: []};
   return card;
 }
 
-// One field cell: label, hint, control, registry caption, help, tech lines, error slot.
+// One field cell: label, hint, control, registry caption, help, annotations, tech lines, error slot.
 function renderField(cell, ctx) {
   const f = cell.field, id = uid(), t = f.type, tn = f.techName, st = ctx.store;
   const req = isRequired(f), opt = req || f.readOnly ? "" : " (opcjonalnie)", title = labelOf(f);  // read-only: user cannot fill it, so "optional" means nothing
-  const wrap = h("div", {class: "cell", "data-bound": true, "data-type": t, "data-fid": f.id});
+  const wrap = h("div", {class: "cell", "data-bound": true, "data-type": t, "data-fid": f.id}, ghostOf(f, "field"));
   const entry = wrap._entry = {field: f, row: ctx.row, store: st, controls: [], id};
   const errId = id + "-err";
   const hint = STATIC_TYPES.includes(t) ? null : hintEl(f.description);
@@ -800,15 +941,20 @@ function renderField(cell, ctx) {
   }
   if (caption) wrap.append(caption);
   if (f.tooltipMessage) wrap.append(h("details", {class: "tip"}, h("summary", {}, "Pomoc"), sanitize(f.tooltipMessage)));
-  wrap.append(...techLines(f, cell), h("p", {class: "err", id: errId, hidden: true}));
+  wrap.append(h("p", {class: "err", id: errId, hidden: true}), ...notesOf(f, "field", ctx.standard), ...techLines(f, cell), fixButton(f));
+  // a wrong format (PESEL, kod pocztowy...) shows as soon as the field is left; an empty required field never blocks the preview
+  wrap.addEventListener("change", () => showErr(wrap, isEmpty(st[tn]) ? null : checkField(entry)));
   return wrap;
 }
 
 // Re-applies SHOW / READ_ONLY to every element on the current page without re-rendering it.
-function refreshStates() {
+// An element an answer has just revealed flashes once (`first` = the page was just drawn, nothing flashes).
+function refreshStates(first = false) {
+  const shown = [];
   for (const el of $("#page").querySelectorAll("[data-bound]")) {
     const {field, row, controls} = el._entry;
     const st = stateOf(field, row);
+    if (!first && st.show && el.classList.contains("cond-hidden") && !el.parentElement.closest(".cond-hidden")) shown.push(el);
     el.classList.toggle("cond-hidden", !st.show);
     for (const c of controls) {
       if ((c.tagName === "INPUT" && (c.type === "text" || c.type === "date")) || c.tagName === "TEXTAREA") {
@@ -817,13 +963,19 @@ function refreshStates() {
       } else c.disabled = st.ro;
     }
   }
+  for (const el of shown) {
+    el.classList.remove("flash");
+    void el.offsetWidth; // restart the animation
+    el.classList.add("flash");
+  }
+  if (shown.length) $("#live").textContent = "Pokazano: " + shown.map(el => labelOf(el._entry.field)).join(", ");
 }
 
 function renderStepper() {
   $("#stepNav").replaceChildren(h("ol", {class: "stepper"}, pages.map((p, i) => {
-    const cur = i === pageIdx, can = !cur && (visited.has(i) || isTech());
+    const cur = i === pageIdx;
     const kids = [h("span", {class: "num", "aria-hidden": "true"}, i + 1), h("span", {class: "sr-only"}, `Krok ${i + 1}: `), p.title];
-    const inner = can ? h("button", {type: "button", onclick: () => go(i)}, kids) : h("span", {}, kids);
+    const inner = cur ? h("span", {}, kids) : h("button", {type: "button", onclick: () => go(i)}, kids);  // a preview: any step, any time
     if (cur) inner.setAttribute("aria-current", "step");
     return h("li", {}, inner);
   })));
@@ -832,7 +984,6 @@ function renderStepper() {
 // Shows page i: renders it, scrolls to top, moves focus to its heading and announces the step.
 function go(i, focus = true) {
   pageIdx = Math.max(0, Math.min(i, pages.length - 1));
-  visited.add(pageIdx);
   renderPage();
   window.scrollTo(0, 0);
   if (focus) $("#pageHeading").focus({preventScroll: true});
@@ -843,20 +994,25 @@ function renderPage() {
   const tab = pages[pageIdx], last = pageIdx === pages.length - 1;
   const status = h("p", {class: "status", role: "status"});
   const page = $("#page");
+  const standard = isStandard(tab) && hasEvidence() && h("p", {class: "src"}, "Strona ze Standardów COI: buduje ją kod, taka sama w każdej e-usłudze. " +
+    "Z papieru pochodzą tu tylko adresat wniosku i oświadczenia.");
   page.replaceChildren(
     h("h2", {id: "pageHeading", tabindex: "-1"}, tab.title),
+    ...[standard, ...notesOf(tab, "tab", isStandard(tab))].filter(Boolean),
     h("div", {id: "errsum"}),
     layoutGrid(tab.questions, q => renderQuestion(tab, q)));
   if (tab.type === "FINISH") page.append(renderSummary());
+  // "Dalej" never checks anything: the preview is for looking at every step. Only "Wyślij wniosek" lists what a citizen would still have to fill in.
   page.append(h("div", {class: "nav"},
-    h("button", {type: "button", class: "btn-link", onclick: () => { status.textContent = "To jest podgląd – przerwanie wypełniania nic tu nie robi."; }}, "Przerwij wypełnianie"),
     h("span", {class: "spacer"}),
     pageIdx > 0 && h("button", {type: "button", class: "btn-outline", onclick: () => go(pageIdx - 1)}, "Wstecz"),
-    last ? h("button", {type: "button", class: "btn", onclick: () => { if (validatePage()) status.textContent = "To jest podgląd, wniosek nie został wysłany."; }}, "Wyślij wniosek")
-         : h("button", {type: "button", class: "btn", onclick: () => { if (validatePage()) go(pageIdx + 1); }}, "Dalej")),
+    last ? h("button", {type: "button", class: "btn send", onclick: () => {
+             status.textContent = showMissing(validateAll()) ? "" : "To jest podgląd: wniosek jest kompletny, ale nigdzie go nie wysłano.";
+           }}, "Wyślij wniosek")
+         : h("button", {type: "button", class: "btn", onclick: () => go(pageIdx + 1)}, "Dalej")),
     status);
   renderStepper();
-  refreshStates();
+  refreshStates(true);
 }
 
 // Text of an answer for the summary ("" = skip).
@@ -885,7 +1041,7 @@ function renderSummary() {
           const txt = fmtVal(f, r[f.techName]);
           if (txt) items.push(h("dt", {}, labelOf(f)), h("dd", {}, txt));
         }
-        if (items.length) blocks.push(h("h5", {}, (sec.title || sec.techName) + (rs ? ` – pozycja ${i + 1}` : "")), h("dl", {}, items));
+        if (items.length) blocks.push(h("h5", {}, (sec.title || sec.techName) + (rs ? `, pozycja ${i + 1}` : "")), h("dl", {}, items));
       });
     }
     if (blocks.length) card.append(h("h4", {}, tab.title), ...blocks);
@@ -940,12 +1096,14 @@ function checkField({field: f, store}) {
   return null;
 }
 
-function clearErr(wrap) {
+// Shows (or with null clears) the error line of one field.
+function showErr(wrap, msg) {
   const err = $(".err", wrap);
-  if (err.hidden) return;
-  err.hidden = true; err.textContent = "";
-  for (const c of wrap._entry.controls) c.removeAttribute("aria-invalid");
+  err.hidden = !msg;
+  err.replaceChildren(...(msg ? [h("span", {"aria-hidden": "true"}, "⚠ "), msg] : []));
+  for (const c of wrap._entry.controls) msg ? c.setAttribute("aria-invalid", "true") : c.removeAttribute("aria-invalid");
 }
+const clearErr = wrap => { if (!$(".err", wrap).hidden) showErr(wrap, null); };
 
 function focusField(wrap) {
   const c = wrap._entry.controls.find(x => !x.disabled) || $("h2", $("#page"));
@@ -953,30 +1111,52 @@ function focusField(wrap) {
   c.focus({preventScroll: true});
 }
 
-// Validates visible fields of the current page; shows the error summary and focuses the first invalid field.
-function validatePage() {
-  const errs = [];
-  for (const wrap of $("#page").querySelectorAll(".cell[data-bound]")) {
-    clearErr(wrap);
-    if (wrap.closest(".cond-hidden")) continue;
-    const msg = checkField(wrap._entry);
-    if (!msg) continue;
-    const err = $(".err", wrap);
-    err.hidden = false;
-    err.replaceChildren(h("span", {"aria-hidden": "true"}, "⚠ "), msg);
-    for (const c of wrap._entry.controls) c.setAttribute("aria-invalid", "true");
-    errs.push({wrap, msg});
-  }
+// What a citizen would still have to fix before sending, over the visible fields of every page:
+// [{page, field, row, msg}]. Reads the config and the answers, not the screen, so it covers pages not shown.
+function validateAll() {
+  const out = [];
+  pages.forEach((tab, page) => {
+    for (const q of tab.questions) {
+      const sec = q.field, rs = sec.type === "REPEATING_SECTION";
+      if (!stateOf(sec, null).show) continue;
+      if (sec.type !== "SECTION" && !rs) { // a loose field
+        const msg = checkField({field: sec, store: answers[tab.title].__root});
+        if (msg) out.push({page, field: sec, row: null, msg});
+        continue;
+      }
+      const data = answers[tab.title][sec.techName];
+      (rs ? data : [data]).forEach((store, i) => {
+        for (const c of sortCells(sec.repeatingSectionGrid)) {
+          if (!stateOf(c.field, rs ? i : null).show) continue;
+          const msg = checkField({field: c.field, store});
+          if (msg) out.push({page, field: c.field, row: rs ? i : null, msg});
+        }
+      });
+    }
+  });
+  return out;
+}
+
+// Lists those problems above the page, each a link to its field; false when there are none.
+function showMissing(errs) {
   const box = $("#errsum");
   box.className = ""; box.removeAttribute("role"); box.replaceChildren();
-  if (!errs.length) return true;
+  if (!errs.length) return false;
+  const open = e => {
+    if (e.page !== pageIdx) go(e.page, false);
+    const cells = [...$("#page").querySelectorAll(`.cell[data-fid="${CSS.escape(e.field.id)}"]`)];
+    const wrap = cells[e.row || 0] || cells[0];
+    if (wrap) { showErr(wrap, e.msg); focusField(wrap); }
+  };
   box.className = "errsum";
-  box.setAttribute("role", "alert");
-  box.append(h("h3", {}, `Popraw błędy w formularzu (${errs.length})`),
-    h("ul", {}, errs.map(e => h("li", {}, h("a", {href: "#" + e.wrap._entry.id, onclick: ev => { ev.preventDefault(); focusField(e.wrap); }},
-      `${labelOf(e.wrap._entry.field)}${e.wrap._entry.row != null ? ` (pozycja ${e.wrap._entry.row + 1})` : ""}: ${e.msg}`)))));
-  focusField(errs[0].wrap);
-  return false;
+  box.setAttribute("role", "status");
+  box.append(h("p", {}, h("strong", {}, "To jest podgląd: wniosku nigdzie nie wysłano. "),
+      `Obywatel musiałby jeszcze uzupełnić ${errs.length} ${plural(errs.length, ["pole", "pola", "pól"])}.`),
+    h("details", {}, h("summary", {}, "Pokaż te pola"),
+      h("ul", {}, errs.map(e => h("li", {}, h("a", {href: "#", onclick: ev => { ev.preventDefault(); open(e); }},
+        `${pages[e.page].title} › ${labelOf(e.field)}${e.row != null ? ` (pozycja ${e.row + 1})` : ""}: ${e.msg}`))))));
+  box.scrollIntoView({block: "center"});
+  return true;
 }
 
 /* ---------- tool bar, drag and drop, startup ---------- */
@@ -988,8 +1168,16 @@ fileInput.addEventListener("change", () => { readFile(fileInput.files[0]); fileI
 $("#emptyLoad").addEventListener("click", () => loadText($("#emptyText").value));
 $("#tbPaste").addEventListener("click", () => { $("#pasteText").value = ""; $("#pasteDlg").showModal(); });
 $("#pasteDlg").addEventListener("close", () => { if ($("#pasteDlg").returnValue === "ok") loadText($("#pasteText").value); });
-$("#techToggle").addEventListener("change", e => { document.body.classList.toggle("techmode", e.target.checked); if (cfg) renderStepper(); });
-$("#tbReset").addEventListener("click", () => { if (!cfg) return; resetAnswers(); visited = new Set(); go(0); });
+$("#techToggle").addEventListener("change", applyModes);
+$("#notesToggle").addEventListener("change", applyModes);
+$("#tbReset").addEventListener("click", () => { if (!cfg) return; resetAnswers(); go(0); });
+// Embedded preview -> the same form on a full tab: the JSON and its evidence travel through localStorage
+// (it survives the new tab, unlike sessionStorage with noopener).
+$("#tbFull").addEventListener("click", () => {
+  if (!cfg) return;
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(cfg)); localStorage.setItem(EVIDENCE_KEY, JSON.stringify(evidence)); } catch (e) { return; }
+  window.open("/preview", "_blank");
+});
 window.addEventListener("dragover", e => { e.preventDefault(); document.body.classList.add("dragging"); });
 window.addEventListener("dragleave", e => { if (!e.relatedTarget) document.body.classList.remove("dragging"); });
 window.addEventListener("drop", e => {
@@ -999,21 +1187,31 @@ window.addEventListener("drop", e => {
 });
 
 renderIssues();
-// Embed mode: the same-origin parent (upload page) posts {type: "coi-preview", json} for the selected file.
+// Embed mode: the same-origin parent (upload page) posts {type: "coi-preview", json, evidence, key} for the selected file.
 // Each message replaces the whole form, and nothing is saved, so the standalone preview keeps its own JSON.
-// With {edit: true, evidence} editor.js then switches the form to edit mode (upload page "Edytuj").
+// The same `key` again (the same file: a switch between "Podgląd" and "Edytuj") keeps the step that was open.
+// With {edit: true} editor.js then switches the form to edit mode (upload page "Edytuj").
+applyModes();
 if (new URLSearchParams(location.search).has("embed")) {
   document.body.classList.add("embed");
   $("#empty").hidden = true;
+  let shownKey;
   window.addEventListener("message", e => {
     if (e.origin !== location.origin || e.data?.type !== "coi-preview") return;
+    const step = cfg && e.data.key !== undefined && e.data.key === shownKey ? pageIdx : 0;
+    shownKey = e.data.key;
     $("#app").hidden = true; // a JSON that fails to load must not leave the previous form on screen
-    loadText(e.data.json, false);
+    loadText(e.data.json, false, e.data.evidence);
+    if (step && !$("#app").hidden) go(step, false);
     window.scrollTo(0, 0);
   });
 } else {
-  const saved = (() => { try { return localStorage.getItem(STORE_KEY); } catch (e) { return null; } })();
-  if (saved) loadText(saved, false);
+  // "Pełny ekran" on the upload page leaves the JSON and its evidence in localStorage
+  const read = key => { try { return localStorage.getItem(key); } catch (e) { return null; } };
+  const saved = read(STORE_KEY);
+  let ev = null;
+  try { ev = JSON.parse(read(EVIDENCE_KEY)); } catch (e) { /* no evidence: the preview works without quotes */ }
+  if (saved) loadText(saved, false, ev);
 }
 </script>
 <!-- Edit mode (the click editor on the upload page); inactive unless the parent sends {edit: true}. -->

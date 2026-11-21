@@ -6,8 +6,9 @@
 <title>Cyfryzacja formularzy | generator e-usług COI</title>
 <!-- One self-contained page served by the API at "/": log in, drop forms, check each result against its original.
      Left column = one file at a time, or many with "Wrzuć wiele plików" (sent one by one), plus history (IndexedDB)
-     with a ZIP of all results. Main area = original document | result (form preview, JSON tree, or "Edytuj":
-     the click editor, /preview in edit mode via /editor.js; edits are saved in history and checked with the COI rules).
+     with a ZIP of all results. Main area = original document | e-service, one of four views: "Podgląd" (the form
+     with the paper quote under every field), "Edytuj" (the click editor, /preview in edit mode via /editor.js; edits
+     are saved in history and checked with the COI rules), "JSON" (tree) and "Słowniki" (bonus II proposals).
      No build step and no CDN, so it works offline. -->
 <style>
   :root {
@@ -29,8 +30,6 @@
   .card { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 16px; min-height: 0; min-width: 0; }
   #upload { display: flex; flex-direction: column; overflow: auto; }
   #result { display: flex; flex-direction: column; padding: 12px 16px 16px; }
-  /* extra panels placed inside the result card after the panes get a capped height; the panes take the rest */
-  #result > section { flex: none; max-height: 35vh; overflow: auto; margin-top: 12px; }
   h2 { font-size: 1.05rem; margin: 0 0 12px; }
   h3 { font-size: .95rem; margin: 0; }
   label { display: block; font-weight: 600; margin: 12px 0 4px; }
@@ -52,8 +51,8 @@
   .drop:focus-within { outline: 3px solid #ffb800; outline-offset: 2px; }
   .drop strong { color: var(--navy); }
   .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-  .batch-toggle { display: flex; gap: 8px; align-items: center; margin: 0 0 8px; font-weight: 600; cursor: pointer; }
-  .batch-toggle input { width: 18px; height: 18px; margin: 0; accent-color: var(--navy); }
+  .batch-toggle { display: flex; gap: 8px; align-items: center; margin: 8px 0 0; font-weight: 400; font-size: .9rem; cursor: pointer; }
+  .batch-toggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--navy); }
   .hist-head { display: flex; justify-content: space-between; align-items: center; margin: 14px 0 6px; }
   #zip { flex: none; width: 100%; margin-bottom: 8px; }
   ul.files .err { display: block; font-size: .8rem; color: var(--err); white-space: normal; overflow-wrap: anywhere; }
@@ -69,9 +68,12 @@
   .status { white-space: nowrap; }
   .status.done { color: var(--ok); } .status.error { color: var(--err); } .status.interrupted { color: var(--warn); }
   /* result: always two panes, original | result */
-  .result-head { display: flex; gap: 12px; align-items: baseline; margin-bottom: 10px; min-width: 0; flex: none; }
-  .result-head h2 { margin: 0; flex: none; }
-  #result-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #result-name { margin: 0 0 10px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* nothing selected yet: the three steps of the whole job */
+  #result-empty { margin: auto; max-width: 520px; padding: 24px; }
+  #result-empty h2 { font-size: 1.3rem; }
+  #result-empty ol { margin: 0; padding-left: 1.3rem; }
+  #result-empty li { margin-bottom: 10px; }
   .panes { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
   .pane-head { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 6px 10px;
@@ -79,11 +81,18 @@
   .pane-head h3 { margin-right: auto; }
   .pane-head a.button { background: #fff; color: var(--navy); }
   .pane-head a.button:hover { background: var(--navy-dark); color: #fff; }
+  .pane-head .switch { margin-right: auto; }
   .pane-body { flex: 1; min-height: 0; overflow: auto; }
   .pane-body iframe { display: block; width: 100%; height: 100%; border: 0; }
   #original img { display: block; width: 100%; height: auto; }
   .note { padding: 24px; }
   .note p { margin: 0 0 12px; }
+  .note .big { font-size: 1.1rem; font-weight: 600; color: var(--text); }
+  /* original of a format browsers cannot display: the text read from it */
+  .doc-note { margin: 0; padding: 8px 12px; background: #f8fafc; border-bottom: 1px solid var(--line); }
+  .doc-text { margin: 0; padding: 12px; font: .85rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+  #dicts-view { height: 100%; overflow: auto; }
+  #dicts-view #dicts { border: 0; padding: 12px; }
   .switch { display: inline-flex; }
   .switch button { border-radius: 0; }
   .switch button:first-child { border-radius: 4px 0 0 4px; }
@@ -111,6 +120,7 @@
     .panes, main.editing .panes { grid-template-columns: 1fr; }
     .pane { height: 80vh; }
   }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -137,29 +147,35 @@
   </section>
 
   <section class="card" id="upload" aria-labelledby="upload-title" hidden>
-    <h2 id="upload-title">Formularze</h2>
-    <label class="batch-toggle"><input type="checkbox" id="batch"> Wrzuć wiele plików</label>
+    <h2 id="upload-title">Wgraj pusty formularz</h2>
     <label class="drop" id="drop">
       <input id="file" type="file" accept=".pdf,.doc,.docx,.ods,.xlsx,.xls,.jpg,.jpeg,.jpe,.png">
       <strong id="drop-title">Przeciągnij plik tutaj</strong> albo kliknij, aby wybrać z dysku
       <span class="muted" style="display:block">PDF, DOC, DOCX, ODS, XLSX, XLS, JPG, PNG.<span id="drop-batch" hidden> Pliki przetworzymy po kolei, jeden po drugim.</span></span>
     </label>
+    <label class="batch-toggle"><input type="checkbox" id="batch"> Wrzuć wiele plików naraz</label>
     <div class="hist-head">
       <h3 id="history-title">Historia</h3>
       <button type="button" id="clear" class="small">Wyczyść historię</button>
     </div>
-    <button type="button" id="zip" class="small primary" title="Pobierz ZIP z JSON-ami wszystkich gotowych plików z historii" hidden>Pobierz wszystkie</button>
+    <button type="button" id="zip" class="small" title="Pobierz ZIP z JSON-ami wszystkich gotowych plików z historii" hidden>Pobierz wszystkie</button>
     <ul class="files" id="files" aria-labelledby="history-title"></ul>
     <p id="history-empty" class="muted">Brak przetworzonych plików.</p>
     <p id="announce" class="muted" aria-live="polite"></p>
+    <p id="live" class="sr-only" aria-live="polite"></p>
   </section>
 
   <section class="card" id="result" aria-labelledby="result-title" hidden>
-    <div class="result-head">
-      <h2 id="result-title">Wynik</h2>
-      <span id="result-name" class="muted"></span>
+    <h2 id="result-title" class="sr-only">Wynik</h2>
+    <div id="result-empty">
+      <h2>Z papieru do e-usługi w trzech krokach</h2>
+      <ol>
+        <li><strong>Wgraj pusty formularz</strong> po lewej: PDF, Word, Excel albo skan.</li>
+        <li><strong>Sprawdź e-usługę obok oryginału.</strong> Pod każdym polem jest cytat z papieru, z którego powstało.</li>
+        <li><strong>Popraw, co trzeba, i pobierz JSON</strong> gotowy do importu w COI.</li>
+      </ol>
     </div>
-    <p id="result-empty" class="muted">Wybierz plik z historii, aby zobaczyć oryginał obok wyniku.</p>
+    <p id="result-name" class="name" hidden></p>
     <div class="panes" id="panes" hidden>
       <div class="pane" role="region" aria-labelledby="original-title">
         <div class="pane-head">
@@ -168,18 +184,16 @@
         </div>
         <div class="pane-body" id="original"></div>
       </div>
-      <div class="pane" role="region" aria-labelledby="output-title">
+      <div class="pane" role="region" aria-label="E-usługa">
         <div class="pane-head">
-          <h3 id="output-title">Wynik</h3>
-          <div class="switch" role="group" aria-label="Widok wyniku">
-            <button type="button" class="small" data-view="preview" aria-pressed="true">Podgląd formularza</button>
-            <button type="button" class="small" data-view="json" aria-pressed="false">JSON</button>
+          <div class="switch" role="group" aria-label="Widok e-usługi">
+            <button type="button" class="small" data-view="preview" aria-pressed="true">Podgląd</button>
             <button type="button" class="small" data-view="edit" aria-pressed="false">Edytuj</button>
+            <button type="button" class="small" data-view="json" aria-pressed="false">JSON</button>
+            <button type="button" class="small" data-view="dicts" aria-pressed="false" id="dicts-tab" hidden>Słowniki</button>
           </div>
           <span id="edit-status" class="muted" role="status"></span>
-          <button type="button" class="small" id="copy">Kopiuj</button>
           <button type="button" class="small primary" id="download">Pobierz JSON</button>
-          <button type="button" class="small" id="open-preview">Otwórz w nowej karcie</button>
         </div>
         <div class="pane-body">
           <div class="note" id="output-note" role="status" hidden></div>
@@ -190,38 +204,41 @@
               <span id="hits" class="muted" aria-live="polite"></span>
               <button type="button" class="small" id="expand">Rozwiń</button>
               <button type="button" class="small" id="collapse">Zwiń</button>
+              <button type="button" class="small" id="copy">Kopiuj</button>
             </div>
             <div id="tree" role="tree" aria-label="Struktura JSON"></div>
+          </div>
+          <div id="dicts-view" hidden>
+          <!-- Bonus II block (thread "propozycje słowników"): proposals of new shared COI dictionaries for the selected file,
+               from POST /api/dictionaries/proposals, called next to /api/forms/convert. The COI JSON never references them. -->
+          <section id="dicts" aria-labelledby="dicts-title" hidden>
+            <style>
+              #dicts { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; }
+              #dicts .dicts-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+              #dicts .dicts-head h3 { margin-right: auto; }
+              #dicts-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+              #dicts-list > li { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: #fbfcfe; }
+              #dicts-list h4 { margin: 0; font-size: .95rem; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+              #dicts-list h4 span { margin-left: auto; }
+              #dicts .chip { font-size: .75rem; padding: 1px 8px; border-radius: 999px; background: #e8f0fa; color: var(--navy-dark); white-space: nowrap; }
+              #dicts .chip.fill { background: #fff3e0; color: var(--warn); }
+              #dicts-list p { margin: 4px 0 0; font-size: .85rem; }
+              #dicts code { font-size: .8rem; }
+              #dicts details { margin-top: 8px; font-size: .85rem; }
+            </style>
+            <div class="dicts-head">
+              <h3 id="dicts-title">Proponowane słowniki</h3>
+              <span class="muted">Propozycje dla COI obok JSON-a; formularz ich nie wymaga.</span>
+              <button type="button" class="small" id="dicts-download" disabled>Pobierz słowniki (JSON)</button>
+            </div>
+            <p id="dicts-status" class="muted" role="status"></p>
+            <ul id="dicts-list"></ul>
+            <details id="dicts-dropped" hidden><summary></summary><ul class="muted"></ul></details>
+          </section>
           </div>
         </div>
       </div>
     </div>
-    <!-- Bonus II block (thread "propozycje słowników"): proposals of new shared COI dictionaries for the selected file,
-         from POST /api/dictionaries/proposals, called next to /api/forms/convert. The COI JSON never references them. -->
-    <section id="dicts" aria-labelledby="dicts-title" hidden>
-      <style>
-        #dicts { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; }
-        #dicts .dicts-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-        #dicts .dicts-head h3 { margin-right: auto; }
-        #dicts-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
-        #dicts-list > li { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: #fbfcfe; }
-        #dicts-list h4 { margin: 0; font-size: .95rem; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
-        #dicts-list h4 span { margin-left: auto; }
-        #dicts .chip { font-size: .75rem; padding: 1px 8px; border-radius: 999px; background: #e8f0fa; color: var(--navy-dark); white-space: nowrap; }
-        #dicts .chip.fill { background: #fff3e0; color: var(--warn); }
-        #dicts-list p { margin: 4px 0 0; font-size: .85rem; }
-        #dicts code { font-size: .8rem; }
-        #dicts details { margin-top: 8px; font-size: .85rem; }
-      </style>
-      <div class="dicts-head">
-        <h3 id="dicts-title">Proponowane słowniki</h3>
-        <span class="muted">Propozycje dla COI obok JSON-a; formularz ich nie wymaga.</span>
-        <button type="button" class="small" id="dicts-download" disabled>Pobierz słowniki (JSON)</button>
-      </div>
-      <p id="dicts-status" class="muted" role="status"></p>
-      <ul id="dicts-list"></ul>
-      <details id="dicts-dropped" hidden><summary></summary><ul class="muted"></ul></details>
-    </section>
   </section>
 </main>
 
@@ -229,7 +246,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   token: sessionStorage.getItem("token"), items: [], selected: null, busy: false, hits: [], hit: -1,
-  view: localStorage.getItem("coi-view") === "json" ? "json" : "preview", // result toggle, kept across items and reloads ("edit" is not)
+  view: localStorage.getItem("coi-view") === "json" ? "json" : "preview", // result view: preview | edit | json | dicts; only preview/json are kept across reloads
   originalUrl: null, previewReady: false,
   doc: 0, docItem: null, lastCheck: null, // editor: which document the iframe shows, the newest rules check asked for
 };
@@ -290,6 +307,8 @@ async function loadHistory() {
     state.items.push(item);
   }
   renderFiles();
+  const newest = state.items.find((i) => i.status === "done");
+  if (newest && !state.selected) select(newest); // back on the page: the last result is already open
 }
 
 // --- login ---
@@ -346,12 +365,14 @@ async function addFiles(files) {
     files = files.slice(0, 1);
     $("#announce").textContent = `Biorę tylko pierwszy plik (${files[0].name}). Aby wrzucić kilka naraz, zaznacz „Wrzuć wiele plików”.`;
   }
+  const added = [];
   for (const file of files) {
     const item = { file, created: Date.now(), status: "queued", started: 0, result: null, error: "" };
     state.items.unshift(item);
+    added.push(item);
     await persist(item);
   }
-  renderFiles();
+  select(added[0]); // the original shows at once, the e-service pane counts the seconds
   processQueue();
 }
 
@@ -370,7 +391,7 @@ async function convert(item) {
   persist(item);
   renderFiles();
   if (item === state.selected) select(item);
-  const ticker = setInterval(renderFiles, 1000);
+  const ticker = setInterval(() => { renderFiles(); if (item === state.selected) renderNote(item); }, 1000);
   try {
     const body = new FormData();
     body.append("file", item.file);
@@ -393,7 +414,7 @@ async function convert(item) {
   if (item.deleted) return;
   await persist(item);
   if (item.status !== "queued") {
-    $("#announce").textContent = `${item.file.name}: ${STATUS[item.status].toLowerCase()}`;
+    $("#live").textContent = `${item.file.name}: ${STATUS[item.status].toLowerCase()}`; // the list and the pane already show it
     if (item === state.selected || !state.selected || state.selected.status !== "done") select(item);
   }
   renderFiles();
@@ -456,8 +477,8 @@ function renderFiles() {
   $("#history-empty").hidden = state.items.length > 0;
   $("#clear").disabled = state.items.length === 0;
   const done = state.items.filter(exportable).length;
-  $("#zip").hidden = done === 0;
-  $("#zip").textContent = `Pobierz wszystkie (${done})`;
+  $("#zip").hidden = done < 2; // one result has its own "Pobierz JSON"
+  $("#zip").textContent = `Pobierz wszystkie JSON-y (${done})`;
 }
 
 const drop = $("#drop");
@@ -478,28 +499,55 @@ function select(item) {
   state.selected = item;
   renderFiles();
   $("#result-empty").hidden = Boolean(item);
-  $("#panes").hidden = !item;
+  $("#panes").hidden = $("#result-name").hidden = !item;
   $("#result-name").textContent = item ? item.file.name : "";
   if (changed) showOriginal(item);
   if (!item) return;
-  const done = item.status === "done";
   updateActions();
-  if (done) {
+  if (item.status === "done") {
     renderTree();
     sendPreview();
   }
-  const note = $("#output-note");
-  note.hidden = done;
-  note.className = `note ${item.status === "error" || item.status === "interrupted" ? "error" : "muted"}`;
-  note.textContent = done ? "" : item.status === "working" ? "Przetwarzanie… wynik pojawi się tutaj."
-    : item.status === "queued" ? "Plik czeka w kolejce." : `${STATUS[item.status]}: ${item.error}`;
+  renderNote(item);
   showView();
+}
+
+// What the e-service pane says while there is no result: waiting (with seconds), queued, or the error with a way out.
+function renderNote(item) {
+  const note = $("#output-note"), failed = item.status === "error" || item.status === "interrupted";
+  note.hidden = item.status === "done" || state.view === "dicts"; // "Słowniki" has its own status line
+  if (note.hidden) return;
+  if (failed) {
+    if (note.dataset.for === `${item.id}-failed`) return; // keep the button (and focus) while nothing changed
+    const again = el("button", "primary", "Spróbuj ponownie");
+    again.type = "button";
+    again.addEventListener("click", () => retry(item));
+    note.replaceChildren(el("p", "big error", item.status === "error" ? "Nie udało się przetworzyć pliku" : "Przetwarzanie przerwane"),
+      el("p", "", item.error), again);
+    note.dataset.for = `${item.id}-failed`;
+    return;
+  }
+  note.dataset.for = "";
+  const seconds = Math.round((Date.now() - item.started) / 1000);
+  note.replaceChildren(...(item.status === "working"
+    ? [el("p", "big", `Czytam formularz… ${seconds} s`),
+       el("p", "muted", "Model działa lokalnie na tym komputerze. Jeden formularz zajmuje zwykle 1-2 minuty, e-usługa pojawi się tutaj sama.")]
+    : [el("p", "big", "Plik czeka w kolejce"), el("p", "muted", "Zacznie się, gdy skończy się poprzedni plik.")]));
+}
+
+// Sends a failed or interrupted file once more.
+function retry(item) {
+  Object.assign(item, { status: "queued", error: "", started: 0 });
+  persist(item);
+  select(item);
+  processQueue();
 }
 
 const MIME = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", jpe: "image/jpeg", png: "image/png" };
 const fileSize = (bytes) => (bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
 
-// PDF in an iframe, JPG/PNG as an image; DOC/DOCX/ODS/XLSX only as a download (browsers cannot render them).
+// PDF in an iframe, JPG/PNG as an image; DOC/DOCX/ODS/XLSX/XLS (browsers cannot render them) as the text
+// read from the file by POST /api/forms/text, the same text the model gets.
 function showOriginal(item) {
   if (state.originalUrl) URL.revokeObjectURL(state.originalUrl);
   state.originalUrl = null;
@@ -512,7 +560,7 @@ function showOriginal(item) {
   if (ext === "pdf") {
     const frame = el("iframe");
     frame.title = `Oryginał: ${name}`;
-    frame.src = state.originalUrl;
+    frame.src = state.originalUrl + "#navpanes=0&view=FitH"; // no thumbnail column, page fitted to the pane
     pane.replaceChildren(frame);
   } else if (MIME[ext]) {
     const img = el("img");
@@ -520,20 +568,43 @@ function showOriginal(item) {
     img.src = state.originalUrl;
     pane.replaceChildren(img);
   } else {
-    const note = el("div", "note");
-    const link = el("a", "button", "Pobierz oryginał");
-    Object.assign(link, { href: state.originalUrl, download: name });
-    note.append(el("p", "", `Przeglądarka nie wyświetli pliku ${ext.toUpperCase()}. Pobierz go i otwórz w edytorze.`),
-      el("p", "name", name), el("p", "muted", fileSize(item.file.size)), link);
-    pane.replaceChildren(note);
+    pane.replaceChildren(el("p", "note muted", "Czytam tekst z pliku…"));
+    originalText(item).then((text) => {
+      if (item !== state.selected) return;
+      const why = `Przeglądarka nie wyświetla plików ${ext.toUpperCase()}`;
+      pane.replaceChildren(...(text
+        ? [el("p", "doc-note muted", `${why}, dlatego widzisz tekst odczytany z pliku: ten sam, który dostaje model.`), el("pre", "doc-text", text)]
+        : [el("p", "note muted", `${why}, a tekstu nie udało się odczytać. Pobierz plik i otwórz go w edytorze (${fileSize(item.file.size)}).`)]));
+    });
   }
+}
+
+// Text of the item's file (cached on the item), "" when the server could not read it.
+async function originalText(item) {
+  if (item.text === undefined) {
+    const body = new FormData();
+    body.append("file", item.file);
+    try {
+      const response = await fetch("/api/forms/text", { method: "POST", headers: { Authorization: `Bearer ${state.token}` }, body });
+      item.text = response.ok ? (await response.json()).text : "";
+    } catch {
+      return ""; // offline for a moment: ask again next time
+    }
+  }
+  return item.text;
 }
 
 function showView() {
   const done = state.selected?.status === "done";
-  for (const button of document.querySelectorAll(".switch button")) button.setAttribute("aria-pressed", String(button.dataset.view === state.view));
-  $("#preview-frame").hidden = !done || state.view === "json"; // the same iframe previews and edits
+  if (state.view === "dicts" && $("#dicts-tab").hidden) state.view = "preview"; // this file has no dictionary proposals
+  for (const button of document.querySelectorAll(".switch button")) {
+    button.setAttribute("aria-pressed", String(button.dataset.view === state.view));
+    button.disabled = !done && button.dataset.view !== "dicts"; // nothing to preview, edit or read yet
+  }
+  const frame = state.view === "preview" || state.view === "edit"; // the same iframe previews and edits
+  $("#preview-frame").hidden = !done || !frame;
   $("#json-view").hidden = !done || state.view !== "json";
+  $("#dicts-view").hidden = state.view !== "dicts";
   $("#main").classList.toggle("editing", done && state.view === "edit");
 }
 
@@ -541,7 +612,8 @@ for (const button of document.querySelectorAll(".switch button")) {
   button.addEventListener("click", () => {
     const was = state.view;
     state.view = button.dataset.view;
-    if (state.view !== "edit") localStorage.setItem("coi-view", state.view);
+    if (state.view === "preview" || state.view === "json") localStorage.setItem("coi-view", state.view);
+    if (state.selected) renderNote(state.selected);
     showView();
     if (state.view === "json" && state.selected?.status === "done") renderTree(); // shows the edits too
     if ((was === "edit") !== (state.view === "edit")) sendPreview(); // the iframe switches edit mode on or off
@@ -549,16 +621,17 @@ for (const button of document.querySelectorAll(".switch button")) {
 }
 
 // The embedded /preview?embed=1 rebuilds its whole form on every message, so switching items never shows a stale form.
-// In "Edytuj" the message also carries edit: true and the evidence; each message starts a new document (doc), and
-// edits or checks of an older document are ignored.
-function sendPreview() {
+// The message carries the evidence (the paper quotes drawn under the fields) and, in "Edytuj", edit: true; each
+// message starts a new document (doc), and edits or checks of an older document are ignored. `select` = the
+// element the editor opens on ("Popraw" in the preview).
+function sendPreview(select) {
   const item = state.selected;
   if (!state.previewReady || item?.status !== "done") return;
   const edit = state.view === "edit";
   state.doc += 1;
   state.docItem = item;
   $("#preview-frame").contentWindow.postMessage(
-    { type: "coi-preview", json: selectedJson(), edit, evidence: item.evidence || {}, doc: state.doc }, location.origin);
+    { type: "coi-preview", json: selectedJson(), edit, evidence: item.evidence || {}, doc: state.doc, key: item.id, select }, location.origin);
   if (edit) checkRules(item, 0);
 }
 
@@ -569,12 +642,11 @@ function exportable(item) { return item.status === "done" && !(item.problems?.le
 // Download, copy and the status next to them follow the selected item; problems block the export.
 function updateActions() {
   const item = state.selected, done = item?.status === "done", blocked = done && !exportable(item);
-  $("#open-preview").disabled = !done;
   $("#download").disabled = $("#copy").disabled = !done || blocked;
   $("#download").title = blocked ? "Popraw problemy w edytorze, aby pobrać JSON" : "";
   const status = $("#edit-status");
   status.className = blocked ? "bad" : "muted";
-  status.textContent = !done ? "" : blocked ? `Do poprawy: ${item.problems.length}` : item.edited ? "Zmiany zapisane" : "";
+  status.textContent = blocked ? `Do poprawy: ${item.problems.length}` : ""; // why "Pobierz JSON" is off; the editor panel has the details
   renderFiles();
 }
 
@@ -582,16 +654,19 @@ let checkTimer;
 window.addEventListener("message", (event) => {
   if (event.origin !== location.origin || event.source !== $("#preview-frame").contentWindow) return;
   const data = event.data || {};
+  if (data.type === "coi-edit-request" && state.selected?.status === "done") { // "Popraw" on an element of the preview
+    state.view = "edit";
+    showView();
+    return sendPreview(data.id);
+  }
   const item = state.docItem;
   if (data.doc !== state.doc || !item || item.deleted) return; // an edit of a document no longer shown
   if (data.type === "coi-edit") {
     Object.assign(item, { result: JSON.parse(data.json), evidence: data.evidence, edited: true });
     persist(item);
-    $("#edit-status").className = "muted";
-    $("#edit-status").textContent = "Sprawdzam…";
     clearTimeout(checkTimer);
     checkTimer = setTimeout(() => checkRules(item, data.version), 250);
-  } else if (data.type === "coi-evidence") showEvidence(data);
+  }
 });
 
 // POST /api/forms/check on the item's current JSON; the problems go to the editor and into history.
@@ -624,10 +699,6 @@ document.addEventListener("keydown", (event) => {
   event.preventDefault();
   $("#preview-frame").contentWindow.postMessage({ type: key === "y" || event.shiftKey ? "coi-redo" : "coi-undo", doc: state.doc }, location.origin);
 });
-
-// Hook for the next step: highlight `quote` on page `page` of the original (left pane). The editor already
-// sends {id, quote, page} when the clerk clicks a quote; `page` is null until extraction keeps page numbers.
-function showEvidence({ id, quote, page }) {}
 
 function renderTree() {
   $("#tree").replaceChildren(treeNode(null, state.selected.result, 0));
@@ -763,12 +834,6 @@ function zip(files) {
   return new Blob([...parts, ...central, end], { type: "application/zip" });
 }
 
-// Full-tab preview: hand the JSON to /preview through localStorage (survives the new tab, unlike sessionStorage with noopener).
-$("#open-preview").addEventListener("click", () => {
-  localStorage.setItem("coi-preview", selectedJson());
-  window.open("/preview", "_blank");
-});
-
 $("#copy").addEventListener("click", async () => {
   const button = $("#copy");
   try {
@@ -864,6 +929,20 @@ $("#dicts-download").addEventListener("click", () => saveDicts(state.selected, s
   const convertCoi = convert, selectItem = select;
   convert = async (item) => { await Promise.all([convertCoi(item), fetchDicts(item)]); };
   select = (item) => { selectItem(item); renderDicts(item); };
+}
+
+// View "Słowniki": the bonus II panel sits in the e-service pane behind its own tab; the tab shows the number
+// of proposals. Wraps renderDicts the way that block wraps convert and select, without editing it.
+{
+  const base = renderDicts;
+  renderDicts = (item) => {
+    base(item);
+    const d = item?.dicts, tab = $("#dicts-tab");
+    tab.hidden = !d;
+    tab.textContent = d?.status === "done" ? `Słowniki (${d.result?.proposals?.length ?? 0})` : d?.status === "working" ? "Słowniki…" : "Słowniki";
+    showView();
+    if (item) renderNote(item);
+  };
 }
 
 // AUTH_ENABLED off on the server: no login form, requests go without a real token.

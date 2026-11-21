@@ -4,19 +4,20 @@
    checked by the server with the real COI rules (POST /api/forms/check, called by the parent).
 
    Protocol (same-origin postMessage):
-   - parent -> here {type: "coi-preview", json, edit: true, evidence, doc}: preview.html loads the JSON as
-     always, then this file switches to edit mode. Without `edit` the preview stays read-only. `doc` numbers
-     the document; every message back carries it, so the parent ignores edits of a document it no longer shows.
+   - here -> parent {type: "coi-edit-request", id}: "Popraw" was clicked on an element of the read-only preview
+     (preview.html sends it); the parent switches to "Edytuj" and answers with coi-preview {edit: true, select: id}.
+   - parent -> here {type: "coi-preview", json, edit: true, evidence, doc, select?}: preview.html loads the JSON and its
+     evidence as always, then this file switches to edit mode. Without `edit` the preview stays read-only. `doc`
+     numbers the document; every message back carries it, so the parent ignores edits of a document it no longer shows.
    - here -> parent {type: "coi-edit", json, evidence, version} after every change, undo and redo;
      the parent saves it in the history entry and sends back
      {type: "coi-problems", problems: [{id, message, detail}], version, doc}.
    - parent -> here {type: "coi-undo"} / {type: "coi-redo"}: Ctrl+Z pressed while the parent had focus.
-   - here -> parent {type: "coi-evidence", id, quote, page}: a quote was clicked. Hook for highlighting
-     the quote on the original page (not built yet).
 
-   Evidence = {elementId: {source: "paper" | "model" | "code" | "clerk", quote, page, condition_quote?,
-   consent_quotes?}} from POST /api/forms/convert?evidence=1; what the clerk adds gets source "clerk".
-   Uses the globals of preview.html (cfg, pages, pageIdx, renderPage, h, parseQuery...): both are classic scripts. */
+   Evidence (preview.html's `evidence`, drawn under every element by its notesOf) = {elementId: {source: "paper" |
+   "model" | "code" | "clerk", quote, page, condition_quote?, consent_quotes?}} from POST /api/forms/convert?evidence=1;
+   what the clerk adds gets source "clerk".
+   Uses the globals of preview.html (cfg, pages, pageIdx, evidence, renderPage, h, parseQuery...): both are classic scripts. */
 
 const ED_TYPES = [["TEXT_FIELD", "Tekst (krótki)"], ["TEXTAREA", "Tekst (długi)"], ["NUMBER", "Liczba"], ["DATEPICKER", "Data"],
   ["RADIO", "Wybór jednej opcji"], ["CHECKBOX", "Wybór wielu opcji"], ["SELECT", "Lista rozwijana"], ["FILE_UPLOADER", "Załącznik"],
@@ -32,10 +33,9 @@ const ED_DICT_EXTRA = {
   Kraje: {multiLevelTree: false, searchEnabled: true, defaultValue: ["Polska"]},
   TERYT_4G_DOWODOWY: {multiLevelTree: true, searchEnabled: true, defaultValue: []},
 };
-const ED_STANDARD_TABS = ["Dane", "Kontakt i zgody"];  // + the FINISH page: built by code from the COI Standards
 const ED_EMPTY_HTML = "<html><head></head><body></body></html>";
 
-const ed = {on: false, doc: 0, evidence: {}, sel: null, version: 0, checked: -1, problems: [], undo: [], redo: [],
+const ed = {on: false, doc: 0, sel: null, version: 0, checked: -1, problems: [], undo: [], redo: [],
   pending: null, timer: 0, note: "", focusLabel: false};
 
 /* ---------- where things are ---------- */
@@ -53,17 +53,10 @@ function edFind(id) {
 }
 
 // Standard pages (Dane, Kontakt i zgody, finish) come from the COI Standards and stay as code built them.
-function edStandard(tab) {
-  const src = ed.evidence[tab.id]?.source;
-  return src ? src === "code" : tab.type === "FINISH" || ED_STANDARD_TABS.includes(tab.title);
-}
-const edEditable = loc => loc && (loc.kind === "title" || !edStandard(loc.tab));
+const edEditable = loc => loc && (loc.kind === "title" || !isStandard(loc.tab));
 // On standard pages only what came from the paper is editable: the addressee and the statements (consents).
 const edAddressee = loc => loc.kind === "field" && ["nazwa_urzedu", "nazwa_organu"].includes(loc.el.techName);
 const edConsents = loc => loc.kind === "field" && loc.el.type === "CONSENT_SECTION" && Array.isArray(loc.el.consentSectionConfig?.consents);
-
-// The field a condition path points at, or null.
-function edRefField(ref) { const r = findRef(ref); return typeof r === "string" ? null : r.f; }
 
 // Every element whose SHOW condition reads one of `fields`.
 function edDependents(fields) {
@@ -72,7 +65,7 @@ function edDependents(fields) {
     for (const s of f.states || []) {
       const c = cond(s.query);
       let hit = false;
-      if (c.ast) edWalk(c.ast, n => { if (n.op === "path" && fields.includes(edRefField(n.ref))) hit = true; });
+      if (c.ast) edWalk(c.ast, n => { if (n.op === "path" && fields.includes(refField(n.ref))) hit = true; });
       if (hit && !fields.includes(f)) { out.push(f); break; }
     }
   });
@@ -150,46 +143,22 @@ function edRewrite(visit) {
   conds.clear();
 }
 
-// Readable condition: „Pole” = „opcja” lub ...
-function edDescribe(n, parentOp) {
-  const name = ref => { const f = edRefField(ref); return f ? `„${labelOf(f)}”` : "(usunięte pole)"; };
-  switch (n.op) {
-    case "in": case "=": case "!=": {
-      const lit = [n.l, n.r].find(x => x.op === "lit"), path = [n.l, n.r].find(x => x.op === "path");
-      if (!lit || !path) return "…";
-      return `${name(path.ref)} ${n.op === "!=" ? "≠" : "="} „${lit.v}”`;
-    }
-    case "not": return `nie: ${edDescribe(n.e, "not")}`;
-    case "or": case "and": {
-      const s = edDescribe(n.l, n.op) + (n.op === "and" ? " i " : " lub ") + edDescribe(n.r, n.op);
-      return parentOp && parentOp !== n.op ? `(${s})` : s;
-    }
-    case "path": return name(n.ref);
-    default: return String(n.v);
-  }
-}
-function edCondText(f) {
-  return (f.states || []).filter(s => s.type === "SHOW").map(s => {
-    const c = cond(s.query);
-    return c.ast ? edDescribe(c.ast) : "warunek nieczytelny";
-  }).join(" i ");
-}
 // {field, option} when the element has exactly one SHOW condition of the form „pole” = „opcja”.
 function edSingleCondition(f) {
   const shows = (f.states || []).filter(s => s.type === "SHOW");
   if (shows.length !== 1) return null;
   const c = cond(shows[0].query), a = c.ast;
   if (!a || a.op !== "in" || a.l.op !== "lit" || a.r.op !== "path") return null;
-  const trig = edRefField(a.r.ref);
+  const trig = refField(a.r.ref);
   return trig ? {field: trig, option: a.l.v} : null;
 }
 
 /* ---------- changes, undo, sync with the parent ---------- */
 function edSnapshot() {
-  return {json: JSON.stringify(cfg), evidence: JSON.stringify(ed.evidence), sel: ed.sel, page: pageIdx};
+  return {json: JSON.stringify(cfg), evidence: JSON.stringify(evidence), sel: ed.sel, page: pageIdx};
 }
 function edRestore(s) {
-  cfg = JSON.parse(s.json); ed.evidence = JSON.parse(s.evidence); ed.sel = s.sel; pageIdx = s.page;
+  cfg = JSON.parse(s.json); evidence = JSON.parse(s.evidence); ed.sel = s.sel; pageIdx = s.page;
 }
 
 // One undoable change: fn() mutates cfg, then the form, the panel and the parent are updated.
@@ -245,13 +214,8 @@ function edRedo() {
   edAfter();
 }
 function edPost() {
-  parent.postMessage({type: "coi-edit", json: JSON.stringify(cfg, null, 2), evidence: ed.evidence, version: ed.version, doc: ed.doc}, location.origin);
+  parent.postMessage({type: "coi-edit", json: JSON.stringify(cfg, null, 2), evidence: evidence, version: ed.version, doc: ed.doc}, location.origin);
 }
-// Hook for the next step: the parent will highlight `quote` on page `page` of the original document.
-function edShowEvidence(id, quote, page) {
-  parent.postMessage({type: "coi-evidence", id, quote, page, doc: ed.doc}, location.origin);
-}
-
 // Re-reads the whole config after a change (answers are keyed by titles and techNames) and redraws the page.
 function edRerender() {
   issues = [];
@@ -261,6 +225,7 @@ function edRerender() {
   precheck();
   resetAnswers();
   renderIssues();
+  renderLegend();
   $("#formTitle").textContent = cfg.title || "Formularz bez tytułu";
   pageIdx = Math.max(0, Math.min(pageIdx, pages.length - 1));
   renderPage();
@@ -296,7 +261,7 @@ function edNewSection(title = "Nowa sekcja") {
   sec.repeatingSectionGrid.push({x: 0, y: 0, rows: 1, cols: 3, field: f});
   return sec;
 }
-const edMark = (...els) => { for (const el of els) ed.evidence[el.id] = {source: "clerk", quote: null, page: null}; };
+const edMark = (...els) => { for (const el of els) evidence[el.id] = {source: "clerk", quote: null, page: null}; };
 
 // Adds a new text field to section `secId`, after field `afterId` (or at the end).
 function edAddField(secId, afterId) {
@@ -355,7 +320,7 @@ function edRemove(id) {
     edLayoutTab(loc.tab);
     ed.sel = loc.kind === "field" ? loc.section.id : null;
   }, `Usunięto ${what}. ` + (deps
-    ? `Od usuniętego zależy warunek: ${deps} ${edPlural(deps, ["element", "elementy", "elementów"])}. Popraw te warunki (czerwone) albo cofnij (Ctrl+Z).`
+    ? `Od usuniętego zależy warunek: ${deps} ${plural(deps, ["element", "elementy", "elementów"])}. Popraw te warunki (czerwone) albo cofnij (Ctrl+Z).`
     : "Cofniesz to przez Ctrl+Z."));
 }
 
@@ -397,7 +362,7 @@ function edRenameOption(f, old, name) {
   edRewrite(n => {
     if (!["in", "=", "!="].includes(n.op)) return false;
     const lit = [n.l, n.r].find(x => x.op === "lit" && x.v === old), path = [n.l, n.r].find(x => x.op === "path");
-    if (!lit || !path || edRefField(path.ref) !== f) return false;
+    if (!lit || !path || refField(path.ref) !== f) return false;
     lit.v = name;
     return true;
   });
@@ -430,7 +395,7 @@ function edSetCondition(target, trigger, option) {
       : edAnswerPath(t.tab.title, t.section.techName, trigger.techName));
   }
   target.states = [...keep, ...(query ? [{type: "SHOW", query}] : [])];
-  const ev = ed.evidence[target.id];
+  const ev = evidence[target.id];
   if (ev) {
     delete ev.condition_quote;
     if (query) ev.condition_source = "clerk"; else delete ev.condition_source;
@@ -450,7 +415,7 @@ function edTriggers(loc) {
 
 // Renaming a field or section the clerk added (nothing depends on it yet) also renames its techName.
 function edRetech(el) {
-  if (ed.evidence[el.id]?.source !== "clerk" || edDependents([el]).length) return;
+  if (evidence[el.id]?.source !== "clerk" || edDependents([el]).length) return;
   if (el.type === "SECTION" && edDependents((el.repeatingSectionGrid || []).map(c => c.field)).length) return;
   el.techName = edTech(el.title || "pole", el.id);
 }
@@ -458,59 +423,24 @@ function edRetech(el) {
 /* ---------- the form in edit mode ---------- */
 const edProblemsOf = id => ed.problems.filter(p => p.id === id);
 
-// Evidence line under an element: the paper quote, or plainly that there is none.
-function edEvidenceLine(id, kind, standard) {
-  const ev = ed.evidence[id];
-  if (!ev) return null;
-  if (ev.source === "paper" && ev.quote) return edQuoteButton(id, ev.quote, ev.page, "z papieru");
-  if (standard) return null;  // one banner for the whole standard page instead of a line per element
-  const text = {clerk: "dodane przez Ciebie, bez cytatu", code: "dodane przez kod (standard COI), bez cytatu",
-    model: kind === "tab" ? "strona ułożona przez model, bez cytatu" : "sekcja ułożona przez model, bez cytatu"}[ev.source];
-  return text ? h("p", {class: "ed-src"}, text) : null;
-}
-function edQuoteButton(id, quote, page, label) {
-  const short = quote.length > 160 ? quote.slice(0, 157) + "…" : quote;
-  return h("button", {type: "button", class: "ed-quote", title: quote, "data-quote": quote, "data-page": page ?? "",
-    onclick: () => edShowEvidence(id, quote, page)}, `${label}${page ? ` (s. ${page})` : ""}: „${short}”`);
-}
-
-function edMeta(loc, standard) {
-  const f = loc.el, ev = ed.evidence[f.id], box = h("div", {class: "ed-meta"});
-  box.append(edEvidenceLine(f.id, loc.kind, standard) || "");
-  if (loc.kind !== "tab") {
-    const ct = edCondText(f);
-    if (ct) box.append(h("p", {class: "ed-cond"}, `Widoczne, gdy: ${ct}`));
-    if (ev?.condition_quote) box.append(edQuoteButton(f.id, ev.condition_quote, ev.page, "warunek z papieru"));
-  }
-  (ev?.consent_quotes || []).forEach((q, i) => { if (q) box.append(edQuoteButton(f.id, q, ev.page, `zgoda ${i + 1} z papieru`)); });
-  for (const p of edProblemsOf(f.id)) box.append(h("p", {class: "ed-prob"}, "⚠ " + p.message));
-  return box.childElementCount ? box : null;
-}
-
-// After every render in edit mode: clickable elements, evidence, conditions, problems, "add" buttons.
+// After every render in edit mode: clickable elements, problems, "add" buttons. The paper quotes and
+// conditions under each element are drawn by preview.html itself (notesOf), the same as in the preview.
 function edDecorate() {
-  const tab = pages[pageIdx], standard = edStandard(tab), page = $("#page");
+  const tab = pages[pageIdx], standard = isStandard(tab), page = $("#page");
   const head = $("#pageHeading"), title = $("#formTitle");
   head.dataset.fid = tab.id;
   title.dataset.fid = "__title";
-  const extra = [];
-  if (!Object.keys(ed.evidence).length)
-    extra.push(h("p", {class: "ed-banner"}, "Ten wynik nie ma cytatów z papieru (powstał przed tą wersją albo wczytano go z pliku). Wgraj plik ponownie, aby je zobaczyć."));
-  if (standard)
-    extra.push(h("p", {class: "ed-banner"}, "Ta strona pochodzi ze Standardów COI: buduje ją kod, nie ma jej na papierze i tu jej nie zmieniasz. Kliknij element, aby zobaczyć, skąd jest."));
-  head.after(...extra);
   for (const el of [title, ...page.querySelectorAll("[data-fid]")]) {
-    const id = el.dataset.fid, loc = edFind(id);
+    const id = el.dataset.fid;
     el.classList.add("ed-item");
     el.tabIndex = 0;
     el.classList.toggle("ed-sel", id === ed.sel);
     el.classList.toggle("ed-bad", edProblemsOf(id).length > 0);
-    if (!loc || loc.kind === "title") continue;
-    const meta = edMeta(loc, standard);
-    if (!meta) continue;
-    if (loc.kind === "tab") el.after(meta);
-    else if (loc.kind === "section") ($(":scope > h3", el) || el.firstChild).after(meta);
-    else el.append(meta);
+    const probs = edProblemsOf(id).map(p => h("p", {class: "ed-prob"}, "⚠ " + p.message));
+    if (!probs.length || id === "__title") continue;
+    if (el === head) el.after(...probs);
+    else if (el.matches("section.card")) ($(":scope > h3", el) || el.firstChild).after(...probs);
+    else el.append(...probs);
   }
   if (!standard) {
     for (const card of page.querySelectorAll("section.card[data-fid]"))
@@ -537,17 +467,13 @@ function edEnsurePanel() {
     h("div", {id: "edBody"})));
 }
 
-// Polish plural: edPlural(3, ["problem", "problemy", "problemów"]) -> "problemy".
-const edPlural = (n, [one, few, many] = ["problem", "problemy", "problemów"]) =>
-  n === 1 ? one : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? few : many;
-
 // Status line, undo/redo buttons and the problem lists; never touches the inputs (focus stays).
 function edStatus() {
   const n = ed.problems.length, box = $("#edStatus");
   const waiting = ed.checked !== ed.version;
   box.className = "ed-status " + (waiting ? "wait" : n ? "bad" : "ok");
   box.textContent = waiting ? "Sprawdzam zgodność z regułami COI…"
-    : n ? `Do poprawy: ${n} ${edPlural(n)}. Pobieranie JSON-a jest zablokowane.` : "Zgodne z regułami COI. Możesz pobrać JSON.";
+    : n ? `Do poprawy: ${n} ${plural(n, ["problem", "problemy", "problemów"])}. Pobieranie JSON-a jest zablokowane.` : "Zgodne z regułami COI. Możesz pobrać JSON.";
   $("#edUndo").disabled = !ed.undo.length && !ed.pending;
   $("#edRedo").disabled = !ed.redo.length;
   const mine = $("#edMine");
@@ -639,11 +565,12 @@ function edHelpPanel() {
 
 function edEvidenceBox(loc) {
   if (loc.kind === "title") return null;
-  const id = loc.el.id, ev = ed.evidence[id], box = h("div", {class: "ed-evidence"});
+  const ev = evidence[loc.el.id], box = h("div", {class: "ed-evidence"});
+  const quote = (label, text) => h("p", {}, h("strong", {}, label + ": "), `„${text}”`);
   if (!ev) box.append(h("p", {}, "Brak informacji o pochodzeniu (wynik bez cytatów: starszy albo wczytany z pliku)."));
   else if (ev.source === "paper" && ev.quote) {
     box.classList.add("paper");
-    box.append(h("p", {}, h("strong", {}, "Z papieru" + (ev.page ? ` (strona ${ev.page})` : "") + ": "), edQuoteButton(id, ev.quote, ev.page, "cytat")));
+    box.append(quote("Z papieru", ev.quote));
   } else {
     box.append(h("p", {}, {
       model: loc.kind === "tab" ? "Stronę ułożył model, grupując sekcje. Strona nie ma własnego cytatu."
@@ -653,10 +580,10 @@ function edEvidenceBox(loc) {
       paper: "Z papieru, bez zapisanego cytatu.",
     }[ev.source] || "Brak informacji o pochodzeniu."));
   }
-  if (ev?.condition_quote) box.append(h("p", {}, h("strong", {}, "Warunek z papieru: "), edQuoteButton(id, ev.condition_quote, ev.page, "cytat")));
+  if (ev?.condition_quote) box.append(quote("Warunek z papieru", ev.condition_quote));
   if (ev?.condition_source === "clerk") box.append(h("p", {}, "Warunek ustawiony przez Ciebie."));
-  (ev?.consent_quotes || []).forEach((q, i) => box.append(h("p", {}, h("strong", {}, `Zgoda ${i + 1}: `),
-    q ? edQuoteButton(id, q, ev.page, "z papieru") : i === 0 ? "standard COI (klauzula RODO), dodana przez kod" : "dodana przez Ciebie, bez cytatu")));
+  (ev?.consent_quotes || []).forEach((q, i) => box.append(q ? quote(`Oświadczenie ${i + 1} z papieru`, q)
+    : h("p", {}, h("strong", {}, `Oświadczenie ${i + 1}: `), i === 0 ? "standard COI (klauzula RODO), dodana przez kod" : "dodane przez Ciebie, bez cytatu")));
   return box;
 }
 
@@ -687,7 +614,7 @@ function edAddresseeControls(f) {
 
 // Statements from the paper ("Oświadczam, że ...") in the consent section; the first consent is the RODO clause (code).
 function edConsentControls(f) {
-  const list = f.consentSectionConfig.consents, quotes = () => ed.evidence[f.id]?.consent_quotes;
+  const list = f.consentSectionConfig.consents, quotes = () => evidence[f.id]?.consent_quotes;
   const items = list.map((c, i) => {
     if (i === 0) return h("li", {}, h("p", {class: "ed-hint"}, "1. Klauzula RODO: standard COI, bez zmian."));
     const cb = h("input", {type: "checkbox", "data-k": `consentreq${i}`, id: "ed" + (++edUid)});
@@ -796,7 +723,7 @@ function edOptionsControls(f) {
 }
 
 function edConditionControls(loc) {
-  const target = loc.el, single = edSingleCondition(target), text = edCondText(target);
+  const target = loc.el, single = edSingleCondition(target), text = condText(target);
   const triggers = edTriggers(loc);
   const box = h("div", {class: "ed-row ed-cond-box"}, h("span", {class: "ed-label"}, "Kiedy pokazać"));
   const shown = single && triggers.some(t => t.f === single.field);
@@ -828,33 +755,36 @@ function edConditionControls(loc) {
 }
 
 /* ---------- entering and leaving edit mode ---------- */
-function edEnter(evidence, doc) {
+// `select` = the element to open right away ("Popraw" in the preview): shown, selected, its label ready to type in.
+function edEnter(doc, select) {
   if (!cfg || $("#app").hidden) return;  // the JSON did not load: preview shows the error
-  Object.assign(ed, {on: true, doc, evidence: evidence && typeof evidence === "object" ? evidence : {}, sel: null, version: 0, checked: -1,
-    problems: [], undo: [], redo: [], pending: null, note: ""});
+  Object.assign(ed, {on: true, doc, sel: null, version: 0, checked: -1, problems: [], undo: [], redo: [], pending: null, note: ""});
   edEnsurePanel();
   document.body.classList.add("editmode");
+  applyModes();
   edRerender();
   edPanel();
+  if (select && edFind(select)) { edReveal(select); edFocusLabel(); }
 }
+const edFocusLabel = () => $("[data-k=label]", $("#edBody"))?.focus({preventScroll: true});
 function edLeave() {
   edFlush();
   ed.on = false;
   document.body.classList.remove("editmode");
+  applyModes();
   if (cfg && !$("#app").hidden) renderPage();
 }
 
 {
-  // Wrap preview functions instead of editing them: decorations after each render, no validation while editing.
-  const baseRender = renderPage, baseValidate = validatePage;
+  // Wrap the preview's render instead of editing it: decorations after each render.
+  const baseRender = renderPage;
   renderPage = () => { baseRender(); if (ed.on) edDecorate(); };
-  validatePage = () => ed.on || baseValidate();
 }
 
 window.addEventListener("message", e => {
   if (e.origin !== location.origin) return;
   const d = e.data || {};
-  if (d.type === "coi-preview") { if (d.edit) edEnter(d.evidence, d.doc); else if (ed.on) edLeave(); }
+  if (d.type === "coi-preview") { if (d.edit) edEnter(d.doc, d.select); else if (ed.on) edLeave(); }
   if (!ed.on) return;
   if (d.type === "coi-problems" && d.doc === ed.doc && d.version === ed.version) {
     // rules name no element for the form title: pin those on the title (h1)
@@ -874,6 +804,7 @@ document.addEventListener("click", e => {
   if (!el || !$("#app").contains(el)) return;
   e.preventDefault();
   edSelect(el.dataset.fid);
+  edFocusLabel(); // click and type: the label is the most common fix
 }, true);
 document.addEventListener("keydown", e => {
   if (!ed.on) return;
@@ -923,7 +854,6 @@ body.editmode #edPanel{display:block}
 .ed-evidence{background:#f6f8fb;border-left:4px solid #8a94a6;border-radius:4px;padding:.5rem .75rem;margin:0 0 .75rem;font-size:14px}
 .ed-evidence.paper{border-left-color:#1e7b34}
 .ed-evidence p{margin:.15rem 0}
-.ed-evidence .ed-quote{display:inline;font-size:14px}
 .ed-probs{margin:0 0 .75rem;padding:0;list-style:none}
 .ed-probs:empty{display:none}
 .ed-probs li{color:#8c1d18;background:#fdecea;border-radius:4px;padding:.4rem .6rem;margin-bottom:.35rem;font-size:14px}
@@ -941,20 +871,14 @@ body.editmode #edPanel{display:block}
 .ed-cond-line{display:grid;grid-template-columns:5.5rem 1fr;align-items:center;gap:.5rem;margin-top:.4rem;font-size:14px}
 .ed-actions{display:flex;flex-wrap:wrap;gap:.4rem;border-top:1px solid #e3e7ec;padding-top:.9rem;margin-top:.4rem}
 body.editmode .cond-hidden{display:block!important}
-body.editmode #page .grid :is(input,select,textarea,label,button:not(.ed-add):not(.ed-quote)){pointer-events:none}
+body.editmode #page .grid :is(input,select,textarea,label,button:not(.ed-add)){pointer-events:none}
+body.editmode .send{display:none}
 body.editmode .tech{display:none}
 .ed-item{cursor:pointer;border-radius:6px;outline:2px solid transparent;outline-offset:4px}
 .ed-item:hover{outline-color:#9cb8dc}
 .ed-item.ed-bad{outline:2px solid #b3261e}
 .ed-item.ed-sel{outline:3px solid #0052a5}
-.ed-meta{margin:.4rem 0 0;font-size:13px}
-.ed-meta p{margin:.15rem 0}
-.ed-quote{display:block;text-align:left;background:none;border:0;padding:0;margin:.15rem 0;font:inherit;font-size:13px;color:#1e5b2e;cursor:pointer}
-.ed-quote:hover{text-decoration:underline}
-.ed-src{color:#6b7280;font-style:italic}
-.ed-cond{color:#6b2c00}
-.ed-prob{color:#b3261e;font-weight:600}
-.ed-banner{background:#fff7e0;border-left:4px solid #b7791f;padding:.5rem .75rem;border-radius:4px;font-size:14px;margin:0 0 1rem}
+.ed-prob{color:#b3261e;font-weight:600;font-size:13px;margin:.3rem 0 0}
 .ed-add{display:block;width:100%;margin-top:.75rem;background:none;border:1px dashed #8a94a6;border-radius:6px;color:#0052a5;font:inherit;font-size:14px;font-weight:600;padding:.45rem .9rem;cursor:pointer}
 .ed-add:hover{border-color:#0052a5;background:#f3f7fc}
 .ed-add-section{margin-top:1rem;background:#fff}
