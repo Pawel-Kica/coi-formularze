@@ -5,10 +5,12 @@ description = "Paper form (PDF/DOC/DOCX/ODS/XLSX/JPG/PNG) -> COI e-service JSON,
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "cryptography>=50.0.2",
     "fastapi>=0.165.0",
     "httpx>=0.28.1",
     "jsonata-python>=0.7.2",
     "jsonschema>=4.26.0",
+    "numpy>=2.5.5",
     "olefile>=0.47",
     "openpyxl>=3.1.5",
     "pillow>=13.0.0",

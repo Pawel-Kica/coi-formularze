@@ -1,0 +1,53 @@
+# API + local model server. Secrets come from .env (copy .env.example) at runtime only.
+#   docker compose up -d --build
+# On first start `ollama-pull` downloads LLM_MODEL into the `ollama` volume (several GB).
+services:
+  api:
+    build: .
+    image: coi-formularze:0.1.0
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      LLM_URL: http://ollama:11434
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      AUTH_PASSWORD: ${AUTH_PASSWORD:?set AUTH_PASSWORD in .env}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:0.40.17
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    # NVIDIA GPU (needs nvidia-container-toolkit on the host): uncomment.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # One-shot: pull LLM_MODEL (same default as app/config.py), then exit.
+  ollama-pull:
+    image: ollama/ollama:0.40.17
+    environment:
+      OLLAMA_HOST: ollama:11434
+    command: ["pull", "${LLM_MODEL:-qwen3:30b-a3b-instruct-2507-q4_K_M}"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  ollama:

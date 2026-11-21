@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cyfryzacja formularzy | generator e-usług COI</title>
+<!-- One self-contained page served by the API at "/": log in, drop forms, browse the COI JSON.
+     No build step and no CDN, so it works offline. -->
+<style>
+  :root {
+    --navy: #0052a5; --navy-dark: #003b78; --text: #1b1b1b; --muted: #5a6470;
+    --line: #d5dbe3; --bg: #f4f6f9; --ok: #1a7f37; --err: #b3261e; --hit: #fff3b0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--text);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); line-height: 1.5; }
+  header { background: var(--navy); color: #fff; }
+  .bar { max-width: 1240px; margin: 0 auto; padding: 14px 16px; display: flex; gap: 16px; align-items: center; }
+  .bar h1 { font-size: 1.15rem; margin: 0; flex: 1; }
+  .bar small { display: block; font-weight: 400; opacity: .85; }
+  .pill { font-size: .85rem; padding: 2px 10px; border-radius: 999px; background: rgba(255,255,255,.15); }
+  main { max-width: 1240px; margin: 24px auto; padding: 0 16px; display: grid; gap: 24px;
+         grid-template-columns: minmax(280px, 380px) 1fr; align-items: start; }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 20px; }
+  h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  label { display: block; font-weight: 600; margin: 12px 0 4px; }
+  input[type=text], input[type=password], input[type=search] {
+    width: 100%; padding: 8px 10px; font: inherit; border: 1px solid #8a94a0; border-radius: 4px; }
+  button { font: inherit; cursor: pointer; border-radius: 4px; padding: 8px 14px;
+           border: 1px solid var(--navy); background: #fff; color: var(--navy); }
+  button.primary { background: var(--navy); color: #fff; }
+  button:hover { background: var(--navy-dark); border-color: var(--navy-dark); color: #fff; }
+  header button { border-color: #fff; color: #fff; background: transparent; }
+  :focus-visible { outline: 3px solid #ffb800; outline-offset: 2px; }
+  .error { color: var(--err); }
+  .muted { color: var(--muted); font-size: .9rem; }
+  .drop { display: block; margin: 0; border: 2px dashed #8aa6c8; border-radius: 6px; padding: 28px 16px;
+          text-align: center; font-weight: 400; cursor: pointer; background: #f8fbff; position: relative; }
+  .drop.over { border-color: var(--navy); background: #e8f0fa; }
+  .drop:focus-within { outline: 3px solid #ffb800; outline-offset: 2px; }
+  .drop strong { color: var(--navy); }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  ul.files { list-style: none; padding: 0; margin: 16px 0 0; }
+  ul.files button { width: 100%; display: flex; justify-content: space-between; gap: 8px; text-align: left;
+                    margin-bottom: 6px; border-color: var(--line); color: var(--text); }
+  ul.files button[aria-pressed=true] { border-color: var(--navy); box-shadow: inset 4px 0 0 var(--navy); }
+  ul.files button:hover { background: #eef3f9; color: var(--text); }
+  .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .status { white-space: nowrap; font-size: .85rem; color: var(--muted); }
+  .status.done { color: var(--ok); } .status.error { color: var(--err); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .toolbar input { flex: 1; min-width: 180px; width: auto; }
+  #tree { font: .9rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow: auto;
+          max-height: 70vh; border: 1px solid var(--line); border-radius: 4px; padding: 10px; }
+  #tree details > .kids { padding-left: 18px; border-left: 1px dotted var(--line); margin-left: 5px; }
+  #tree summary { cursor: pointer; }
+  .k { color: var(--navy-dark); } .meta { color: var(--muted); }
+  .v.string { color: #0a6b2f; } .v.number { color: #9a4d00; } .v.boolean, .v.null { color: #7b2fa6; }
+  .hit { background: var(--hit); } .current { outline: 2px solid #ffb800; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>Cyfryzacja formularzy<small>Pusty formularz papierowy → konfiguracja e-usługi COI (JSON)</small></h1>
+    <span id="llm" class="pill">Model AI: sprawdzam…</span>
+    <button id="logout" type="button" hidden>Wyloguj</button>
+  </div>
+</header>
+
+<main>
+  <section class="card" id="login" aria-labelledby="login-title">
+    <h2 id="login-title">Zaloguj się</h2>
+    <form id="login-form">
+      <label for="username">Login</label>
+      <input id="username" name="username" type="text" autocomplete="username" required>
+      <label for="password">Hasło</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <p id="login-error" class="error" role="alert"></p>
+      <button class="primary" type="submit">Zaloguj</button>
+    </form>
+  </section>
+
+  <section class="card" id="upload" aria-labelledby="upload-title" hidden>
+    <h2 id="upload-title">Formularze</h2>
+    <label class="drop" id="drop">
+      <input id="file" type="file" multiple accept=".pdf,.doc,.docx,.ods,.xlsx,.jpg,.jpeg,.jpe,.png">
+      <strong>Przeciągnij pliki tutaj</strong> albo kliknij, aby wybrać z dysku
+      <span class="muted" style="display:block">PDF, DOC, DOCX, ODS, XLSX, JPG, PNG. Kilka plików przetworzymy po kolei.</span>
+    </label>
+    <ul class="files" id="files" aria-label="Przesłane pliki"></ul>
+    <p id="announce" class="muted" aria-live="polite"></p>
+  </section>
+
+  <section class="card" id="result" aria-labelledby="result-title" hidden>
+    <h2 id="result-title">Wynik</h2>
+    <p id="result-empty" class="muted">Wybierz plik z listy, aby zobaczyć jego JSON.</p>
+    <p id="result-error" class="error" role="alert" hidden></p>
+    <div id="viewer" hidden>
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="Szukaj w JSON (Enter: następny)" aria-label="Szukaj w JSON">
+        <span id="hits" class="muted" aria-live="polite"></span>
+        <button type="button" id="expand">Rozwiń</button>
+        <button type="button" id="collapse">Zwiń</button>
+        <button type="button" id="copy">Kopiuj</button>
+        <button type="button" id="download" class="primary">Pobierz JSON</button>
+      </div>
+      <div id="tree" role="tree" aria-label="Struktura JSON"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (selector) => document.querySelector(selector);
+const state = { token: sessionStorage.getItem("token"), items: [], selected: null, busy: false, hits: [], hit: -1 };
+const STATUS = { queued: "Oczekuje", working: "Przetwarzanie", done: "Gotowe", error: "Błąd" };
+
+const detail = (data, response) => (typeof data.detail === "string" ? data.detail : `Błąd ${response.status}`);
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+// --- login ---
+
+function showScreens() {
+  const loggedIn = Boolean(state.token);
+  $("#login").hidden = loggedIn;
+  $("#upload").hidden = $("#result").hidden = $("#logout").hidden = !loggedIn;
+}
+
+function logout(reason = "") {
+  state.token = null;
+  sessionStorage.removeItem("token");
+  $("#login-error").textContent = reason;
+  showScreens();
+}
+
+$("#login-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  $("#login-error").textContent = "";
+  try {
+    const response = await fetch("/api/auth/token", { method: "POST", body: new URLSearchParams(new FormData(event.target)) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return ($("#login-error").textContent = detail(data, response));
+    state.token = data.access_token;
+    sessionStorage.setItem("token", state.token);
+    $("#password").value = "";
+    showScreens();
+    processQueue();
+  } catch {
+    $("#login-error").textContent = "Brak połączenia z serwerem.";
+  }
+});
+$("#logout").addEventListener("click", () => logout());
+
+// --- files: a light client-side batch, one request at a time ---
+
+function addFiles(files) {
+  for (const file of files) state.items.push({ file, status: "queued", started: 0, result: null, error: "" });
+  renderFiles();
+  processQueue();
+}
+
+async function processQueue() {
+  if (state.busy) return;
+  state.busy = true;
+  let item;
+  while (state.token && (item = state.items.find((i) => i.status === "queued"))) await convert(item);
+  state.busy = false;
+}
+
+async function convert(item) {
+  item.status = "working";
+  item.started = Date.now();
+  renderFiles();
+  const ticker = setInterval(renderFiles, 1000);
+  try {
+    const body = new FormData();
+    body.append("file", item.file);
+    const response = await fetch("/api/forms/convert", {
+      method: "POST", headers: { Authorization: `Bearer ${state.token}` }, body,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      item.status = "queued"; // retried after the next login
+      logout("Sesja wygasła. Zaloguj się ponownie.");
+    } else if (response.ok) {
+      Object.assign(item, { status: "done", result: data });
+    } else {
+      Object.assign(item, { status: "error", error: detail(data, response) });
+    }
+  } catch {
+    Object.assign(item, { status: "error", error: "Brak połączenia z serwerem." });
+  }
+  clearInterval(ticker);
+  if (item.status !== "queued") {
+    $("#announce").textContent = `${item.file.name}: ${STATUS[item.status].toLowerCase()}`;
+    if (!state.selected || state.selected.status !== "done") select(item);
+  }
+  renderFiles();
+}
+
+// Rows are created once and then only updated, so keyboard focus survives the 1 s ticker.
+function renderFiles() {
+  for (const item of state.items) {
+    if (!item.row) {
+      const button = el("button");
+      button.type = "button";
+      button.addEventListener("click", () => select(item));
+      item.row = { button, status: el("span") };
+      button.append(el("span", "name", item.file.name), item.row.status);
+      const li = el("li");
+      li.append(button);
+      $("#files").append(li);
+    }
+    const seconds = Math.round((Date.now() - item.started) / 1000);
+    item.row.button.setAttribute("aria-pressed", String(item === state.selected));
+    item.row.status.className = `status ${item.status}`;
+    item.row.status.textContent = item.status === "working" ? `${STATUS.working}… ${seconds} s` : STATUS[item.status];
+  }
+}
+
+const drop = $("#drop");
+$("#file").addEventListener("change", (event) => { addFiles(event.target.files); event.target.value = ""; });
+drop.addEventListener("dragover", (event) => { event.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", (event) => {
+  event.preventDefault();
+  drop.classList.remove("over");
+  addFiles(event.dataTransfer.files);
+});
+
+// --- result: collapsible JSON tree with search ---
+
+function select(item) {
+  state.selected = item;
+  renderFiles();
+  $("#result-empty").hidden = item.status === "done" || item.status === "error";
+  $("#result-error").hidden = item.status !== "error";
+  $("#result-error").textContent = `${item.file.name}: ${item.error}`;
+  $("#viewer").hidden = item.status !== "done";
+  if (item.status === "done") {
+    $("#tree").replaceChildren(treeNode(null, item.result, 0));
+    search();
+  }
+}
+
+function treeNode(key, value, depth) {
+  const keyLabel = key === null ? "" : `${key}: `;
+  if (value === null || typeof value !== "object") {
+    const leaf = el("div", "leaf");
+    leaf.setAttribute("role", "treeitem");
+    leaf.append(el("span", "k", keyLabel), el("span", `v ${value === null ? "null" : typeof value}`, JSON.stringify(value)));
+    return leaf;
+  }
+  const entries = Array.isArray(value) ? value.map((v, i) => [i, v]) : Object.entries(value);
+  const details = el("details");
+  details.open = depth < 2;
+  const summary = el("summary");
+  summary.setAttribute("role", "treeitem");
+  const size = Array.isArray(value) ? `[${entries.length}]` : `{${entries.length}}`;
+  summary.append(el("span", "k", keyLabel), el("span", "meta", size));
+  const kids = el("div", "kids");
+  kids.setAttribute("role", "group");
+  for (const [k, v] of entries) kids.append(treeNode(k, v, depth + 1));
+  details.append(summary, kids);
+  return details;
+}
+
+function search() {
+  const query = $("#search").value.trim().toLowerCase();
+  for (const node of state.hits) node.classList.remove("hit", "current");
+  state.hits = [];
+  state.hit = -1;
+  if (query) {
+    for (const node of $("#tree").querySelectorAll(".leaf, summary")) {
+      if (!node.textContent.toLowerCase().includes(query)) continue;
+      node.classList.add("hit");
+      state.hits.push(node);
+      for (let d = node.parentElement.closest("details"); d; d = d.parentElement.closest("details")) d.open = true;
+    }
+  }
+  $("#hits").textContent = query ? `Trafienia: ${state.hits.length}` : "";
+}
+
+function nextHit() {
+  if (!state.hits.length) return;
+  state.hits[state.hit]?.classList.remove("current");
+  state.hit = (state.hit + 1) % state.hits.length;
+  const node = state.hits[state.hit];
+  node.classList.add("current");
+  node.scrollIntoView({ block: "center" });
+  $("#hits").textContent = `${state.hit + 1} z ${state.hits.length}`;
+}
+
+let searchTimer;
+$("#search").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(search, 150); });
+$("#search").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); nextHit(); } });
+$("#expand").addEventListener("click", () => $("#tree").querySelectorAll("details").forEach((d) => (d.open = true)));
+$("#collapse").addEventListener("click", () => $("#tree").querySelectorAll("details").forEach((d, i) => (d.open = i === 0)));
+
+const selectedJson = () => JSON.stringify(state.selected.result, null, 2);
+
+$("#download").addEventListener("click", () => {
+  const link = el("a");
+  link.href = URL.createObjectURL(new Blob([selectedJson()], { type: "application/json" }));
+  link.download = state.selected.file.name.replace(/\.[^.]+$/, "") + ".json";
+  link.click();
+  URL.revokeObjectURL(link.href);
+});
+
+$("#copy").addEventListener("click", async () => {
+  const button = $("#copy");
+  try {
+    await navigator.clipboard.writeText(selectedJson());
+  } catch { // no Clipboard API outside https/localhost: fall back to a hidden textarea
+    const area = el("textarea");
+    area.value = selectedJson();
+    document.body.append(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+  }
+  button.textContent = "Skopiowano";
+  setTimeout(() => (button.textContent = "Kopiuj"), 1500);
+});
+
+// --- model status ---
+
+fetch("/health").then((r) => r.json()).then((health) => {
+  const text = { ok: "gotowy", model_missing: "brak modelu", unreachable: "niedostępny" }[health.llm] ?? health.llm;
+  $("#llm").textContent = `Model AI: ${text}`;
+  $("#llm").title = health.llm_model;
+}).catch(() => ($("#llm").textContent = "Model AI: brak danych"));
+
+showScreens();
+</script>
+</body>
+</html>

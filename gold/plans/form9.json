@@ -1,5 +1,5 @@
 {
-  "title": "Wniosek o przyznanie stypendium, nagrody lub wyróżnienia sportowego Rady Miasta Zgierza",
+  "title": "Wniosek o stypendium, nagrodę lub wyróżnienie sportowe",
   "addressee": "Urząd Miasta Zgierza",
   "addressee_quote": "Urzędu Miasta Zgierza",
   "applicant": {
@@ -12,15 +12,13 @@
   "pages": [
     {
       "title": "Rodzaj wniosku i wnioskodawca",
-      "quote": "Rodzaje wniosków:",
       "sections": [
         {
-          "id": "s_rodzaj",
+          "id": "s1",
           "title": "Rodzaj wniosku",
-          "quote": "Rodzaje wniosków:",
           "fields": [
             {
-              "id": "rodzaj",
+              "id": "f1",
               "label": "O co wnioskujesz?",
               "type": "RADIO",
               "required": true,
@@ -31,35 +29,16 @@
               ],
               "description": "Stypendium i nagroda są dla sportowca, wyróżnienie dla trenera.",
               "quote": "Rodzaje wniosków:"
-            },
-            {
-              "id": "wnioskodawca",
-              "label": "Kto składa wniosek?",
-              "type": "RADIO",
-              "required": true,
-              "options": [
-                "Prezydent Miasta Zgierza",
-                "Klub sportowy"
-              ],
-              "quote": "1. Wnioskodawca"
             }
           ]
         },
         {
-          "id": "s_klub",
+          "id": "s2",
           "title": "Odpis z rejestru klubu",
-          "quote": "Odpis danych z KRS lub innego właściwego rejestru",
-          "show_if": {
-            "field": "wnioskodawca",
-            "options": [
-              "Klub sportowy"
-            ],
-            "quote": "Należy wypełnić w przypadku Wnioskodawcy – Klubu sportowego."
-          },
           "fields": [
             {
-              "id": "klub_odpis",
-              "label": "Aktualny odpis z KRS lub innego rejestru",
+              "id": "f2",
+              "label": "Plik z aktualnym odpisem z KRS lub innego rejestru",
               "type": "FILE_UPLOADER",
               "required": true,
               "description": "Odpis musi być zgodny z bieżącym stanem faktycznym i prawnym.",
@@ -68,31 +47,23 @@
           ]
         },
         {
-          "id": "s_koresp",
+          "id": "s3",
           "title": "Korespondencja z urzędem",
-          "quote": "Korespondencja z urzędem (wybierz preferowany sposób korespondencji z urzędem)",
-          "show_if": {
-            "field": "wnioskodawca",
-            "options": [
-              "Klub sportowy"
-            ],
-            "quote": "Należy wypełnić w przypadku Wnioskodawcy – Klubu sportowego."
-          },
           "fields": [
             {
-              "id": "koresp_sposob",
+              "id": "f3",
               "label": "Jak chcesz otrzymywać korespondencję z urzędu?",
               "type": "RADIO",
               "required": true,
               "options": [
                 "Poczta tradycyjna",
                 "Skrzynka ePUAP",
-                "eDoręczenia"
+                "e-Doręczenia"
               ],
               "quote": "Korespondencja z urzędem (wybierz preferowany sposób korespondencji z urzędem)"
             },
             {
-              "id": "koresp_adres",
+              "id": "f4",
               "label": "Na jaki adres wysłać korespondencję?",
               "type": "RADIO",
               "required": true,
@@ -102,7 +73,7 @@
               ],
               "quote": "Poczta tradycyjna - na który adres kierować korespondencję",
               "show_if": {
-                "field": "koresp_sposob",
+                "field": "f3",
                 "options": [
                   "Poczta tradycyjna"
                 ],
@@ -110,83 +81,13 @@
               }
             },
             {
-              "id": "klub_kor_miejsc",
-              "label": "Miejscowość",
-              "type": "TEXT_FIELD",
-              "required": true,
-              "quote": "inny adres korespondencyjny",
-              "show_if": {
-                "field": "koresp_adres",
-                "options": [
-                  "Inny adres korespondencyjny"
-                ],
-                "quote": "inny adres korespondencyjny"
-              }
-            },
-            {
-              "id": "klub_kor_kod",
-              "label": "Kod pocztowy",
-              "type": "TEXT_FIELD",
-              "required": true,
-              "quote": "inny adres korespondencyjny",
-              "show_if": {
-                "field": "koresp_adres",
-                "options": [
-                  "Inny adres korespondencyjny"
-                ],
-                "quote": "inny adres korespondencyjny"
-              }
-            },
-            {
-              "id": "klub_kor_ulica",
-              "label": "Ulica",
-              "type": "TEXT_FIELD",
-              "required": false,
-              "quote": "inny adres korespondencyjny",
-              "show_if": {
-                "field": "koresp_adres",
-                "options": [
-                  "Inny adres korespondencyjny"
-                ],
-                "quote": "inny adres korespondencyjny"
-              }
-            },
-            {
-              "id": "klub_kor_nr_bud",
-              "label": "Numer budynku",
-              "type": "TEXT_FIELD",
-              "required": true,
-              "quote": "inny adres korespondencyjny",
-              "show_if": {
-                "field": "koresp_adres",
-                "options": [
-                  "Inny adres korespondencyjny"
-                ],
-                "quote": "inny adres korespondencyjny"
-              }
-            },
-            {
-              "id": "klub_kor_nr_lok",
-              "label": "Numer lokalu",
-              "type": "TEXT_FIELD",
-              "required": false,
-              "quote": "inny adres korespondencyjny",
-              "show_if": {
-                "field": "koresp_adres",
-                "options": [
-                  "Inny adres korespondencyjny"
-                ],
-                "quote": "inny adres korespondencyjny"
-              }
-            },
-            {
-              "id": "epuap",
+              "id": "f5",
               "label": "Adres skrzynki ePUAP",
               "type": "TEXT_FIELD",
               "required": true,
               "quote": "Skrzynka ePUAP - adres skrzynki:",
               "show_if": {
-                "field": "koresp_sposob",
+                "field": "f3",
                 "options": [
                   "Skrzynka ePUAP"
                 ],
@@ -194,18 +95,39 @@
               }
             },
             {
-              "id": "edoreczenia",
-              "label": "Adres do e-Doręczeń",
+              "id": "f6",
+              "label": "Adres skrzynki do e-Doręczeń",
               "type": "TEXT_FIELD",
               "required": true,
               "quote": "eDoręczenia - adres skrzynki:",
               "show_if": {
-                "field": "koresp_sposob",
+                "field": "f3",
                 "options": [
-                  "eDoręczenia"
+                  "e-Doręczenia"
                 ],
                 "quote": "eDoręczenia - adres skrzynki:"
               }
+            }
+          ]
+        },
+        {
+          "id": "s4",
+          "title": "Inny adres korespondencyjny klubu",
+          "address": true,
+          "show_if": {
+            "field": "f4",
+            "options": [
+              "Inny adres korespondencyjny"
+            ],
+            "quote": "inny adres korespondencyjny"
+          },
+          "fields": [
+            {
+              "id": "f7",
+              "label": "Adres korespondencyjny",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "inny adres korespondencyjny"
             }
           ]
         }
@@ -213,22 +135,20 @@
     },
     {
       "title": "Kandydat",
-      "quote": "Dane kandydatki/kandydata do stypendium:",
       "sections": [
         {
-          "id": "s_kandydat",
+          "id": "s5",
           "title": "Dane kandydata",
-          "quote": "Dane kandydatki/kandydata do stypendium:",
           "fields": [
             {
-              "id": "trener_info",
+              "id": "f8",
               "label": "Kandydat do wyróżnienia",
               "type": "TEXT_BLOCK",
               "required": false,
               "description": "Wyróżnienie przyznaje się trenerowi. Wpisz dane trenera.",
               "quote": "2. Dane trenera",
               "show_if": {
-                "field": "rodzaj",
+                "field": "f1",
                 "options": [
                   "Wyróżnienie sportowe"
                 ],
@@ -236,21 +156,21 @@
               }
             },
             {
-              "id": "kand_imie",
+              "id": "f9",
               "label": "Imię",
               "type": "TEXT_FIELD",
               "required": true,
               "quote": "Imię"
             },
             {
-              "id": "kand_nazwisko",
+              "id": "f10",
               "label": "Nazwisko",
               "type": "TEXT_FIELD",
               "required": true,
               "quote": "Nazwisko"
             },
             {
-              "id": "kand_data_ur",
+              "id": "f11",
               "label": "Data urodzenia",
               "type": "DATEPICKER",
               "required": true,
@@ -259,55 +179,26 @@
           ]
         },
         {
-          "id": "s_zameld",
+          "id": "s6",
           "title": "Adres zameldowania kandydata",
-          "quote": "Adres zameldowania (adres zameldowania może być inny niż adres zamieszkania)",
+          "description": "Adres zameldowania może być inny niż adres zamieszkania.",
+          "address": true,
           "fields": [
             {
-              "id": "zameld_info",
+              "id": "f12",
               "label": "Adres zameldowania",
-              "type": "TEXT_BLOCK",
-              "required": false,
-              "description": "Adres zameldowania może być inny niż adres zamieszkania.",
-              "quote": "Adres zameldowania (adres zameldowania może być inny niż adres zamieszkania)"
-            },
-            {
-              "id": "zameld_miejsc",
-              "label": "Miejscowość",
               "type": "TEXT_FIELD",
               "required": true,
               "quote": "Adres zameldowania (adres zameldowania może być inny niż adres zamieszkania)"
-            },
+            }
+          ]
+        },
+        {
+          "id": "s7",
+          "title": "Korespondencja do kandydata",
+          "fields": [
             {
-              "id": "zameld_kod",
-              "label": "Kod pocztowy",
-              "type": "TEXT_FIELD",
-              "required": true,
-              "quote": "Adres zameldowania (adres zameldowania może być inny niż adres zamieszkania)"
-            },
-            {
-              "id": "zameld_ulica",
-              "label": "Ulica",
-              "type": "TEXT_FIELD",
-              "required": false,
-              "quote": "Adres zameldowania (adres zameldowania może być inny niż adres zamieszkania)"
-            },
-            {
-              "id": "zameld_nr_bud",
-              "label": "Numer budynku",
-              "type": "TEXT_FIELD",
-              "required": true,
-              "quote": "Adres zameldowania (adres zameldowania może być inny niż adres zamieszkania)"
-            },
-            {
-              "id": "zameld_nr_lok",
-              "label": "Numer lokalu",
-              "type": "TEXT_FIELD",
-              "required": false,
-              "quote": "Adres zameldowania (adres zameldowania może być inny niż adres zamieszkania)"
-            },
-            {
-              "id": "kand_koresp_inny",
+              "id": "f13",
               "label": "Czy adres do korespondencji kandydata jest inny niż adres zameldowania?",
               "type": "RADIO",
               "required": true,
@@ -320,11 +211,11 @@
           ]
         },
         {
-          "id": "s_kand_koresp",
+          "id": "s8",
           "title": "Adres do korespondencji kandydata",
-          "quote": "Adres do korespondencji (jeśli różni się od adresu zameldowania)",
+          "address": true,
           "show_if": {
-            "field": "kand_koresp_inny",
+            "field": "f13",
             "options": [
               "Tak"
             ],
@@ -332,48 +223,19 @@
           },
           "fields": [
             {
-              "id": "kand_kor_miejsc",
-              "label": "Miejscowość",
+              "id": "f14",
+              "label": "Adres do korespondencji",
               "type": "TEXT_FIELD",
               "required": true,
-              "quote": "Adres do korespondencji (jeśli różni się od adresu zameldowania)"
-            },
-            {
-              "id": "kand_kor_kod",
-              "label": "Kod pocztowy",
-              "type": "TEXT_FIELD",
-              "required": true,
-              "quote": "Adres do korespondencji (jeśli różni się od adresu zameldowania)"
-            },
-            {
-              "id": "kand_kor_ulica",
-              "label": "Ulica",
-              "type": "TEXT_FIELD",
-              "required": false,
-              "quote": "Adres do korespondencji (jeśli różni się od adresu zameldowania)"
-            },
-            {
-              "id": "kand_kor_nr_bud",
-              "label": "Numer budynku",
-              "type": "TEXT_FIELD",
-              "required": true,
-              "quote": "Adres do korespondencji (jeśli różni się od adresu zameldowania)"
-            },
-            {
-              "id": "kand_kor_nr_lok",
-              "label": "Numer lokalu",
-              "type": "TEXT_FIELD",
-              "required": false,
               "quote": "Adres do korespondencji (jeśli różni się od adresu zameldowania)"
             }
           ]
         },
         {
-          "id": "s_dyscypliny",
+          "id": "s9",
           "title": "Dyscypliny sportowe",
-          "quote": "Dyscypliny sportowe",
           "show_if": {
-            "field": "rodzaj",
+            "field": "f1",
             "options": [
               "Stypendium sportowe"
             ],
@@ -381,55 +243,55 @@
           },
           "fields": [
             {
-              "id": "dysc_rodzaj",
+              "id": "f15",
               "label": "W jakich rodzajach dyscyplin startuje kandydat?",
               "type": "CHECKBOX",
               "required": true,
               "options": [
-                "zespołowa",
-                "indywidualna – inna",
-                "indywidualna – lekkoatletyka"
+                "Zespołowa",
+                "Indywidualna – inna",
+                "Indywidualna – lekkoatletyka"
               ],
               "quote": "Wskaż rodzaje dyscyplin sportowych, w których bierze udział osoba objęta wnioskiem,"
             },
             {
-              "id": "dyscypliny",
+              "id": "f16",
               "label": "Dyscypliny sportowe",
               "type": "CHECKBOX",
               "required": true,
               "options": [
-                "gimnastyka artystyczna",
-                "hokej",
-                "karate",
-                "kolarstwo",
-                "koszykówka",
-                "lekkoatletyka",
-                "łucznictwo",
-                "łyżwiarstwo",
-                "narciarstwo klasyczne",
-                "piłka nożna",
-                "piłka ręczna",
-                "piłka siatkowa",
-                "piłka wodna",
-                "sport motocyklowy",
-                "sporty walki",
-                "sporty wodne",
-                "tenis stołowy",
-                "tenis ziemny",
-                "unihokej",
-                "zapasy",
+                "Gimnastyka artystyczna",
+                "Hokej",
+                "Karate",
+                "Kolarstwo",
+                "Koszykówka",
+                "Lekkoatletyka",
+                "Łucznictwo",
+                "Łyżwiarstwo",
+                "Narciarstwo klasyczne",
+                "Piłka nożna",
+                "Piłka ręczna",
+                "Piłka siatkowa",
+                "Piłka wodna",
+                "Sport motocyklowy",
+                "Sporty walki",
+                "Sporty wodne",
+                "Tenis stołowy",
+                "Tenis ziemny",
+                "Unihokej",
+                "Zapasy",
                 "Inna"
               ],
               "quote": "a następnie wybierz konkretne dyscypliny z listy:"
             },
             {
-              "id": "dysc_inna",
+              "id": "f17",
               "label": "Nazwa innej dyscypliny",
               "type": "TEXT_FIELD",
               "required": true,
               "quote": "Inna dyscyplina",
               "show_if": {
-                "field": "dyscypliny",
+                "field": "f16",
                 "options": [
                   "Inna"
                 ],
@@ -442,14 +304,12 @@
     },
     {
       "title": "Osiągnięcia i opinia",
-      "quote": "3. Osiągnięcia sportowe",
       "sections": [
         {
-          "id": "s_osiagniecia",
+          "id": "s10",
           "title": "Osiągnięcia sportowe",
-          "quote": "3. Osiągnięcia sportowe",
           "show_if": {
-            "field": "rodzaj",
+            "field": "f1",
             "options": [
               "Stypendium sportowe",
               "Nagroda sportowa"
@@ -458,7 +318,7 @@
           },
           "fields": [
             {
-              "id": "osiagniecia",
+              "id": "f18",
               "label": "Opisz najważniejsze osiągnięcia sportowe kandydata",
               "type": "TEXTAREA",
               "required": true,
@@ -468,12 +328,11 @@
           ]
         },
         {
-          "id": "s_podopieczni",
+          "id": "s11",
           "title": "Podopieczny trenera",
           "repeating": true,
-          "quote": "3. Dane podopiecznych trenera",
           "show_if": {
-            "field": "rodzaj",
+            "field": "f1",
             "options": [
               "Wyróżnienie sportowe"
             ],
@@ -481,58 +340,49 @@
           },
           "fields": [
             {
-              "id": "pod_imie",
+              "id": "f19",
               "label": "Imię",
               "type": "TEXT_FIELD",
               "required": true,
               "quote": "Imię i nazwisko zawodniczki/zawodnika"
             },
             {
-              "id": "pod_nazwisko",
+              "id": "f20",
               "label": "Nazwisko",
               "type": "TEXT_FIELD",
               "required": true,
               "quote": "Imię i nazwisko zawodniczki/zawodnika"
             },
             {
-              "id": "pod_osiagniecia",
+              "id": "f21",
               "label": "Osiągnięcia sportowe podopiecznego",
               "type": "TEXTAREA",
               "required": true,
               "description": "Wpisz osiągnięcia, które mają być brane pod uwagę przy ocenie wniosku.",
               "quote": "Osiągnięcia sportowe podopiecznego kandydata, które będą brane pod uwagę przy ocenie"
-            },
-            {
-              "id": "pod_zgoda",
-              "label": "Zgoda podopiecznego",
-              "type": "FILE_UPLOADER",
-              "required": true,
-              "description": "Podpisana zgoda na przetwarzanie danych osobowych i oświadczenie o akceptacji regulaminu. Za osobę niepełnoletnią podpisuje rodzic lub opiekun prawny.",
-              "quote": "Dokument należy wypełnić odrębnie dla każdego podopiecznego trenera, który został wskazany"
             }
           ]
         },
         {
-          "id": "s_opinia",
+          "id": "s12",
           "title": "Opinia klubu",
-          "quote": "Opinia macierzystego klubu sportowego",
           "fields": [
             {
-              "id": "opinia",
-              "label": "Opinia macierzystego klubu o postawie etycznej i moralnej kandydata",
+              "id": "f22",
+              "label": "Opinia klubu o kandydacie",
               "type": "TEXTAREA",
               "required": true,
-              "quote": "Opinia macierzystego klubu sportowego, potwierdzająca nienaganną postawę etyczną"
+              "quote": "Opinia macierzystego klubu sportowego, potwierdzająca nienaganną postawę etyczną",
+              "description": "Klub, w którym kandydat trenuje, potwierdza jego postawę etyczną i moralną."
             }
           ]
         },
         {
-          "id": "s_dodatkowe",
+          "id": "s13",
           "title": "Dodatkowe informacje",
-          "quote": "Dodatkowe informacje o osiągnieciach sportowych",
           "fields": [
             {
-              "id": "dodatkowe",
+              "id": "f23",
               "label": "Dodatkowe informacje o kandydacie",
               "type": "TEXTAREA",
               "required": false,
@@ -543,55 +393,44 @@
       ]
     },
     {
-      "title": "Załączniki i zgoda",
-      "quote": "Wymagane zaświadczenia",
+      "title": "Załączniki",
       "sections": [
         {
-          "id": "s_zalaczniki",
+          "id": "s14",
           "title": "Załączniki",
-          "quote": "Wymagane zaświadczenia",
           "fields": [
             {
-              "id": "zaswiadczenia",
-              "label": "Zaświadczenia potwierdzające osiągnięcia sportowe",
+              "id": "f24",
+              "label": "Plik z zaświadczeniami potwierdzającymi osiągnięcia sportowe",
               "type": "FILE_UPLOADER",
               "required": true,
               "description": "Zaświadczenia polskiego związku sportowego danej dyscypliny lub inne oficjalne dokumenty, na przykład komunikaty z zawodów. Przy wyróżnieniu dołącz zaświadczenia podopiecznych.",
               "quote": "Do wniosku należy załączyć zaświadczenia wydane przez Polski Związek Sportowy odpowiedni"
             },
             {
-              "id": "dyplomy",
-              "label": "Dyplomy lub inne dokumenty potwierdzające osiągnięcia",
+              "id": "f25",
+              "label": "Plik z dyplomami lub innymi dokumentami potwierdzającymi osiągnięcia",
               "type": "FILE_UPLOADER",
               "required": false,
               "quote": "Do wniosku można dołączyć dyplomy lub inne dokumenty potwierdzające opisane osiągnięcia"
             },
             {
-              "id": "opinia_plik",
-              "label": "Dokument z opinią klubu",
+              "id": "f26",
+              "label": "Plik z opinią klubu",
               "type": "FILE_UPLOADER",
               "required": false,
               "quote": "Do wniosku można dołączyć dokument z opinią klubu"
-            }
-          ]
-        },
-        {
-          "id": "s_zgoda",
-          "title": "Zgoda kandydata",
-          "quote": "5. Zgody",
-          "fields": [
-            {
-              "id": "zgoda_kandydata",
-              "label": "Zgoda kandydata",
-              "type": "FILE_UPLOADER",
-              "required": true,
-              "description": "Podpisana zgoda na przetwarzanie danych osobowych i oświadczenie o akceptacji regulaminu. Za osobę niepełnoletnią podpisuje rodzic lub opiekun prawny.",
-              "quote": "Zgoda w imieniu kandydata nieletniego"
             }
           ]
         }
       ]
     }
   ],
-  "statements": []
+  "statements": [
+    {
+      "text": "Mam podpisane zgody osób, których dotyczy wniosek (lub ich rodziców albo opiekunów prawnych), na przetwarzanie danych i akceptację regulaminu.",
+      "required": true,
+      "quote": "Wypełniony formularz zgody przechowuje właściwy administrator"
+    }
+  ]
 }

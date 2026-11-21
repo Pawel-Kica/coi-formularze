@@ -67,6 +67,10 @@ class Section(BaseModel):
     title: str
     repeating: bool = False  # e.g. "kolejny pies", "kolejna nieruchomość"
     description: str = ""  # short intro shown under the section title (plain language), optional
+    # The section is a postal address (e.g. "Adres korespondencyjny", "Adres nieruchomości"):
+    # code replaces its fields with the Standards address block (Kraj/TERYT dictionaries,
+    # foreign variant). List the paper's address lines as plain fields anyway (for quotes).
+    address: bool = False
     fields: list[PlanField] = Field(min_length=1)
     show_if: Condition | None = None
 

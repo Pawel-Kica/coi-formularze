@@ -15,22 +15,20 @@
   "pages": [
     {
       "title": "Składający deklarację",
-      "quote": "B. DANE PODMIOTU ZOBOWIĄZANEGO DO ZŁOŻENIA DEKLARACJI",
       "sections": [
         {
-          "id": "s_skladajacy",
+          "id": "s1",
           "title": "Składający deklarację",
-          "quote": "B.1 DANE IDENTYFIKACYJNE",
           "fields": [
             {
-              "id": "rola",
+              "id": "f1",
               "label": "Kim jesteś wobec nieruchomości?",
               "type": "SELECT",
               "required": true,
               "options": [
-                "Właściciel/współwłaściciel",
-                "Współwłaściciel (wspólność majątkowa)",
-                "Najemca/dzierżawca",
+                "Właściciel lub współwłaściciel",
+                "Współwłaściciel razem z małżonkiem (wspólność majątkowa)",
+                "Najemca lub dzierżawca",
                 "Wspólnota mieszkaniowa",
                 "Spółdzielnia mieszkaniowa",
                 "Inny podmiot posiadający nieruchomość w zarządzie lub użytkowaniu"
@@ -38,13 +36,13 @@
               "quote": "Składający deklarację (zaznaczyć właściwą kratkę)"
             },
             {
-              "id": "rola_inny",
+              "id": "f2",
               "label": "Jaki to podmiot? Podaj jego dokładne dane",
               "type": "TEXTAREA",
               "required": true,
               "quote": "w zarządzie lub użytkowaniu (należy podać jaki oraz dokładne dane)",
               "show_if": {
-                "field": "rola",
+                "field": "f1",
                 "options": [
                   "Inny podmiot posiadający nieruchomość w zarządzie lub użytkowaniu"
                 ],
@@ -52,7 +50,7 @@
               }
             },
             {
-              "id": "adres_urzedowy",
+              "id": "f3",
               "label": "Czy Twój adres zamieszkania lub siedziby ma urzędowo nadany numer?",
               "type": "RADIO",
               "required": true,
@@ -63,13 +61,13 @@
               "quote": "wypełnić jeżeli nieruchomość nie ma urzędowo nadanego adresu"
             },
             {
-              "id": "adres_dzialki",
+              "id": "f4",
               "label": "Numer działki lub działek",
               "type": "TEXT_FIELD",
               "required": true,
               "quote": "Numer/y działki/działek",
               "show_if": {
-                "field": "adres_urzedowy",
+                "field": "f3",
                 "options": [
                   "Nie"
                 ],
@@ -77,7 +75,7 @@
               }
             },
             {
-              "id": "koresp_inny",
+              "id": "f5",
               "label": "Czy adres do korespondencji jest inny niż adres zamieszkania lub siedziby?",
               "type": "RADIO",
               "required": true,
@@ -90,89 +88,74 @@
           ]
         },
         {
-          "id": "s_wspolmalzonek",
+          "id": "s2",
           "title": "Dane współmałżonka",
-          "quote": "B.2 DANE IDENTYFIKACYJNE WSPÓŁMAŁŻONKA",
           "show_if": {
-            "field": "rola",
+            "field": "f1",
             "options": [
-              "Współwłaściciel (wspólność majątkowa)"
+              "Współwłaściciel razem z małżonkiem (wspólność majątkowa)"
             ],
             "quote": "wypełnić tylko w przypadku zaznaczenia kratki w poz. B 1.1.2"
           },
           "fields": [
             {
-              "id": "wsp_imie",
+              "id": "f6",
               "label": "Imię",
               "type": "TEXT_FIELD",
               "required": true,
               "quote": "5. Nazwisko, imię"
             },
             {
-              "id": "wsp_nazwisko",
+              "id": "f7",
               "label": "Nazwisko",
               "type": "TEXT_FIELD",
               "required": true,
               "quote": "5. Nazwisko, imię"
             },
             {
-              "id": "wsp_pesel",
+              "id": "f8",
               "label": "Numer PESEL",
               "type": "TEXT_FIELD",
               "required": true,
               "quote": "7. PESEL"
             },
             {
-              "id": "wsp_miejsc",
-              "label": "Miejscowość",
-              "type": "TEXT_FIELD",
-              "required": true,
-              "quote": "6. Adres zamieszkania"
-            },
-            {
-              "id": "wsp_kod",
-              "label": "Kod pocztowy",
-              "type": "TEXT_FIELD",
-              "required": true,
-              "quote": "6. Adres zamieszkania"
-            },
-            {
-              "id": "wsp_ulica",
-              "label": "Ulica",
-              "type": "TEXT_FIELD",
-              "required": false,
-              "quote": "6. Adres zamieszkania"
-            },
-            {
-              "id": "wsp_nr_bud",
-              "label": "Numer budynku",
-              "type": "TEXT_FIELD",
-              "required": true,
-              "quote": "6. Adres zamieszkania"
-            },
-            {
-              "id": "wsp_nr_lok",
-              "label": "Numer lokalu",
-              "type": "TEXT_FIELD",
-              "required": false,
-              "quote": "6. Adres zamieszkania"
-            },
-            {
-              "id": "wsp_podpis",
+              "id": "f9",
               "label": "Podpis współmałżonka",
               "type": "TEXT_BLOCK",
               "required": false,
-              "description": "Deklarację musi podpisać także współmałżonek.",
+              "description": "Deklarację podpisuje także współmałżonek.",
               "quote": "78. Podpis współmałżonka"
             }
           ]
         },
         {
-          "id": "s_koresp",
-          "title": "Adres do korespondencji",
-          "quote": "B.4 ADRES DO KORESPONDENCJI",
+          "id": "s3",
+          "title": "Adres zamieszkania współmałżonka",
+          "address": true,
           "show_if": {
-            "field": "koresp_inny",
+            "field": "f1",
+            "options": [
+              "Współwłaściciel razem z małżonkiem (wspólność majątkowa)"
+            ],
+            "quote": "wypełnić tylko w przypadku zaznaczenia kratki w poz. B 1.1.2"
+          },
+          "fields": [
+            {
+              "id": "f10",
+              "label": "Adres zamieszkania",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "6. Adres zamieszkania"
+            }
+          ]
+        },
+        {
+          "id": "s4",
+          "title": "Adres do korespondencji",
+          "address": true,
+          "show_if": {
+            "field": "f5",
             "options": [
               "Tak"
             ],
@@ -180,60 +163,39 @@
           },
           "fields": [
             {
-              "id": "kor_kraj",
-              "label": "Kraj",
-              "type": "TEXT_FIELD",
-              "required": true,
-              "quote": "17. Kraj"
-            },
-            {
-              "id": "kor_woj",
-              "label": "Województwo",
-              "type": "TEXT_FIELD",
-              "required": true,
-              "quote": "18. Województwo"
-            },
-            {
-              "id": "kor_gmina",
-              "label": "Gmina",
-              "type": "TEXT_FIELD",
-              "required": true,
-              "quote": "19. Gmina"
-            },
-            {
-              "id": "kor_miejsc",
+              "id": "f11",
               "label": "Miejscowość",
               "type": "TEXT_FIELD",
               "required": true,
               "quote": "20. Miejscowość"
             },
             {
-              "id": "kor_ulica",
+              "id": "f12",
+              "label": "Kod pocztowy",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "24. Kod pocztowy"
+            },
+            {
+              "id": "f13",
               "label": "Ulica",
               "type": "TEXT_FIELD",
               "required": false,
               "quote": "21. Ulica"
             },
             {
-              "id": "kor_nr_bud",
+              "id": "f14",
               "label": "Numer budynku",
               "type": "TEXT_FIELD",
               "required": true,
               "quote": "22. Numer nieruchomości/domu"
             },
             {
-              "id": "kor_nr_lok",
+              "id": "f15",
               "label": "Numer lokalu",
               "type": "TEXT_FIELD",
               "required": false,
               "quote": "23. Numer lokalu"
-            },
-            {
-              "id": "kor_kod",
-              "label": "Kod pocztowy",
-              "type": "TEXT_FIELD",
-              "required": true,
-              "quote": "24. Kod pocztowy"
             }
           ]
         }
@@ -241,15 +203,13 @@
     },
     {
       "title": "Powód złożenia deklaracji",
-      "quote": "C. OKOLICZNOŚCI UZASADNIAJĄCE ZŁOŻENIE DEKLARACJI",
       "sections": [
         {
-          "id": "s_okolicznosci",
+          "id": "s5",
           "title": "Powód złożenia deklaracji",
-          "quote": "25. Okoliczności",
           "fields": [
             {
-              "id": "okolicznosc",
+              "id": "f16",
               "label": "Dlaczego składasz deklarację?",
               "type": "RADIO",
               "required": true,
@@ -262,14 +222,14 @@
               "quote": "25. Okoliczności"
             },
             {
-              "id": "data_powstania",
+              "id": "f17",
               "label": "Data powstania obowiązku opłaty",
               "type": "DATEPICKER",
               "required": true,
               "description": "To dzień, w którym na nieruchomości zamieszkał pierwszy mieszkaniec albo powstały pierwsze odpady komunalne.",
               "quote": "pierwsza deklaracja - data zdarzenia powodującego",
               "show_if": {
-                "field": "okolicznosc",
+                "field": "f16",
                 "options": [
                   "Pierwsza deklaracja"
                 ],
@@ -277,13 +237,13 @@
               }
             },
             {
-              "id": "data_zmiany",
+              "id": "f18",
               "label": "Data zmiany danych",
               "type": "DATEPICKER",
               "required": true,
               "quote": "data wystąpienia zmiany danych:",
               "show_if": {
-                "field": "okolicznosc",
+                "field": "f16",
                 "options": [
                   "Nowa deklaracja ze względu na zmianę danych",
                   "Korekta złożonej deklaracji"
@@ -292,13 +252,13 @@
               }
             },
             {
-              "id": "data_ustania",
+              "id": "f19",
               "label": "Data ustania obowiązku opłaty",
               "type": "DATEPICKER",
               "required": true,
               "quote": "ustanie obowiązku uiszczania opłaty – data zdarzenia",
               "show_if": {
-                "field": "okolicznosc",
+                "field": "f16",
                 "options": [
                   "Ustanie obowiązku uiszczania opłaty"
                 ],
@@ -311,52 +271,43 @@
     },
     {
       "title": "Nieruchomość",
-      "quote": "D. DANE ADRESOWE NIERUCHOMOŚCI, NA KTÓREJ POWSTAJĄ I SĄ GROMADZONE ODPADY",
       "sections": [
         {
-          "id": "s_nier_adres",
+          "id": "s6",
           "title": "Adres nieruchomości",
-          "quote": "D.1 ADRES NIERUCHOMOŚCI",
+          "description": "Deklaracja dotyczy nieruchomości w Gdyni. Jeśli masz kilka nieruchomości, dla każdej złóż osobną deklarację.",
+          "address": true,
           "fields": [
             {
-              "id": "nier_info",
-              "label": "Jedna deklaracja dla jednej nieruchomości",
-              "type": "TEXT_BLOCK",
-              "required": false,
-              "description": "Jeśli masz kilka nieruchomości, dla każdej złóż osobną deklarację.",
-              "quote": "Składający wypełnia odrębną deklarację dla każdej nieruchomości którą"
-            },
-            {
-              "id": "nier_miejsc",
+              "id": "f20",
               "label": "Miejscowość",
               "type": "TEXT_FIELD",
               "required": true,
-              "description": "Deklaracja dotyczy nieruchomości w Gdyni.",
               "quote": "26. Miejscowość"
             },
             {
-              "id": "nier_kod",
+              "id": "f21",
               "label": "Kod pocztowy",
               "type": "TEXT_FIELD",
               "required": true,
               "quote": "27. Kod pocztowy"
             },
             {
-              "id": "nier_ulica",
+              "id": "f22",
               "label": "Ulica",
               "type": "TEXT_FIELD",
               "required": false,
               "quote": "28. Ulica"
             },
             {
-              "id": "nier_nr_bud",
+              "id": "f23",
               "label": "Numer budynku",
               "type": "TEXT_FIELD",
               "required": true,
               "quote": "29. Numer nieruchomości/domu"
             },
             {
-              "id": "nier_nr_lok",
+              "id": "f24",
               "label": "Numer lokalu",
               "type": "TEXT_FIELD",
               "required": false,
@@ -365,12 +316,11 @@
           ]
         },
         {
-          "id": "s_nier_rodzaj",
+          "id": "s7",
           "title": "Rodzaj nieruchomości",
-          "quote": "D.3 DANE IDENTYFIKACYJNE",
           "fields": [
             {
-              "id": "rodzaj_nier",
+              "id": "f25",
               "label": "Czym zabudowana jest nieruchomość?",
               "type": "RADIO",
               "required": true,
@@ -381,7 +331,7 @@
               "quote": "33. Rodzaj nieruchomości"
             },
             {
-              "id": "czesc_niezamieszkala",
+              "id": "f26",
               "label": "Czy na części nieruchomości nie mieszkają mieszkańcy, ale powstają tam odpady komunalne?",
               "type": "RADIO",
               "required": true,
@@ -393,7 +343,7 @@
               "quote": "w części nieruchomość na której nie zamieszkują mieszkańcy, a powstają na niej odpady komunalne"
             },
             {
-              "id": "kompostownik",
+              "id": "f27",
               "label": "Czy nieruchomość ma przydomowy kompostownik, w którym kompostujesz bioodpady?",
               "type": "RADIO",
               "required": true,
@@ -404,7 +354,7 @@
               "description": "Jeśli tak, płacisz niższą opłatę.",
               "quote": "Oświadczam, że nieruchomość wyposażona jest w przydomowy kompostownik, w którym kompostowane są",
               "show_if": {
-                "field": "rodzaj_nier",
+                "field": "f25",
                 "options": [
                   "Budynek mieszkalny jednorodzinny"
                 ],
@@ -412,7 +362,7 @@
               }
             },
             {
-              "id": "osobne_miejsce",
+              "id": "f28",
               "label": "Czy składasz deklarację osobno dla budynku lub części budynku, która ma własne miejsce gromadzenia odpadów?",
               "type": "RADIO",
               "required": true,
@@ -422,7 +372,7 @@
               ],
               "quote": "Wypełniamy wyłącznie w przypadku, w którym właściciel nieruchomości",
               "show_if": {
-                "field": "rodzaj_nier",
+                "field": "f25",
                 "options": [
                   "Budynek mieszkalny wielolokalowy"
                 ],
@@ -432,11 +382,10 @@
           ]
         },
         {
-          "id": "s_miejsce_odpadow",
+          "id": "s8",
           "title": "Miejsce gromadzenia odpadów",
-          "quote": "D.2    MIEJSCE GROMADZENIA ODPADÓW",
           "show_if": {
-            "field": "osobne_miejsce",
+            "field": "f28",
             "options": [
               "Tak"
             ],
@@ -444,7 +393,7 @@
           },
           "fields": [
             {
-              "id": "pojemniki_miejsce",
+              "id": "f29",
               "label": "Gdzie stoją pojemniki na odpady?",
               "type": "TEXTAREA",
               "required": true,
@@ -452,7 +401,7 @@
               "quote": "31. Adres lub opis miejsca lokalizacji pojemników"
             },
             {
-              "id": "pojemniki_dzialki",
+              "id": "f30",
               "label": "Numer działki lub działek geodezyjnych",
               "type": "TEXT_FIELD",
               "required": false,
@@ -464,15 +413,13 @@
     },
     {
       "title": "Wysokość opłaty",
-      "quote": "E. OŚWIADCZENIE O WYSOKOŚCI OPŁATY ZA GOSPODAROWANIE ODPADAMI KOMUNALNYMI",
       "sections": [
         {
-          "id": "s_jak_obliczyc",
+          "id": "s9",
           "title": "Jak obliczyć opłatę",
-          "quote": "Opłata stanowi sumę iloczynów ilości gospodarstw domowych",
           "fields": [
             {
-              "id": "jak_info",
+              "id": "f31",
               "label": "Jak obliczyć opłatę",
               "type": "TEXT_BLOCK",
               "required": false,
@@ -482,11 +429,10 @@
           ]
         },
         {
-          "id": "s_e1",
+          "id": "s10",
           "title": "Opłata za lokale mieszkalne",
-          "quote": "E.1 OBLICZENIE WYSOKOŚCI OPŁATY DLA NIERUCHOMOŚCI",
           "show_if": {
-            "field": "kompostownik",
+            "field": "f27",
             "options": [
               "Tak"
             ],
@@ -495,7 +441,7 @@
           },
           "fields": [
             {
-              "id": "e1_liczba_1",
+              "id": "f32",
               "label": "Liczba gospodarstw domowych w lokalach do 45 m²",
               "type": "NUMBER",
               "required": false,
@@ -503,7 +449,7 @@
               "quote": "36. Liczba gospodarstw domowych zajmujących"
             },
             {
-              "id": "e1_kwota_1",
+              "id": "f33",
               "label": "Opłata za lokale do 45 m² (zł)",
               "type": "NUMBER",
               "required": false,
@@ -511,39 +457,39 @@
               "quote": "38. Wysokość miesięcznej opłaty"
             },
             {
-              "id": "e1_liczba_2",
-              "label": "Liczba gospodarstw domowych w lokalach od 45 do 60 m²",
+              "id": "f34",
+              "label": "Liczba gospodarstw domowych w lokalach powyżej 45 do 60 m²",
               "type": "NUMBER",
               "required": false,
               "description": "Stawka: 69 zł miesięcznie od gospodarstwa domowego.",
               "quote": "39. Liczba gospodarstw domowych zajmujących"
             },
             {
-              "id": "e1_kwota_2",
-              "label": "Opłata za lokale od 45 do 60 m² (zł)",
+              "id": "f35",
+              "label": "Opłata za lokale powyżej 45 do 60 m² (zł)",
               "type": "NUMBER",
               "required": false,
               "description": "Liczba gospodarstw domowych × 69 zł.",
               "quote": "41. Wysokość miesięcznej opłaty"
             },
             {
-              "id": "e1_liczba_3",
-              "label": "Liczba gospodarstw domowych w lokalach od 60 do 80 m²",
+              "id": "f36",
+              "label": "Liczba gospodarstw domowych w lokalach powyżej 60 do 80 m²",
               "type": "NUMBER",
               "required": false,
               "description": "Stawka: 81 zł miesięcznie od gospodarstwa domowego.",
               "quote": "42. Liczba gospodarstw domowych zajmujących"
             },
             {
-              "id": "e1_kwota_3",
-              "label": "Opłata za lokale od 60 do 80 m² (zł)",
+              "id": "f37",
+              "label": "Opłata za lokale powyżej 60 do 80 m² (zł)",
               "type": "NUMBER",
               "required": false,
               "description": "Liczba gospodarstw domowych × 81 zł.",
               "quote": "44. Wysokość miesięcznej opłaty"
             },
             {
-              "id": "e1_liczba_4",
+              "id": "f38",
               "label": "Liczba gospodarstw domowych w lokalach powyżej 80 m²",
               "type": "NUMBER",
               "required": false,
@@ -551,7 +497,7 @@
               "quote": "45. Liczba gospodarstw domowych zajmujących"
             },
             {
-              "id": "e1_kwota_4",
+              "id": "f39",
               "label": "Opłata za lokale powyżej 80 m² (zł)",
               "type": "NUMBER",
               "required": false,
@@ -559,7 +505,7 @@
               "quote": "47. Wysokość miesięcznej opłaty"
             },
             {
-              "id": "e1_zw_liczba",
+              "id": "f40",
               "label": "Liczba gospodarstw domowych ze zwolnieniem dochodowym",
               "type": "NUMBER",
               "required": false,
@@ -567,29 +513,28 @@
               "quote": "48. Liczba gospodarstw domowych objętych"
             },
             {
-              "id": "e1_zw_kwota",
+              "id": "f41",
               "label": "Kwota zwolnienia (zł)",
               "type": "NUMBER",
               "required": false,
               "description": "Liczba gospodarstw domowych ze zwolnieniem × 15 zł.",
-              "quote": "50. Wysokość miesięcznego"
+              "quote": "50. Wysokość"
             },
             {
-              "id": "e1_suma",
+              "id": "f42",
               "label": "Opłata po odjęciu zwolnienia (zł)",
               "type": "NUMBER",
-              "required": true,
+              "required": false,
               "description": "Dodaj opłaty za wszystkie grupy lokali i odejmij kwotę zwolnienia.",
               "quote": "51. SUMA poz. 38, 41, 44 i 47"
             }
           ]
         },
         {
-          "id": "s_e2",
+          "id": "s11",
           "title": "Opłata za lokale mieszkalne – z kompostownikiem",
-          "quote": "MIESZKALNYMI JEDNORODZINNYMI ZWOLNIONYCH Z CZĘŚCI OPŁATY",
           "show_if": {
-            "field": "kompostownik",
+            "field": "f27",
             "options": [
               "Tak"
             ],
@@ -597,7 +542,7 @@
           },
           "fields": [
             {
-              "id": "e2_liczba_1",
+              "id": "f43",
               "label": "Liczba gospodarstw domowych w lokalach do 45 m²",
               "type": "NUMBER",
               "required": false,
@@ -605,7 +550,7 @@
               "quote": "52. Liczba gospodarstw domowych zajmujących"
             },
             {
-              "id": "e2_kwota_1",
+              "id": "f44",
               "label": "Opłata za lokale do 45 m² (zł)",
               "type": "NUMBER",
               "required": false,
@@ -613,39 +558,39 @@
               "quote": "54. Wysokość miesięcznej opłaty"
             },
             {
-              "id": "e2_liczba_2",
-              "label": "Liczba gospodarstw domowych w lokalach od 45 do 60 m²",
+              "id": "f45",
+              "label": "Liczba gospodarstw domowych w lokalach powyżej 45 do 60 m²",
               "type": "NUMBER",
               "required": false,
               "description": "Stawka: 59 zł miesięcznie od gospodarstwa domowego.",
               "quote": "55. Liczba gospodarstw domowych zajmujących"
             },
             {
-              "id": "e2_kwota_2",
-              "label": "Opłata za lokale od 45 do 60 m² (zł)",
+              "id": "f46",
+              "label": "Opłata za lokale powyżej 45 do 60 m² (zł)",
               "type": "NUMBER",
               "required": false,
               "description": "Liczba gospodarstw domowych × 59 zł.",
               "quote": "57. Wysokość miesięcznej opłaty"
             },
             {
-              "id": "e2_liczba_3",
-              "label": "Liczba gospodarstw domowych w lokalach od 60 do 80 m²",
+              "id": "f47",
+              "label": "Liczba gospodarstw domowych w lokalach powyżej 60 do 80 m²",
               "type": "NUMBER",
               "required": false,
               "description": "Stawka: 71 zł miesięcznie od gospodarstwa domowego.",
               "quote": "58. Liczba gospodarstw domowych zajmujących"
             },
             {
-              "id": "e2_kwota_3",
-              "label": "Opłata za lokale od 60 do 80 m² (zł)",
+              "id": "f48",
+              "label": "Opłata za lokale powyżej 60 do 80 m² (zł)",
               "type": "NUMBER",
               "required": false,
               "description": "Liczba gospodarstw domowych × 71 zł.",
               "quote": "60. Wysokość miesięcznej opłaty"
             },
             {
-              "id": "e2_liczba_4",
+              "id": "f49",
               "label": "Liczba gospodarstw domowych w lokalach powyżej 80 m²",
               "type": "NUMBER",
               "required": false,
@@ -653,7 +598,7 @@
               "quote": "61. Liczba gospodarstw domowych zajmujących"
             },
             {
-              "id": "e2_kwota_4",
+              "id": "f50",
               "label": "Opłata za lokale powyżej 80 m² (zł)",
               "type": "NUMBER",
               "required": false,
@@ -661,7 +606,7 @@
               "quote": "63. Wysokość miesięcznej opłaty"
             },
             {
-              "id": "e2_zw_liczba",
+              "id": "f51",
               "label": "Liczba gospodarstw domowych ze zwolnieniem dochodowym",
               "type": "NUMBER",
               "required": false,
@@ -669,29 +614,28 @@
               "quote": "64. Liczba gospodarstw domowych objętych"
             },
             {
-              "id": "e2_zw_kwota",
+              "id": "f52",
               "label": "Kwota zwolnienia (zł)",
               "type": "NUMBER",
               "required": false,
               "description": "Liczba gospodarstw domowych ze zwolnieniem × 15 zł.",
-              "quote": "66. Wysokość miesięcznego"
+              "quote": "66. Wysokość"
             },
             {
-              "id": "e2_suma",
+              "id": "f53",
               "label": "Opłata po odjęciu zwolnienia (zł)",
               "type": "NUMBER",
-              "required": true,
+              "required": false,
               "description": "Dodaj opłaty za wszystkie grupy lokali i odejmij kwotę zwolnienia.",
               "quote": "67. SUMA poz. 54, 57, 60 i 63"
             }
           ]
         },
         {
-          "id": "s_e3",
+          "id": "s12",
           "title": "Opłata za część nieruchomości, na której nie mieszkają mieszkańcy",
-          "quote": "E.3 WYSOKOŚĆ OPŁATY DLA CZĘŚCI NIERUCHOMOŚCI NA KTÓREJ NIE",
           "show_if": {
-            "field": "czesc_niezamieszkala",
+            "field": "f26",
             "options": [
               "Tak"
             ],
@@ -699,7 +643,7 @@
           },
           "fields": [
             {
-              "id": "e3_kwota",
+              "id": "f54",
               "label": "Opłata za część nieruchomości, na której nie mieszkają mieszkańcy (zł)",
               "type": "NUMBER",
               "required": true,
@@ -709,20 +653,19 @@
           ]
         },
         {
-          "id": "s_e4",
+          "id": "s13",
           "title": "Łączna miesięczna opłata",
-          "quote": "E.4 RAZEM WYSOKOŚĆ MIESIĘCZNEJ OPŁATY",
           "fields": [
             {
-              "id": "e4_suma",
+              "id": "f55",
               "label": "Łączna miesięczna opłata (zł)",
               "type": "NUMBER",
-              "required": true,
+              "required": false,
               "description": "Opłata za lokale mieszkalne po odjęciu zwolnienia plus opłata za część nieruchomości, na której nie mieszkają mieszkańcy.",
               "quote": "69. SUMA poz. 51 lub 67 oraz 68"
             },
             {
-              "id": "pouczenie",
+              "id": "f56",
               "label": "Pouczenie",
               "type": "TEXT_BLOCK",
               "required": false,
@@ -732,19 +675,18 @@
           ]
         },
         {
-          "id": "s_zalaczniki",
+          "id": "s14",
           "title": "Załączniki",
-          "quote": "G. INFORMACJA O ZAŁĄCZNIKACH",
           "fields": [
             {
-              "id": "zal_ab",
-              "label": "Załącznik A lub B do deklaracji",
+              "id": "f57",
+              "label": "Plik z załącznikiem A lub B do deklaracji",
               "type": "FILE_UPLOADER",
               "required": true,
               "description": "Załącznik A dotyczy budynku jednorodzinnego, załącznik B budynku wielolokalowego.",
               "quote": "Składający deklarację, który zaznaczył kratkę TAK w poz. 34 zobowiązany jest do wypełnienia załącznika do deklaracji: A (w",
               "show_if": {
-                "field": "czesc_niezamieszkala",
+                "field": "f26",
                 "options": [
                   "Tak"
                 ],
@@ -752,8 +694,8 @@
               }
             },
             {
-              "id": "zal_inne",
-              "label": "Inne dokumenty",
+              "id": "f58",
+              "label": "Plik z innymi dokumentami",
               "type": "FILE_UPLOADER",
               "required": false,
               "quote": "4. Inne: (podać jakie)"

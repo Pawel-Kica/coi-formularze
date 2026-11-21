@@ -67,11 +67,16 @@ def _text_block(ctx, tech, html_text, query=None):
     return field(ctx, "TEXT_BLOCK", "", ctx.tech(tech), description=html_text, query=query)
 
 
-def _address(ctx: Ctx, title: str, section_tech: str, suffix: str, *, registry: bool,
-             query: str | None) -> dict:
-    """Address block per Standards: Kraj, then foreign or Polish fields by country."""
+def address_section(ctx: Ctx, title: str, section_tech: str, suffix: str, *, registry: bool,
+                    query: str | None, tab_title: str = DANE, description: str = "",
+                    register: bool = True) -> dict:
+    """Address block per Standards: Kraj, then foreign or Polish fields by country.
+
+    `register=False` when the caller already reserved `section_tech` via ctx.tech."""
+    if register:
+        section_tech = ctx.tech(section_tech)
     kraj = ctx.tech(f"kraj{suffix}")
-    poland = chosen("Polska", answer_path(DANE, section_tech, kraj))
+    poland = chosen("Polska", answer_path(tab_title, section_tech, kraj))
     abroad = negate(poland)
     reg = (lambda attr: f"MLPZ.{attr}") if registry else (lambda attr: None)
     fields = [
@@ -92,7 +97,7 @@ def _address(ctx: Ctx, title: str, section_tech: str, suffix: str, *, registry: 
               registry=reg("building")),
         _text(ctx, "Numer lokalu", f"numer_lokalu{suffix}", registry=reg("apartment")),
     ]
-    return section(ctx, title, ctx.tech(section_tech), fields, query=query)
+    return section(ctx, title, section_tech, fields, query=query, description=description)
 
 
 def dane_page(ctx: Ctx, plan: Plan) -> dict:
@@ -139,7 +144,7 @@ def dane_page(ctx: Ctx, plan: Plan) -> dict:
         own.append(_text(ctx, "Numer PESEL", "numer_pesel", required=True, extra_validators=["PESEL"],
                          registry="PESEL.pesel", read_only=True))
     sections.append(section(ctx, "Twoje dane", ctx.tech("twoje_dane"), own))
-    sections.append(_address(ctx, "Adres zamieszkania", "adres_zamieszkania", "", registry=True,
+    sections.append(address_section(ctx, "Adres zamieszkania", "adres_zamieszkania", "", registry=True,
                              query=None))
 
     if a.entity:
@@ -153,7 +158,7 @@ def dane_page(ctx: Ctx, plan: Plan) -> dict:
         if EntityId.KRS in ids:
             ent.append(_text(ctx, "Numer KRS", "numer_krs"))
         sections.append(section(ctx, "Dane podmiotu", ctx.tech("dane_podmiotu"), ent, query=on_entity))
-        sections.append(_address(ctx, "Adres siedziby", "adres_siedziby", "_siedziba", registry=False,
+        sections.append(address_section(ctx, "Adres siedziby", "adres_siedziby", "_siedziba", registry=False,
                                  query=on_entity))
         sections.append(section(
             ctx, "Potwierdzenie, że jesteś reprezentantem", ctx.tech("potwierdzenie_ze_jestes_reprezentantem"),
@@ -166,7 +171,7 @@ def dane_page(ctx: Ctx, plan: Plan) -> dict:
             _text(ctx, "Imię", "imie_inna_osoba", required=True),
             _text(ctx, "Nazwisko", "nazwisko_inna_osoba", required=True),
         ], query=on_other))  # fmt: skip
-        sections.append(_address(ctx, "Adres zamieszkania innej osoby",
+        sections.append(address_section(ctx, "Adres zamieszkania innej osoby",
                                  "adres_zamieszkania_osoby_ktorej_jestes_pelnomocnikiem", "_inna_osoba",
                                  registry=False, query=on_other))
 

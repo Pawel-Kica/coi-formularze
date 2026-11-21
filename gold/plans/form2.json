@@ -5,7 +5,9 @@
   "applicant": {
     "person": true,
     "entity": true,
-    "entity_ids": ["NIP"],
+    "entity_ids": [
+      "NIP"
+    ],
     "pesel": false,
     "proxy": true
   },
@@ -15,29 +17,84 @@
       "sections": [
         {
           "id": "s1",
-          "title": "Opłata skarbowa",
+          "title": "Zapłacona opłata",
           "fields": [
-            {"id": "f1", "label": "Data zapłaty opłaty", "type": "DATEPICKER", "required": true, "quote": "Data uiszczenia opłaty"},
-            {"id": "f2", "label": "Kwota opłaty", "type": "NUMBER", "required": true, "description": "Podaj kwotę w złotych.", "quote": "Wysokość opłaty"},
-            {"id": "f3", "label": "Nazwa urzędu, który otrzymał opłatę", "type": "TEXT_FIELD", "required": true, "quote": "w którym zapłacono opłatę"}
+            {
+              "id": "f1",
+              "label": "Data zapłaty opłaty",
+              "type": "DATEPICKER",
+              "required": true,
+              "quote": "Data uiszczenia opłaty"
+            },
+            {
+              "id": "f2",
+              "label": "Kwota opłaty",
+              "type": "NUMBER",
+              "required": true,
+              "description": "Podaj kwotę w złotych.",
+              "quote": "Wysokość opłaty"
+            },
+            {
+              "id": "f3",
+              "label": "Nazwa urzędu, który otrzymał opłatę",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "w którym zapłacono opłatę"
+            },
+            {
+              "id": "f4",
+              "label": "Uzasadnienie",
+              "type": "TEXTAREA",
+              "required": true,
+              "description": "Opisz, dlaczego Twoim zdaniem opłata skarbowa została zapłacona błędnie.",
+              "quote": "dlaczego opłata skarbowa, której dotyczy wniosek została błędnie uiszczona"
+            }
           ]
         },
         {
           "id": "s2",
-          "title": "Uzasadnienie",
-          "fields": [
-            {"id": "f4", "label": "Uzasadnienie", "type": "TEXTAREA", "required": true, "description": "Opisz, dlaczego Twoim zdaniem opłata skarbowa została zapłacona błędnie.", "quote": "dlaczego opłata skarbowa, której dotyczy wniosek została błędnie uiszczona"}
-          ]
-        },
-        {
-          "id": "s3",
           "title": "Sposób zwrotu opłaty",
           "fields": [
-            {"id": "f5", "label": "Jak chcesz otrzymać zwrot opłaty?", "type": "RADIO", "required": true, "options": ["Gotówką w kasie urzędu", "Przelewem na rachunek bankowy"], "quote": "Informacje dotyczące sposobu zwrotu opłaty skarbowej"},
-            {"id": "f6", "label": "Numer rachunku", "type": "TEXT_FIELD", "required": true, "quote": "Nr rachunku",
-             "show_if": {"field": "f5", "options": ["Przelewem na rachunek bankowy"], "quote": "Jeśli wybierzesz tę formę, wpisz poniżej nr rachunku i dane jego właściciela"}},
-            {"id": "f7", "label": "Właściciel rachunku", "type": "TEXT_FIELD", "required": true, "description": "Wpisz imię i nazwisko albo nazwę firmy.", "quote": "Dane właściciela",
-             "show_if": {"field": "f5", "options": ["Przelewem na rachunek bankowy"], "quote": "Jeśli wybierzesz tę formę, wpisz poniżej nr rachunku i dane jego właściciela"}}
+            {
+              "id": "f5",
+              "label": "Wybierz, jak chcesz otrzymać zwrot opłaty",
+              "type": "RADIO",
+              "required": true,
+              "options": [
+                "Gotówką w kasie urzędu",
+                "Przelewem na rachunek bankowy"
+              ],
+              "quote": "Informacje dotyczące sposobu zwrotu opłaty skarbowej"
+            },
+            {
+              "id": "f6",
+              "label": "Numer rachunku",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "Nr rachunku",
+              "show_if": {
+                "field": "f5",
+                "options": [
+                  "Przelewem na rachunek bankowy"
+                ],
+                "quote": "Jeśli wybierzesz tę formę, wpisz poniżej nr rachunku i dane jego właściciela"
+              }
+            },
+            {
+              "id": "f7",
+              "label": "Właściciel rachunku",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "description": "Wpisz imię i nazwisko albo nazwę firmy.",
+              "quote": "Dane właściciela",
+              "show_if": {
+                "field": "f5",
+                "options": [
+                  "Przelewem na rachunek bankowy"
+                ],
+                "quote": "Jeśli wybierzesz tę formę, wpisz poniżej nr rachunku i dane jego właściciela"
+              }
+            }
           ]
         }
       ]

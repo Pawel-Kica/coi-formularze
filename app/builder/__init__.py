@@ -25,7 +25,9 @@ from app.builder.core import (
     section,
     tab,
 )  # fmt: skip
-from app.builder.standard import CONTACT, DANE, FINISH, contact_page, dane_page, finish_page
+from app.builder.standard import (
+    CONTACT, DANE, FINISH, address_section, contact_page, dane_page, finish_page,
+)
 from app.plan import Condition, FieldType, Plan, PlanField
 from app.text import ascii_fold, html_paragraphs
 
@@ -142,6 +144,8 @@ def _plan_pages(ctx: Ctx, plan: Plan) -> list[dict]:
     for title, page in zip(titles, plan.pages):
         for s in page.sections:
             sec_tech[id(s)] = st = ctx.tech(s.title)
+            if s.address and not s.repeating:  # fields come from the Standards block
+                continue
             for f in s.fields:
                 fld_tech[id(f)] = ft = ctx.tech(f.label if f.type != FieldType.TEXT_BLOCK else f"info {f.label}")
                 opts = _options(f)
@@ -153,8 +157,14 @@ def _plan_pages(ctx: Ctx, plan: Plan) -> list[dict]:
         sections = []
         for s in page.sections:
             st = sec_tech[id(s)]
-            fields = [_field(ctx, f, fld_tech[id(f)], st, locs) for f in s.fields]
             desc = html_paragraphs(s.description) if s.description.strip() else ""
+            if s.address and not s.repeating:
+                suffix = "_" + (st.removeprefix("adres_") or st)
+                sections.append(address_section(ctx, s.title.strip(), st, suffix, registry=False,
+                                                query=_query(s.show_if, locs, st), tab_title=title,
+                                                description=desc, register=False))
+                continue
+            fields = [_field(ctx, f, fld_tech[id(f)], st, locs) for f in s.fields]
             sections.append(section(ctx, s.title.strip(), st, fields, description=desc,
                                     query=_query(s.show_if, locs, st), repeating=s.repeating))
         tabs.append(tab(ctx, title, sections))

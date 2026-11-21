@@ -17,44 +17,112 @@
           "id": "s1",
           "title": "Droga i miejsce robót",
           "fields": [
-            {"id": "f1", "label": "Numer drogi gminnej", "type": "TEXT_FIELD", "required": true, "quote": "nazwa drogi oraz jej nr"},
-            {"id": "f2", "label": "Nazwa drogi", "type": "TEXT_FIELD", "required": false, "description": "Na przykład nazwa ulicy.", "quote": "nazwa drogi oraz jej nr"},
-            {"id": "f3", "label": "Miejscowość", "type": "TEXT_FIELD", "required": true, "quote": "w miejscowości"},
-            {"id": "f4", "label": "Numer ewidencyjny działki", "type": "TEXT_FIELD", "required": true, "quote": "działka nr ewid."}
+            {
+              "id": "f1",
+              "label": "Numer drogi gminnej",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "nazwa drogi oraz jej nr"
+            },
+            {
+              "id": "f2",
+              "label": "Nazwa drogi",
+              "type": "TEXT_FIELD",
+              "required": false,
+              "description": "Na przykład nazwa ulicy.",
+              "quote": "nazwa drogi oraz jej nr"
+            },
+            {
+              "id": "f3",
+              "label": "Miejscowość",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "w miejscowości"
+            },
+            {
+              "id": "f4",
+              "label": "Numer ewidencyjny działki",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "działka nr ewid."
+            }
           ]
         },
         {
           "id": "s2",
           "title": "Roboty",
           "fields": [
-            {"id": "f5", "label": "Rodzaj robót", "type": "TEXT_FIELD", "required": true, "quote": "rodzaj robót i sposób wykonania"},
-            {"id": "f6", "label": "Sposób wykonania robót", "type": "TEXTAREA", "required": true, "quote": "rodzaj robót i sposób wykonania"}
+            {
+              "id": "f5",
+              "label": "Rodzaj robót",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "rodzaj robót i sposób wykonania"
+            },
+            {
+              "id": "f6",
+              "label": "Sposób wykonania robót",
+              "type": "TEXTAREA",
+              "required": true,
+              "quote": "rodzaj robót i sposób wykonania"
+            }
           ]
         },
         {
           "id": "s3",
           "title": "Zajmowana powierzchnia",
           "repeating": true,
+          "description": "Każdą zajmowaną część pasa drogowego dodaj osobno.",
           "fields": [
-            {"id": "f7", "label": "Część pasa drogowego", "type": "RADIO", "required": true,
-             "options": [
-               "Jezdnia (zajęcie do 20% szerokości)",
-               "Jezdnia (zajęcie powyżej 20% do 50% szerokości)",
-               "Jezdnia (zajęcie powyżej 50% szerokości)",
-               "Chodnik"
-             ],
-             "description": "Każdą zajmowaną część pasa drogowego dodaj osobno.",
-             "quote": "Powierzchnia pasa drogowego potrzebna do zajęcia w celu realizacji w/w zakresu robót"},
-            {"id": "f8", "label": "Długość (m)", "type": "NUMBER", "required": true, "quote": "długość"},
-            {"id": "f9", "label": "Szerokość (m)", "type": "NUMBER", "required": true, "quote": "szerokość"},
-            {"id": "f10", "label": "Powierzchnia (m²)", "type": "NUMBER", "required": true, "quote": "razem"}
+            {
+              "id": "f7",
+              "label": "Część pasa drogowego",
+              "type": "RADIO",
+              "required": true,
+              "options": [
+                "Jezdnia (zajęcie do 20% szerokości)",
+                "Jezdnia (zajęcie powyżej 20% do 50% szerokości)",
+                "Jezdnia (zajęcie powyżej 50% szerokości)",
+                "Chodnik"
+              ],
+              "quote": "Powierzchnia pasa drogowego potrzebna do zajęcia w celu realizacji w/w zakresu robót"
+            },
+            {
+              "id": "f8",
+              "label": "Długość (m)",
+              "type": "NUMBER",
+              "required": true,
+              "quote": "długość"
+            },
+            {
+              "id": "f9",
+              "label": "Szerokość (m)",
+              "type": "NUMBER",
+              "required": true,
+              "quote": "szerokość"
+            },
+            {
+              "id": "f10",
+              "label": "Powierzchnia (m²)",
+              "type": "NUMBER",
+              "required": false,
+              "quote": "razem",
+              "description": "Długość × szerokość"
+            }
           ]
         },
         {
           "id": "s4",
           "title": "Całkowita powierzchnia",
           "fields": [
-            {"id": "f11", "label": "Całkowita powierzchnia zajęcia (m²)", "type": "NUMBER", "required": true, "quote": "Całkowita powierzchnia zajęcia"}
+            {
+              "id": "f11",
+              "label": "Całkowita powierzchnia zajęcia (m²)",
+              "type": "NUMBER",
+              "required": false,
+              "quote": "Całkowita powierzchnia zajęcia",
+              "description": "Suma wszystkich pozycji"
+            }
           ]
         }
       ]
@@ -65,27 +133,85 @@
         {
           "id": "s5",
           "title": "Termin robót",
+          "description": "Termin musi być zgodny z harmonogramem robót.",
           "fields": [
-            {"id": "f12", "label": "Data rozpoczęcia robót", "type": "DATEPICKER", "required": true, "quote": "Roboty będą realizowane w terminie od dnia"},
-            {"id": "f13", "label": "Data zakończenia robót", "type": "DATEPICKER", "required": true, "quote": "Roboty będą realizowane w terminie od dnia"},
-            {"id": "f14", "label": "Liczba dni robót", "type": "NUMBER", "required": true, "description": "Termin musi być zgodny z harmonogramem robót.", "quote": "dni, zgodnie z załączonym harmonogramem"}
+            {
+              "id": "f12",
+              "label": "Data rozpoczęcia robót",
+              "type": "DATEPICKER",
+              "required": true,
+              "quote": "Roboty będą realizowane w terminie od dnia"
+            },
+            {
+              "id": "f13",
+              "label": "Data zakończenia robót",
+              "type": "DATEPICKER",
+              "required": true,
+              "quote": "do dnia"
+            },
+            {
+              "id": "f14",
+              "label": "Liczba dni robót",
+              "type": "NUMBER",
+              "required": false,
+              "quote": "dni, zgodnie z załączonym harmonogramem"
+            }
           ]
         },
         {
           "id": "s6",
           "title": "Wykonawca robót",
           "fields": [
-            {"id": "f15", "label": "Wykonawca robót", "type": "TEXT_FIELD", "required": true, "description": "Wpisz nazwę firmy albo imię i nazwisko.", "quote": "nazwa przedsiębiorstwa lub osoby fizycznej"}
+            {
+              "id": "f15",
+              "label": "Wykonawca robót",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "description": "Wpisz nazwę firmy albo imię i nazwisko.",
+              "quote": "nazwa przedsiębiorstwa lub osoby fizycznej"
+            }
           ]
         },
         {
           "id": "s7",
           "title": "Osoba odpowiedzialna za roboty",
+          "description": "Ta osoba odpowiada za wykonanie robót zgodnie z projektem i za odtworzenie pasa drogowego.",
           "fields": [
-            {"id": "f16", "label": "Imię", "type": "TEXT_FIELD", "required": true, "description": "Ta osoba odpowiada za wykonanie robót zgodnie z projektem i za odtworzenie pasa drogowego.", "quote": "osobą odpowiedzialną za wykonanie robót zgodnie z projektem"},
-            {"id": "f17", "label": "Nazwisko", "type": "TEXT_FIELD", "required": true, "quote": "osobą odpowiedzialną za wykonanie robót zgodnie z projektem"},
-            {"id": "f18", "label": "Adres zamieszkania", "type": "TEXT_FIELD", "required": true, "quote": "zam."},
-            {"id": "f19", "label": "Numer telefonu", "type": "TEXT_FIELD", "required": true, "quote": "tel."}
+            {
+              "id": "f16",
+              "label": "Imię",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "osobą odpowiedzialną za wykonanie robót zgodnie z projektem"
+            },
+            {
+              "id": "f17",
+              "label": "Nazwisko",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "osobą odpowiedzialną za wykonanie robót zgodnie z projektem"
+            },
+            {
+              "id": "f18",
+              "label": "Numer telefonu",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "tel."
+            }
+          ]
+        },
+        {
+          "id": "s8",
+          "title": "Adres zamieszkania osoby odpowiedzialnej",
+          "address": true,
+          "fields": [
+            {
+              "id": "f19",
+              "label": "Adres zamieszkania",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "zam."
+            }
           ]
         }
       ]
@@ -94,31 +220,82 @@
       "title": "Załączniki",
       "sections": [
         {
-          "id": "s8",
+          "id": "s9",
           "title": "Plany i harmonogram",
           "fields": [
-            {"id": "f20", "label": "Ogólny plan orientacyjny", "type": "FILE_UPLOADER", "required": true, "description": "Plan w skali 1:10 000 lub 1:25 000 z zaznaczonym zajmowanym odcinkiem pasa drogowego.", "quote": "Ogólny plan orientacyjny w skali 1:10 000 lub 1:25 000"},
-            {"id": "f21", "label": "Szczegółowy plan sytuacyjny", "type": "FILE_UPLOADER", "required": true, "description": "Plan w skali 1:1000 lub 1:500 z granicami i wymiarami planowanej powierzchni zajęcia.", "quote": "Szczegółowy plan sytuacyjny w skali 1:1000 lub 1:500"},
-            {"id": "f22", "label": "Szczegółowy harmonogram robót", "type": "FILE_UPLOADER", "required": true, "quote": "Szczegółowy harmonogram robót."}
+            {
+              "id": "f20",
+              "label": "Plik z ogólnym planem orientacyjnym",
+              "type": "FILE_UPLOADER",
+              "required": true,
+              "description": "Plan w skali 1:10 000 lub 1:25 000 z zaznaczonym zajmowanym odcinkiem pasa drogowego.",
+              "quote": "Ogólny plan orientacyjny w skali 1:10 000 lub 1:25 000"
+            },
+            {
+              "id": "f21",
+              "label": "Plik ze szczegółowym planem sytuacyjnym",
+              "type": "FILE_UPLOADER",
+              "required": true,
+              "description": "Plan w skali 1:1000 lub 1:500 z granicami i wymiarami planowanej powierzchni zajęcia.",
+              "quote": "Szczegółowy plan sytuacyjny w skali 1:1000 lub 1:500"
+            },
+            {
+              "id": "f22",
+              "label": "Plik ze szczegółowym harmonogramem robót",
+              "type": "FILE_UPLOADER",
+              "required": true,
+              "quote": "Szczegółowy harmonogram robót."
+            }
           ]
         },
         {
-          "id": "s9",
+          "id": "s10",
           "title": "Organizacja ruchu",
           "fields": [
-            {"id": "f23", "label": "Czy zajęcie pasa drogowego wpływa na ruch drogowy?", "type": "RADIO", "required": true, "options": ["Tak", "Nie"],
-             "description": "Wybierz Tak, jeśli zajęcie pasa ogranicza widoczność na drodze albo zmienia organizację ruchu pojazdów lub pieszych.",
-             "quote": "jeżeli zajęcie pasa drogowego wpływa na ruch drogowy"},
-            {"id": "f24", "label": "Zatwierdzony projekt organizacji ruchu", "type": "FILE_UPLOADER", "required": true, "quote": "Zatwierdzony projekt organizacji ruchu",
-             "show_if": {"field": "f23", "options": ["Tak"], "quote": "jeżeli zajęcie pasa drogowego wpływa na ruch drogowy"}},
-            {"id": "f25", "label": "Informacja o sposobie zabezpieczenia robót", "type": "FILE_UPLOADER", "required": true, "quote": "Informację o sposobie zabezpieczenia robót",
-             "show_if": {"field": "f23", "options": ["Nie"], "quote": "jeżeli nie jest wymagany projekt organizacji ruchu"}}
+            {
+              "id": "f23",
+              "label": "Czy zajęcie pasa drogowego wpływa na ruch drogowy?",
+              "type": "RADIO",
+              "required": true,
+              "options": [
+                "Tak",
+                "Nie"
+              ],
+              "description": "Wybierz Tak, jeśli zajęcie pasa ogranicza widoczność na drodze albo zmienia organizację ruchu pojazdów lub pieszych.",
+              "quote": "jeżeli zajęcie pasa drogowego wpływa na ruch drogowy"
+            },
+            {
+              "id": "f24",
+              "label": "Plik z zatwierdzonym projektem organizacji ruchu",
+              "type": "FILE_UPLOADER",
+              "required": true,
+              "quote": "Zatwierdzony projekt organizacji ruchu",
+              "show_if": {
+                "field": "f23",
+                "options": [
+                  "Tak"
+                ],
+                "quote": "jeżeli zajęcie pasa drogowego wpływa na ruch drogowy"
+              }
+            },
+            {
+              "id": "f25",
+              "label": "Plik z informacją o sposobie zabezpieczenia robót",
+              "type": "FILE_UPLOADER",
+              "required": true,
+              "quote": "Informację o sposobie zabezpieczenia robót",
+              "show_if": {
+                "field": "f23",
+                "options": [
+                  "Nie"
+                ],
+                "quote": "jeżeli nie jest wymagany projekt organizacji ruchu"
+              }
+            }
           ]
         }
       ]
     }
   ],
-  "statements": [
-    {"text": "Zgadzam się na przetwarzanie moich danych osobowych przez Urząd Miasta i Gminy.", "required": true, "quote": "Wyrażam zgodę na przetwarzanie przez Urząd Miasta i Gminy"}
-  ]
+  "statements": []
 }

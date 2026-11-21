@@ -17,49 +17,138 @@
           "id": "s1",
           "title": "Świetlica i termin",
           "fields": [
-            {"id": "f1", "label": "Czego dotyczy wniosek?", "type": "RADIO", "required": true, "options": ["Wynajęcie świetlicy", "Użyczenie świetlicy"], "quote": "wynajęcie/użyczenie* świetlicy wiejskiej"},
-            {"id": "f2", "label": "Miejscowość, w której jest świetlica", "type": "TEXT_FIELD", "required": true, "description": "Świetlicę udostępniamy razem z wyposażeniem.", "quote": "Proszę o wynajem/użyczenie* świetlicy wiejskiej w"},
-            {"id": "f3", "label": "Data rozpoczęcia", "type": "DATEPICKER", "required": true, "quote": "wraz z wyposażeniem w terminie od"},
-            {"id": "f4", "label": "Data zakończenia", "type": "DATEPICKER", "required": true, "quote": "wraz z wyposażeniem w terminie od"}
-          ]
+            {
+              "id": "f1",
+              "label": "Czego dotyczy wniosek?",
+              "type": "RADIO",
+              "required": true,
+              "options": [
+                "Wynajęcie świetlicy",
+                "Użyczenie świetlicy"
+              ],
+              "quote": "wynajęcie/użyczenie* świetlicy wiejskiej"
+            },
+            {
+              "id": "f2",
+              "label": "Miejscowość, w której jest świetlica",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "Proszę o wynajem/użyczenie* świetlicy wiejskiej w"
+            },
+            {
+              "id": "f3",
+              "label": "Data rozpoczęcia",
+              "type": "DATEPICKER",
+              "required": true,
+              "quote": "wraz z wyposażeniem w terminie od"
+            },
+            {
+              "id": "f4",
+              "label": "Data zakończenia",
+              "type": "DATEPICKER",
+              "required": true,
+              "quote": "od ………………………..… do ……………………………………"
+            }
+          ],
+          "description": "Świetlicę udostępniamy razem z wyposażeniem."
         },
         {
           "id": "s2",
           "title": "Wydarzenie",
           "fields": [
-            {"id": "f5", "label": "Rodzaj wydarzenia", "type": "TEXT_FIELD", "required": true, "description": "Na przykład wesele, urodziny, zabawa.", "quote": "Cel wynajęcia świetlicy"},
-            {"id": "f6", "label": "Przewidywana liczba uczestników", "type": "NUMBER", "required": true, "quote": "Przewidywana ilość uczestników"}
+            {
+              "id": "f5",
+              "label": "Rodzaj wydarzenia",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "description": "Na przykład wesele, urodziny, zabawa.",
+              "quote": "Cel wynajęcia świetlicy"
+            },
+            {
+              "id": "f6",
+              "label": "Przewidywana liczba uczestników",
+              "type": "NUMBER",
+              "required": true,
+              "quote": "Przewidywana ilość uczestników"
+            }
           ]
         },
         {
           "id": "s3",
           "title": "Osoba odpowiedzialna za porządek i bezpieczeństwo",
           "fields": [
-            {"id": "f7", "label": "Kto odpowiada za porządek i bezpieczeństwo?", "type": "RADIO", "required": true, "options": ["Ja", "Inna osoba"],
-             "description": "Osoba odpowiedzialna musi być pełnoletnia.",
-             "quote": "Osoba odpowiedzialna (pełnoletnia) za utrzymanie porządku i bezpieczeństwa"}
+            {
+              "id": "f7",
+              "label": "Kto odpowiada za porządek i bezpieczeństwo?",
+              "type": "RADIO",
+              "required": true,
+              "options": [
+                "Wnioskodawca",
+                "Inna osoba"
+              ],
+              "description": "Osoba odpowiedzialna musi być pełnoletnia.",
+              "quote": "Osoba odpowiedzialna (pełnoletnia) za utrzymanie porządku i bezpieczeństwa"
+            }
           ]
         },
         {
           "id": "s4",
           "title": "Dane osoby odpowiedzialnej",
-          "show_if": {"field": "f7", "options": ["Inna osoba"], "quote": "w przypadku innej osoby niż wnioskodawca - zgoda osoby odpowiedzialnej"},
+          "show_if": {
+            "field": "f7",
+            "options": [
+              "Inna osoba"
+            ],
+            "quote": "w przypadku innej osoby niż wnioskodawca - zgoda osoby odpowiedzialnej"
+          },
           "fields": [
-            {"id": "f8", "label": "Imię", "type": "TEXT_FIELD", "required": true, "quote": "imię i nazwisko – wnioskodawca"},
-            {"id": "f9", "label": "Nazwisko", "type": "TEXT_FIELD", "required": true, "quote": "imię i nazwisko – wnioskodawca"},
-            {"id": "f10", "label": "Zgoda osoby odpowiedzialnej", "type": "FILE_UPLOADER", "required": true, "quote": "zgoda osoby odpowiedzialnej"},
-            {"id": "f11", "label": "Oświadczenie osoby odpowiedzialnej", "type": "FILE_UPLOADER", "required": true,
-             "description": "Dołącz oświadczenie tej osoby o warunkach wynajmu, porządku, przepisach i odpowiedzialności za mienie.",
-             "quote": "zbiorcze oświadczenie tej osoby"}
+            {
+              "id": "f8",
+              "label": "Imię",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "imię i nazwisko – wnioskodawca"
+            },
+            {
+              "id": "f9",
+              "label": "Nazwisko",
+              "type": "TEXT_FIELD",
+              "required": true,
+              "quote": "imię i nazwisko – wnioskodawca"
+            },
+            {
+              "id": "f10",
+              "label": "Plik ze zgodą i oświadczeniem osoby odpowiedzialnej",
+              "type": "FILE_UPLOADER",
+              "required": true,
+              "description": "Dołącz zgodę tej osoby na pełnienie funkcji osoby odpowiedzialnej oraz jej zbiorcze oświadczenie o warunkach wynajmu lub użyczenia, porządku, przepisach i odpowiedzialności za mienie.",
+              "quote": "zbiorcze oświadczenie tej osoby załączyć do wniosku"
+            }
           ]
         }
       ]
     }
   ],
   "statements": [
-    {"text": "Znam warunki wynajmu świetlicy wiejskiej.", "required": true, "quote": "zapoznałem/am się z warunkami wynajmu świetlicy wiejskiej"},
-    {"text": "W czasie najmu odpowiadam za ład i porządek w świetlicy i na terenie przy świetlicy.", "required": true, "quote": "w czasie najmu odpowiadam za ład i porządek w świetlicy"},
-    {"text": "Przestrzegam przepisów sanitarnych, BHP i przeciwpożarowych przez cały czas wydarzenia.", "required": true, "quote": "zobowiązuję się do przestrzegania przepisów sanitarnych, BHP i p.poż."},
-    {"text": "Przez cały okres wynajmu odpowiadam za powierzone mienie.", "required": true, "quote": "na okres wynajmu ponoszę pełną odpowiedzialność za powierzone mienie"}
+    {
+      "text": "Znam warunki wynajmu lub użyczenia świetlicy wiejskiej określone w Regulaminie korzystania ze świetlic wiejskich stanowiących własność Gminy Płoskinia.",
+      "required": true,
+      "quote": "zapoznałem/am się z warunkami wynajmu świetlicy wiejskiej"
+    },
+    {
+      "text": "W czasie wynajmu lub użyczenia odpowiadam za ład i porządek w świetlicy i na terenie przy świetlicy.",
+      "required": true,
+      "quote": "w czasie najmu odpowiadam za ład i porządek w świetlicy"
+    },
+    {
+      "text": "Zobowiązuję się przestrzegać przepisów sanitarnych, BHP i przeciwpożarowych w czasie wydarzenia.",
+      "required": true,
+      "quote": "zobowiązuję się do przestrzegania przepisów sanitarnych, BHP i p.poż."
+    },
+    {
+      "text": "Przez cały okres wynajmu lub użyczenia odpowiadam za powierzone mienie.",
+      "required": true,
+      "quote": "na okres wynajmu ponoszę pełną odpowiedzialność za powierzone mienie"
+    }
   ]
 }
