@@ -3,13 +3,15 @@
 For every file: extract -> make_plan -> filter_plan -> build -> check. Saves
 `<out>/<set>/<form>/<ext>.plan.json` and `.coi.json`, then prints per file:
 JSON produced (1), COI rules problems (2), quote-filter drops (hallucination
-proxy), score vs the gold plan, for forms 1 and 5 score vs the COI reference (3),
-and per form the consistency of plans across formats vs the PDF plan (4).
+proxy), score vs the gold plan, for forms 1 and 5 score vs the COI reference (3)
+plus `walid=` (validator F1 vs gold/coi/formN.json, the reference with hand-added
+validation), and per form the consistency of plans across formats vs the PDF plan (4).
 
     uv run python bench/run_all.py                       # 9 COI forms, all formats
     uv run python bench/run_all.py --forms 1,5 --formats pdf
     uv run python bench/run_all.py --bip                 # gmina BIP black-box set
     uv run python bench/run_all.py --out bench/runs/e2e  # reuse: files already done are skipped
+    uv run python bench/run_all.py --out bench/runs/e2e --rebuild  # cached plans, fresh build (no LLM)
 """
 
 import argparse
@@ -30,6 +32,7 @@ ROOT = Path(__file__).resolve().parent.parent
 COI = ROOT / "data" / "coi"
 BIP = Path.home() / "hacknation-2026" / "resources" / "bip-formularze"
 GOLD = ROOT / "gold" / "plans"
+GOLD_COI = ROOT / "gold" / "coi"  # COI references + hand-added validation (same structure)
 SKIP = ("konfiguracja_form", "wizualizacja")
 
 
@@ -53,18 +56,25 @@ def bip_files() -> list[tuple[str, Path]]:
 
 
 def reference(form: str) -> dict | None:
+    """The gold copy if there is one (same structure, so `ref=` is unchanged), else the COI original."""
+    gold = GOLD_COI / f"form{form}.json"
+    if gold.exists():
+        return json.loads(gold.read_text())
     d = next((p for p in COI.iterdir() if p.name.startswith(f"{form}.")), None)
     ref = next(d.glob("konfiguracja_form_*.json"), None) if d else None
     return json.loads(ref.read_text()) if ref else None
 
 
-def run_file(form: str, path: Path, out: Path) -> dict:
+def run_file(form: str, path: Path, out: Path, rebuild: bool = False) -> dict:
     ext = path.suffix.lower().lstrip(".")
     plan_path, coi_path = out / form / f"{ext}.plan.json", out / form / f"{ext}.coi.json"
     row = {"form": form, "ext": ext, "file": path.name}
     if coi_path.exists() and plan_path.exists():
         plan, coi = Plan.model_validate_json(plan_path.read_text()), json.loads(coi_path.read_text())
         row["cached"] = True
+        if rebuild:  # builder changed: rebuild the COI JSON from the cached plan
+            coi = build(plan)
+            coi_path.write_text(json.dumps(coi, ensure_ascii=False, indent=1))
     else:
         t = time.time()
         try:
@@ -83,7 +93,11 @@ def run_file(form: str, path: Path, out: Path) -> dict:
         row["gold"] = round(score_plan(plan, Plan.model_validate_json(gold.read_text()))["metrics"]["score"], 3)
     ref = reference(form)
     if ref:
-        row["ref"] = round(score_coi(coi, ref)["recall"]["overall"], 3)
+        rep = score_coi(coi, ref)
+        row["ref"] = round(rep["recall"]["overall"], 3)
+        if (GOLD_COI / f"form{form}.json").exists():
+            row["walid"] = rep["validation"]["f1"]
+            row["walid_missing"], row["walid_extra"] = rep["validation"]["missing"], rep["validation"]["extra"]
     return row
 
 
@@ -107,6 +121,7 @@ def main() -> int:
     ap.add_argument("--forms", help="comma list, e.g. 1,5")
     ap.add_argument("--formats", help="comma list, e.g. pdf,docx,png")
     ap.add_argument("--bip", action="store_true", help="run the BIP black-box set instead")
+    ap.add_argument("--rebuild", action="store_true", help="rebuild COI JSON from cached plans")
     ap.add_argument("--out", default=f"bench/runs/e2e-{time.strftime('%Y%m%d-%H%M')}")
     a = ap.parse_args()
     out = Path(a.out) / ("bip" if a.bip else "coi")
@@ -114,11 +129,12 @@ def main() -> int:
                                                 set(a.formats.split(",")) if a.formats else None)
     rows = []
     for form, path in files:
-        r = run_file(form, path, out)
+        r = run_file(form, path, out, a.rebuild)
         rows.append(r)
         status = "OK " if r.get("ok") and not r.get("problems") else "ERR"
         extra = (f"rules={len(r.get('problems', []))} drop={len(r.get('dropped', []))} fields={r.get('fields')}"
-                 f" gold={r.get('gold', '-')} ref={r.get('ref', '-')}" if r.get("ok") else r["error"])
+                 f" gold={r.get('gold', '-')} ref={r.get('ref', '-')}"
+                 + (f" walid={r['walid']:.2f}" if "walid" in r else "") if r.get("ok") else r["error"])
         print(f"{status} {form:>3} {r['ext']:5} {r.get('s', 0):4}s {extra}", flush=True)
     cons = consistency(rows, out)
     summary = {"files": len(rows), "json_ok": sum(bool(r.get("ok")) for r in rows),

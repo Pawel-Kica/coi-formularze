@@ -124,7 +124,8 @@ def dane_page(ctx: Ctx, plan: Plan) -> dict:
     head = "Organ" if organ else "Urząd"
     sections.append(section(ctx, f"{head}, do którego jest składany wniosek",
                             ctx.tech(f"{head}_do_ktorego_jest_skladany_wniosek"), [
-        _text(ctx, f"Nazwa {noun}", f"nazwa_{noun}", default=plan.addressee.strip(), read_only=True),
+        _text(ctx, f"Nazwa {noun}", f"nazwa_{noun}", required=True, default=plan.addressee.strip(),
+              read_only=True),
     ]))  # fmt: skip
 
     podmiot = []

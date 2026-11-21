@@ -1,7 +1,10 @@
 """Benchmark scoring: our output vs a reference, by fuzzy matching of labels.
 
     score_coi(ours, ref)   COI JSON vs a reference COI JSON (forms 1 and 5):
-                           recall of tabs, sections, fields, dependencies.
+                           recall of tabs, sections, fields, dependencies, plus
+                           `validation`: F1 of (field, validator) pairs on matched
+                           fields (meaningful against gold/coi/formN.json, the COI
+                           references with hand-added validation).
     score_plan(ours, gold) a model's Plan vs a hand-written gold Plan (7 forms):
                            field recall/precision, types, options, conditions,
                            applicant/addressee agreement.
@@ -139,7 +142,8 @@ def score_coi(ours: dict, ref: dict) -> dict:
 
     Tabs match by title (or, failing that, by their sections), sections by title within
     matched tabs (or by their fields), fields by label + type within matched sections.
-    Ids, order, grid, validation and descriptions are ignored."""
+    Ids, order, grid, validation and descriptions are ignored by the recall;
+    `report["validation"]` compares validators of the matched fields."""
     o, r = _flatten(ours), _flatten(ref)
     kinds = ("tabs", "sections", "fields", "dependencies")
     found = dict.fromkeys(kinds, 0)
@@ -244,9 +248,37 @@ def score_coi(ours: dict, ref: dict) -> dict:
     recall = {k: _recall(found[k], total[k]) for k in kinds}
     recall["overall"] = _recall(sum(found.values()), sum(total.values()))
     report = {"recall": recall, "found": found, "total": total, "missing": missing, "extra": extra,
-              "weak_matches": weak, "type_mismatch": type_mismatch}
+              "weak_matches": weak, "type_mismatch": type_mismatch,
+              "validation": _score_validation(r, o, field_map)}
     report["summary"] = _coi_summary(report)
     return report
+
+
+def _validators(f: dict) -> set[str]:
+    v = f.get("validation")
+    return set(v) if isinstance(v, list) else set()  # the references also hold `{}`
+
+
+def _score_validation(r: dict, o: dict, field_map: dict) -> dict:
+    """(field, validator) pairs on fields matched by score_coi: hits, missing (in ref, not
+    ours), extra (ours, not ref), F1 = 2*hits / (2*hits + missing + extra). Ref validators
+    on unmatched ref fields are only counted in `unmatched` (structure is the recall's job)."""
+    def at(flat, ti, si, fi):
+        return flat["tabs"][ti]["sections"][si]["fields"][fi]
+
+    hits, missing, extra = 0, [], []
+    for (ti, si, fi), (oj, sj, fj) in sorted(field_map.items()):
+        rf, of = at(r, ti, si, fi), at(o, oj, sj, fj)
+        rv, ov = _validators(rf), _validators(of)
+        hits += len(rv & ov)
+        where = f"{r['tabs'][ti]['title']} / {r['tabs'][ti]['sections'][si]['title']} / {_field_label(rf)}"
+        missing += [f"{where}: {v}" for v in sorted(rv - ov)]
+        extra += [f"{where}: {v}" for v in sorted(ov - rv)]
+    unmatched = sum(len(_validators(f)) for ti, t in enumerate(r["tabs"]) for si, s in enumerate(t["sections"])
+                    for fi, f in enumerate(s["fields"]) if (ti, si, fi) not in field_map)
+    n = 2 * hits + len(missing) + len(extra)
+    return {"f1": round(2 * hits / n, 4) if n else 1.0, "hits": hits, "missing": missing, "extra": extra,
+            "unmatched": unmatched}
 
 
 def _coi_summary(rep: dict) -> str:
@@ -260,6 +292,11 @@ def _coi_summary(rep: dict) -> str:
         lines += [f"  extra {singular[k]}: {x}" for x in items]
     lines += [f"  weak match: {x}" for x in rep["weak_matches"]]
     lines += [f"  type mismatch: {x}" for x in rep["type_mismatch"]]
+    v = rep["validation"]
+    lines.append(f"validation F1 {v['f1']:.0%}: hits {v['hits']}, missing {len(v['missing'])}, "
+                 f"extra {len(v['extra'])}, on unmatched ref fields {v['unmatched']}")
+    lines += [f"  missing validator: {x}" for x in v["missing"]]
+    lines += [f"  extra validator: {x}" for x in v["extra"]]
     return "\n".join(lines)
 
 

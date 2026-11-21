@@ -76,6 +76,8 @@ def test_reference_specific_switches():
     assert one["nazwa_organu"]["defaultValue"] == "Wójt Gminy Elbląg"
     assert one["nazwa_organu"]["readOnly"] is True
     assert five["nazwa_urzedu"]["defaultValue"] == "Urząd Gminy Ulan-Majorat"
+    # Read-only but must hold a value: REQUIRED (gold/coi/NOTES.md).
+    assert one["nazwa_organu"]["validation"] == five["nazwa_urzedu"]["validation"] == ["REQUIRED"]
     # Standards win over the trimmed references: Twoje dane always has PESEL, all from MLPZ, read-only.
     assert one["imie"]["defaultValue"] == "MLPZ.name" and one["numer_pesel"]["defaultValue"] == "MLPZ.pesel"
     assert five["numer_pesel"]["defaultValue"] == "MLPZ.pesel" and five["numer_pesel"]["readOnly"] is True
