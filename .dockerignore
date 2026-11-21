@@ -9,3 +9,7 @@
 data
 bench
 tests
+gold
+output
+docs
+history.sqlite3*

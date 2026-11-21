@@ -1,9 +1,16 @@
-# API + local model server. Secrets come from .env (copy .env.example) at runtime only.
-#   docker compose up -d --build
-# On first start `ollama-pull` downloads LLM_MODEL into the `ollama` volume (several GB).
+# COI API in Docker. Settings and secrets come from .env (copy .env.example) at runtime only.
+# Three ways to reach the model (README, "Uruchomienie w Dockerze"):
+#   Ollama on the host (default):  docker compose up -d --build
+#   Ollama in a container:         LLM_BASE_URL=http://ollama:11434/v1 in .env, then
+#                                  docker compose --profile ollama up -d --build
+#                                  (first start: `ollama-pull` downloads LLM_MODEL, over 10 GB)
+#   Eden AI:                       LLM_BACKEND=openai, LLM_BASE_URL, LLM_MODEL, EDENAI_API_KEY in .env
 services:
   api:
-    build: .
+    build:
+      context: .
+      args:
+        LIBREOFFICE: ${LIBREOFFICE:-0}  # 1 = LibreOffice in the image, needed by PIPELINE=images
     image: coi-formularze:0.1.0
     ports:
       - "8000:8000"
@@ -11,22 +18,32 @@ services:
       - path: .env
         required: false
     environment:
-      LLM_BASE_URL: http://ollama:11434/v1
-      # Login is off by default (AUTH_ENABLED=0); with AUTH_ENABLED=1 set JWT_SECRET and AUTH_PASSWORD in .env.
-      AUTH_ENABLED: ${AUTH_ENABLED:-0}
-      JWT_SECRET: ${JWT_SECRET:-}
-      AUTH_PASSWORD: ${AUTH_PASSWORD:-}
+      # Inside a container localhost is the container itself; the default reaches Ollama on the host.
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Linux; Docker Desktop resolves it anyway
+    # Writes only to temporary space: read-only root, /tmp in memory (temp files, history).
+    read_only: true
+    tmpfs:
+      - /tmp:size=1g,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     depends_on:
       ollama:
         condition: service_healthy
+        required: false  # only with --profile ollama
     restart: unless-stopped
 
   ollama:
     image: ollama/ollama:0.40.17
+    profiles: [ollama]
     environment:
       OLLAMA_CONTEXT_LENGTH: "32768"  # the longest form (16 pages) + answer fits
     volumes:
       - ollama:/root/.ollama
+    # The vendor image runs as root; it gets no Linux capabilities and no privilege escalation.
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 10s
@@ -42,12 +59,15 @@ services:
     #           count: all
     #           capabilities: [gpu]
 
-  # One-shot: pull LLM_MODEL (same default as app/config.py), then exit.
+  # One-shot: pull LLM_MODEL (same default as app/config.py) into the `ollama` volume, then exit.
   ollama-pull:
     image: ollama/ollama:0.40.17
+    profiles: [ollama]
     environment:
       OLLAMA_HOST: ollama:11434
     command: ["pull", "${LLM_MODEL:-qwen3:30b-a3b-instruct-2507-q4_K_M}"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     depends_on:
       ollama:
         condition: service_healthy
