@@ -165,6 +165,24 @@ def test_correspondence_address_gets_a_question_when_the_paper_says_only_if_othe
     assert out.pages[0].sections[1].show_if.field == out.pages[0].sections[0].fields[0].id
 
 
+def test_correspondence_address_the_model_already_gates_gets_no_second_question():
+    paper = ADDRESS.replace("Adres do korespondencji", "Adres do korespondencji\nWypełnij, jeżeli adres do korespondencji jest inny niż adres zamieszkania.")
+    own = f("f9", "Czy adres do korespondencji jest inny niż adres zamieszkania?", "jeżeli adres do korespondencji jest inny",
+            FieldType.RADIO, ["Tak", "Nie"])
+    gated = f("f3", "Ulica", "Ulica", show_if=Condition(field="f9", options=["Tak"], quote="jeżeli adres do korespondencji jest inny"))
+    # the model's question sits inside the address section and gates its fields
+    p = plan(sec("s1", [f("f1", "Nazwa inwestycji", "Nazwa inwestycji")]),
+             sec("s2", [own, gated, f("f4", "Miejscowość", "Miejscowość")], title="Adres do korespondencji", address=True))
+    out, _ = filter_plan(p, paper)
+    labels = [x.label for x in fields_of(out).values()]
+    assert CORRESPONDENCE_QUESTION not in labels and out.pages[0].sections[1].show_if is None
+    # its own wording earlier, not a plain Tak/Nie: left to the model too
+    kind = f("f9", "Adres do korespondencji", "jeżeli adres do korespondencji jest inny", FieldType.RADIO,
+             ["Taki sam jak zamieszkania", "Inny"])
+    out, _ = filter_plan(plan(sec("s1", [kind]), address()), paper)
+    assert CORRESPONDENCE_QUESTION not in [x.label for x in fields_of(out).values()]
+
+
 def test_correspondence_address_without_a_rule_on_paper_is_dropped_but_not_a_third_persons():
     p = plan(sec("s1", [f("f1", "Nazwa inwestycji", "Nazwa inwestycji")]), address())
     out, dropped = filter_plan(p, ADDRESS)

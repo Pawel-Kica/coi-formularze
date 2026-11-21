@@ -9,7 +9,8 @@ what the model tends to get wrong and the paper text can settle:
   is kept once, conditions move to the kept one;
 - an applicant's "Adres do korespondencji" section without a condition: when the paper says it is
   filled only if it differs ("inny niż", "różni się") a Tak/Nie question is added before it and the
-  section shows on "Tak"; otherwise the section goes, the "Dane" page already asks for the address.
+  section shows on "Tak" (none is added when the model already gates it with its own question);
+  otherwise the section goes, the "Dane" page already asks for the address.
 Returns human-readable notes, like the quote filter.
 """
 
@@ -104,6 +105,11 @@ def _dedupe_questions(plan: Plan, text: str, notes: list[str]) -> None:
         _drop_empty(plan)
 
 
+def _asks_correspondence(f: PlanField) -> bool:
+    """A choice question the model wrote about the correspondence address ("Czy adres do korespondencji jest inny…")."""
+    return f.type in (FieldType.RADIO, FieldType.SELECT, FieldType.CHECKBOX) and "korespondenc" in normalize(f.label)
+
+
 def _correspondence_address(plan: Plan, text: str, notes: list[str]) -> None:
     ids = {f.id for _, s in _sections(plan) for f in s.fields}
     rule = next((line.strip() for line in text.splitlines()
@@ -116,10 +122,13 @@ def _correspondence_address(plan: Plan, text: str, notes: list[str]) -> None:
             title = normalize(sec.title)
             if sec.show_if is not None or sec.repeating or not _CORRESPONDENCE.search(title):
                 out.append(sec)
+            elif rule and (any(_asks_correspondence(f) or f.show_if for f in sec.fields)
+                           or any(_asks_correspondence(f) and {normalize(o) for o in f.options} != YES_NO for f in prior)):
+                out.append(sec)  # the model already gates it (its own question inside, or its own wording earlier)
             elif rule:
-                # the model's own question about it, if it asked one; else ours
-                ask = next((f for f in prior if f.type == FieldType.RADIO and f.show_if is None
-                            and {normalize(o) for o in f.options} == YES_NO and "korespondenc" in normalize(f.label)), None)
+                # the model's own Tak/Nie question about it, if it asked one earlier; else ours
+                ask = next((f for f in prior if _asks_correspondence(f) and f.show_if is None
+                            and {normalize(o) for o in f.options} == YES_NO), None)
                 if ask is None:
                     fid = next(f"fk{n}" for n in range(1, 99) if f"fk{n}" not in ids)
                     ids.add(fid)
