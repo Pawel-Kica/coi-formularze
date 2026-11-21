@@ -316,6 +316,18 @@ function labelOf(f) {
   return t;
 }
 
+// The name an element goes by next to "Edytuj", in the dashed line of a hidden element and in the editor: its
+// label; statements = their title or "Zgody"; a text without a heading = how it begins. Never a techName.
+function nameOf(f) {
+  if (f.title) return labelOf(f);
+  if (f.type === "CONSENT_SECTION") return "Zgody";
+  if (STATIC_TYPES.includes(f.type)) {
+    const text = sanitize(f.description).textContent.replace(/\s+/g, " ").trim();
+    return !text ? "Tekst" : text.length > 40 ? text.slice(0, 39) + "…" : text;
+  }
+  return labelOf(f);
+}
+
 const consentsOf = f => (f.consentSectionConfig && Array.isArray(f.consentSectionConfig.consents)) ? f.consentSectionConfig.consents : [];
 // A consent is required if it says so, else the section config says so, else the field has REQUIRED.
 function consentRequired(f, c) {
@@ -603,7 +615,7 @@ function notesOf(f, kind, standard) {
   }
   for (const q of ev?.consent_quotes || []) if (q) out.push(quoteLine("Z papieru", q));  // one per statement from the paper, in their order
   if (kind === "field" && !codeField) { // a question from the paper that shows or hides other elements: say which
-    const deps = dependentsOf(f).map(d => `„${labelOf(d)}”`);
+    const deps = dependentsOf(f).map(d => `„${nameOf(d)}”`);
     if (deps.length) out.push(h("p", {class: "src cond"}, h("strong", {}, "Od tej odpowiedzi zależy: "), deps.join(", ")));
   }
   return out;
@@ -626,7 +638,7 @@ function dependentsOf(f) {
 // "Edytuj" next to an element: opens the "Edycja" sidebar (editor.js, embedded preview only) on it, in place.
 // Every element of every page has one (the form title and the page heading too): nothing is locked.
 const fixLink = (id, name) => EMBED && h("button", {type: "button", class: "fix", "aria-label": `Edytuj: ${name}`, onclick: () => edOpen(id)}, "Edytuj");
-const fixButton = f => fixLink(f.id, labelOf(f));
+const fixButton = f => fixLink(f.id, nameOf(f));
 
 // One dashed line that stands in for a hidden element in annotation mode (with its own "Edytuj": the condition is
 // fixed from where it is read), or null when the element is always visible. Code-made fields (the two address
@@ -635,7 +647,7 @@ function ghostOf(f, kind) {
   const ct = condText(f);
   if (!ct || (kind === "field" && evidence[f.id]?.source === "code")) return null;
   const what = kind === "section" ? "Ukryta sekcja" : STATIC_TYPES.includes(f.type) ? "Ukryty tekst" : "Ukryte pole";
-  return h("p", {class: "ghost"}, fixButton(f), h("strong", {}, `${what} „${labelOf(f)}”. `), `Pokaże się, gdy ${ct}.`);
+  return h("p", {class: "ghost"}, fixButton(f), h("strong", {}, `${what} „${nameOf(f)}”. `), `Pokaże się, gdy ${ct}.`);
 }
 
 // The one line under the heading of a standard page: code built it, and what on it (if anything) is from the paper.
@@ -851,7 +863,8 @@ function renderSection(tab, q) {
   const f = q.field, hid = uid(), hint = hintEl(f.description);
   const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
     ghostOf(f, "section"), fixButton(f), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q),
-    layoutGrid(f.repeatingSectionGrid, c => renderField(c, {store: answers[tab.title][f.techName], row: null, standard: isStandard(tab)})));
+    layoutGrid(f.repeatingSectionGrid, c => renderField(c, {store: answers[tab.title][f.techName], row: null, standard: isStandard(tab),
+      only: f.repeatingSectionGrid.length === 1})));
   card._entry = {field: f, row: null, controls: []};
   return card;
 }
@@ -986,7 +999,8 @@ function renderField(cell, ctx) {
   }
   if (caption) wrap.append(caption);
   if (f.tooltipMessage) wrap.append(h("details", {class: "tip"}, h("summary", {}, "Pomoc"), sanitize(f.tooltipMessage)));
-  wrap.prepend(fixButton(f) || "");
+  // a section that is just one text without a heading has one "Edytuj", the section's (its panel leads to the text)
+  if (!(ctx.only && STATIC_TYPES.includes(t) && !f.title)) wrap.prepend(fixButton(f) || "");
   wrap.append(h("p", {class: "err", id: errId, hidden: true}), ...notesOf(f, "field", ctx.standard), ...techLines(f, cell));
   // a wrong format (PESEL, kod pocztowy...) shows as soon as the field is left; an empty required field never blocks the preview
   wrap.addEventListener("change", () => showErr(wrap, isEmpty(st[tn]) ? null : checkField(entry)));
@@ -1015,7 +1029,7 @@ function refreshStates(first = false) {
     el.classList.add("flash");
   }
   if (!shown.length) return;
-  $("#live").textContent = "Pokazano: " + shown.map(el => labelOf(el._entry.field)).join(", ");
+  $("#live").textContent = "Pokazano: " + shown.map(el => nameOf(el._entry.field)).join(", ");
   const top = shown[0].getBoundingClientRect().top; // revealed below (or above) what is on screen: bring it into view
   if (top > innerHeight - 140 || top < 60) window.scrollTo({top: scrollY + top - innerHeight * 0.3, behavior: "smooth"});
 }

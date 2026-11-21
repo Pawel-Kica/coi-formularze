@@ -23,8 +23,7 @@ _POLISH = [
     (r"^title is empty", "E-usługa nie ma tytułu."),
     (r"^title longer than 255 characters \((\d+)\)", "Tytuł e-usługi ma {0} znaków, a limit to 255."),
     (r"query refers to unknown tab '(.*)'", "Warunek wskazuje stronę „{0}”, której nie ma."),
-    (r"query refers to unknown section", "Warunek wskazuje sekcję, której już nie ma."),
-    (r"query refers to unknown field", "Warunek wskazuje pole, którego już nie ma."),
+    (r"query refers to unknown (?:section|field)", "Warunek zależy od pola, którego już nie ma."),  # the clerk removed a field either way
     (r"query uses option '(.*)' that '.*' does not have", "Warunek używa opcji „{0}”, której to pole już nie ma."),
     (r"query depends on '.*' which is \w+, not a choice field", "Warunek zależy od pola, które nie jest już polem wyboru."),
     (r"query depends on itself", "Warunek zależy od tego samego pola."),

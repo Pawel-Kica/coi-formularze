@@ -27,7 +27,7 @@ Model rozumie papier, kod pilnuje formatu COI. Model zwraca tylko krótki plan f
 6. **Reguły** (`app/rules.py`): schemat JSON COI i „Reguły techniczne”. Każdy problem kończy żądanie kodem 422, więc API nie wypuszcza JSON-a, którego generator COI nie przyjmie.
 
 Obok głównej ścieżki:
-- **Strona `/` z edytorem** (`app/static/index.html`, `preview.html`, `editor.js`): oryginał obok e-usługi; podgląd pokazuje pod każdym polem jego cytat z papieru i warunek, który je pokazuje. „Edytuj” przy elemencie otwiera z prawej strony panel „Edycja” (zwijany jednym kliknięciem, bez zmiany widoku): urzędnik poprawia albo usuwa element w panelu, każdą zmianę sprawdza `POST /api/forms/check` (te same reguły co przy konwersji), a z problemami nie pobierze JSON-a. Wiele plików naraz przetwarza po kolei.
+- **Strona `/` z edytorem** (`app/static/index.html`, `preview.html`, `editor.js`): oryginał obok e-usługi; podgląd pokazuje pod każdym polem jego cytat z papieru i warunek, który je pokazuje. „Edytuj” przy elemencie otwiera z prawej strony panel „Edycja” (zwijany jednym kliknięciem, bez zmiany widoku; historia plików jest zawsze widoczna, a gdy brakuje miejsca, ustępuje okno oryginału, które też zwija się do paska): urzędnik poprawia albo usuwa element w panelu, każdą zmianę sprawdza `POST /api/forms/check` (te same reguły co przy konwersji), a z problemami nie pobierze JSON-a. Wiele plików naraz przetwarza po kolei.
 - **Propozycje słowników** (bonus II, `app/dictionaries.py`): `POST /api/dictionaries/proposals`, obok czystego JSON-a; model proponuje, kod odrzuca propozycje bez oparcia w papierze.
 - **Historia strony** (`app/history.py`): SQLite w pliku `HISTORY_DB`, więc wyniki widać w każdej przeglądarce.
 

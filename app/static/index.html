@@ -9,7 +9,8 @@
      /api/history) with a ZIP of all results. Main area = original document | e-service, one of three views: "Podgląd" (the form
      with the paper quote under every field and, to its right, the collapsible "Edycja" sidebar of /editor.js: "Edytuj"
      next to an element opens it there; edits are saved in history and checked with the COI rules), "JSON" (tree) and
-     "Słowniki" (bonus II proposals).
+     "Słowniki" (bonus II proposals). The history column is always visible; when room runs out the original pane
+     gives way first (narrower, then a one-click strip), see layoutPanes.
      No build step and no CDN, so it works offline. -->
 <style>
   :root {
@@ -25,7 +26,7 @@
   .bar small { display: block; font-weight: 400; opacity: .85; }
   .pill { font-size: .85rem; padding: 2px 10px; border-radius: 999px; background: rgba(255,255,255,.15); }
   main { flex: 1; min-height: 0; padding: 12px 16px 16px; display: grid; gap: 12px;
-         grid-template-columns: minmax(240px, 300px) 1fr; }
+         grid-template-columns: clamp(220px, 20vw, 300px) minmax(0, 1fr); } /* the history column is always there */
   main.login { display: block; overflow: auto; }
   #login { max-width: 420px; margin: 40px auto; }
   .card { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 16px; min-height: 0; min-width: 0; }
@@ -77,7 +78,18 @@
   #result-empty h2 { font-size: 1.3rem; }
   #result-empty ol { margin: 0; padding-left: 1.3rem; }
   #result-empty li { margin-bottom: 10px; }
-  .panes { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  /* history | original | e-service (the form and, inside its frame, the "Edycja" sidebar). The e-service pane keeps
+     the width the form needs (more while the sidebar is open: .wide); the original takes the rest and gives way
+     first: narrower, then a strip (.no-original: collapsed by hand, or by layoutPanes when there is no room left). */
+  .panes { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(460px, 1fr); gap: 12px; }
+  .panes.wide { grid-template-columns: minmax(0, 1fr) minmax(740px, 1.4fr); }
+  .panes.no-original { grid-template-columns: 40px minmax(0, 1fr); }
+  .panes.no-original #original-pane > :not(.strip), .panes:not(.no-original) .strip { display: none; }
+  .strip { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 12px 0;
+           border: 0; border-radius: 0; background: #f8fafc; color: var(--navy-dark); font-weight: 700; }
+  .strip:hover { background: #e8f0fb; color: var(--navy-dark); }
+  .strip-label { writing-mode: vertical-rl; }
+  #original-collapse { padding: 2px 9px !important; font-size: 1.1rem; line-height: 1.2; }
   .pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
   .pane-head { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 6px 10px;
                background: #f8fafc; border-bottom: 1px solid var(--line); min-height: 46px; }
@@ -111,10 +123,6 @@
   .k { color: var(--navy-dark); } .meta { color: var(--muted); }
   .v.string { color: #0a6b2f; } .v.number { color: #9a4d00; } .v.boolean, .v.null { color: #7b2fa6; }
   .hit { background: var(--hit); } .current { outline: 2px solid #ffb800; }
-  /* the "Edycja" sidebar is open: the history column makes room for the form and the sidebar; collapsed, it is back */
-  main.editing { grid-template-columns: 1fr; }
-  main.editing #upload { display: none; }
-  main.editing .panes { grid-template-columns: 2fr 3fr; }
   /* why "Pobierz JSON" is off; a click opens the "Edycja" sidebar, which has the details */
   #edit-status { font-size: .85rem; border: 0; background: none; padding: 4px 6px; text-decoration: underline; color: var(--muted); }
   #edit-status:hover { background: #eef3f9; color: var(--text); }
@@ -122,8 +130,9 @@
   @media (max-width: 1000px) { /* narrow screens: everything stacks and the page scrolls */
     body { height: auto; display: block; }
     main { grid-template-columns: 1fr; }
-    .panes, main.editing .panes { grid-template-columns: 1fr; }
+    .panes, .panes.wide { grid-template-columns: 1fr; }
     .pane { height: 80vh; }
+    #original-collapse { display: none; }
   }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   [hidden] { display: none !important; }
@@ -181,11 +190,13 @@
       </ol>
     </div>
     <div class="panes" id="panes" hidden>
-      <div class="pane" role="region" aria-labelledby="original-title">
+      <div class="pane" id="original-pane" role="region" aria-labelledby="original-title">
+        <button type="button" class="strip" id="original-strip" title="Rozwiń oryginał"><span aria-hidden="true">›</span><span class="strip-label">Oryginał</span></button>
         <div class="pane-head">
           <h3 id="original-title">Oryginał</h3>
           <span id="original-name"></span>
           <a id="original-download" class="button small" download>Pobierz plik</a>
+          <button type="button" class="small" id="original-collapse" title="Zwiń oryginał" aria-label="Zwiń oryginał">‹</button>
         </div>
         <div class="pane-body" id="original"></div>
       </div>
@@ -253,6 +264,7 @@ const state = {
   token: sessionStorage.getItem("token"), items: [], selected: null, busy: false, hits: [], hit: -1,
   view: "preview", // e-service view: preview | json | dicts; a new file always opens in the preview
   sidebar: false,  // the "Edycja" sidebar of the preview is open (it says so: message "coi-sidebar")
+  originalHidden: localStorage.getItem("coi-original") === "0", // the original pane was collapsed to its strip by hand
   originalUrl: null, previewReady: false,
   doc: 0, docItem: null, // editor: which document the iframe shows (and whose edits it sends)
 };
@@ -654,8 +666,39 @@ function showView() {
   $("#preview-frame").hidden = !done || state.view !== "preview";
   $("#json-view").hidden = !done || state.view !== "json";
   $("#dicts-view").hidden = state.view !== "dicts";
-  $("#main").classList.toggle("editing", done && state.sidebar); // room for the open sidebar, in every view of this file
+  layoutPanes();
 }
+
+// Who gets the room: the history column and the form never give way, the original pane does. It is a strip when
+// the clerk collapsed it, or when the e-service pane (wider while the "Edycja" sidebar is open) leaves it less
+// than a readable width. Below 1000 px everything is stacked and nothing has to give way.
+const ORIGINAL_MIN = 240, STACKED = 1000;
+function originalRoom() {
+  const wide = state.sidebar && state.view === "preview" && state.selected?.status === "done";
+  return { wide, room: $("#panes").clientWidth - 12 - (wide ? 740 : 460) };
+}
+function layoutPanes() {
+  const panes = $("#panes");
+  if (panes.hidden) return;
+  const { wide, room } = originalRoom(), stacked = innerWidth <= STACKED;
+  panes.classList.toggle("wide", wide);
+  panes.classList.toggle("no-original", !stacked && (state.originalHidden || room < ORIGINAL_MIN));
+}
+new ResizeObserver(layoutPanes).observe($("#panes"));
+$("#original-collapse").addEventListener("click", () => {
+  state.originalHidden = true;
+  localStorage.setItem("coi-original", "0");
+  layoutPanes();
+  $("#original-strip").focus();
+});
+// The strip brings the original back; when there is no room for it next to the open sidebar, the sidebar collapses.
+$("#original-strip").addEventListener("click", () => {
+  state.originalHidden = false;
+  localStorage.setItem("coi-original", "1");
+  if (originalRoom().room < ORIGINAL_MIN) $("#preview-frame").contentWindow.postMessage({ type: "coi-close", doc: state.doc }, location.origin);
+  layoutPanes();
+  $("#original-collapse").focus();
+});
 
 for (const button of document.querySelectorAll(".switch button")) {
   button.addEventListener("click", () => {
@@ -707,7 +750,7 @@ window.addEventListener("message", (event) => {
   if (event.origin !== location.origin || event.source !== $("#preview-frame").contentWindow) return;
   const data = event.data || {};
   if (data.type === "coi-drop") return void addFiles([...data.files]); // a form dropped on the preview
-  if (data.type === "coi-sidebar") { // the "Edycja" sidebar was opened or collapsed: make room or give it back
+  if (data.type === "coi-sidebar") { // the "Edycja" sidebar was opened or collapsed: the original pane gives it room or gets it back
     state.sidebar = Boolean(data.open);
     showView();
     return updateActions();

@@ -12,8 +12,9 @@
      parent ignores edits of a document it no longer shows. `key` names the file: the same file again keeps undo,
      redo and the selection.
    - here -> parent {type: "coi-sidebar", open, doc}: the sidebar was opened or collapsed; the parent makes room
-     for it (hides the history column) or gives the room back.
+     for it (the original pane narrows or becomes a strip; the history column and the form never give way).
    - parent -> here {type: "coi-open"}: open the sidebar on the list of problems (a click on "Do poprawy: N").
+   - parent -> here {type: "coi-close"}: collapse the sidebar (the clerk brought the original back and both do not fit).
    - here -> parent {type: "coi-edit", json, evidence, version} after every change, undo and redo;
      the parent saves it in the history entry and sends back
      {type: "coi-problems", problems: [{id, message, detail}], version, doc}, or {..., failed: true} when the
@@ -188,9 +189,10 @@ function edRestore(s) {
 }
 
 // One undoable change: fn() mutates cfg, then the form, the panel and the parent are updated.
-function edChange(fn, note = "") {
+// `back` = what "Cofnij" will say when it takes this change back (e.g. "Przywrócono pole „Płeć psa”.").
+function edChange(fn, note = "", back = "") {
   edFlush();
-  ed.undo.push(edSnapshot());
+  ed.undo.push({...edSnapshot(), back});
   if (ed.undo.length > 100) ed.undo.shift();
   ed.redo = [];
   ed.note = note;
@@ -205,7 +207,7 @@ function edTyping(fn) {
   edRerender();
   edStatus();
   const loc = ed.sel && edFind(ed.sel), title = $(".ed-title");  // the panel is not redrawn (focus stays), its heading follows the label
-  if (loc && title) title.textContent = (loc.kind === "title" ? cfg.title : loc.kind === "tab" ? loc.tab.title : labelOf(loc.el)) || "(bez tytułu)";
+  if (loc && title) title.textContent = edName(loc);
   clearTimeout(ed.timer);
   ed.timer = setTimeout(edFlush, 500);
 }
@@ -229,7 +231,7 @@ function edUndo() {
   if (!s) return;
   ed.redo.push(edSnapshot());
   edRestore(s);
-  ed.note = "Cofnięto ostatnią zmianę.";
+  ed.note = s.back || "Cofnięto ostatnią zmianę.";
   edAfter();
 }
 function edRedo() {
@@ -238,7 +240,7 @@ function edRedo() {
   if (!s) return;
   ed.undo.push(edSnapshot());
   edRestore(s);
-  ed.note = "Przywrócono zmianę.";
+  ed.note = "Ponowiono cofniętą zmianę.";
   edAfter();
 }
 function edPost() {
@@ -348,14 +350,15 @@ function edMove(id, dir) {
 function edRemove(id) {
   let loc = edFind(id);
   if (!loc || loc.kind === "title" || edRemoveBlock(loc)) return;
-  const name = `„${edShort(loc.kind === "tab" ? loc.tab.title : labelOf(loc.el))}”`;
+  const name = `„${edShort(edName(loc))}”`;
   const lone = loc.kind === "field" && loc.section.repeatingSectionGrid.length === 1;
   if (lone) loc = edFind(loc.section.id);
   const inside = s => [s, ...(s.repeatingSectionGrid || []).map(c => c.field)];
   const gone = loc.kind === "tab" ? loc.tab.questions.flatMap(q => inside(q.field)) : loc.kind === "section" ? inside(loc.el) : [loc.el];
   const broken = edDependents(gone).filter(f => !gone.includes(f)), deps = broken.length;  // their conditions read what goes away
-  const what = lone ? `pole ${name}` : {tab: `stronę ${name} razem z jej polami`, section: `sekcję ${name}`, field: `pole ${name}`}[loc.kind];
+  const what = lone ? `pole ${name} i jego pustą sekcję` : {tab: `stronę ${name} razem z jej polami`, section: `sekcję ${name}`, field: `pole ${name}`}[loc.kind];
   const back = loc.kind === "tab" || lone ? "Przywrócisz to" : loc.kind === "section" ? "Przywrócisz ją" : "Przywrócisz je";
+  const restored = lone ? `pole ${name} i jego sekcję` : {tab: `stronę ${name}`, section: `sekcję ${name}`, field: `pole ${name}`}[loc.kind];
   edChange(() => {
     if (loc.kind === "tab") edRemoveTab(loc.tab);
     else if (loc.kind === "field") {
@@ -364,11 +367,15 @@ function edRemove(id) {
     } else loc.tab.questions = loc.tab.questions.filter(q => q.field.id !== loc.el.id);
     if (loc.kind !== "tab") edLayoutTab(loc.tab);
     ed.sel = deps ? broken[0].id : loc.kind === "field" ? loc.section.id : null;
-  }, `Usunięto ${what}` + (deps === 1 ? ", od którego zależał ten element" : deps ? `, od którego zależały ${deps} elementy (ten i pozostałe na czerwono)` : "") +
-     (lone ? `${deps ? "," : ""} razem z jego pustą sekcją` : "") + `. ${back} przyciskiem „Cofnij”.`);
+  }, `Usunięto ${what}. ` + (deps === 1 ? "Zależał od niego zaznaczony element."
+       : deps ? `Zależały od niego zaznaczony element i ${deps - 1} ${plural(deps - 1, ["inny", "inne", "innych"])} (na czerwono).`
+       : `${back} przyciskiem „Cofnij”.`),
+     `Przywrócono ${restored}.`);
   if (deps) edShow(broken[0].id, "start");  // the element that now needs a fix, on whatever step it is: its heading and the red line under it
 }
 const edShort = text => (text.length > 60 ? text.slice(0, 57) + "…" : text);
+// The one name of an element, for the panel heading and the notes about it (preview.html's nameOf: never a techName).
+const edName = loc => (loc.kind === "title" ? cfg.title : loc.kind === "tab" ? loc.tab.title : nameOf(loc.el)) || "(bez tytułu)";
 // Brings an element into view, on its own step.
 function edShow(id, block = "nearest") {
   const at = edFind(id);
@@ -527,10 +534,13 @@ function edEnsurePanel() {
 }
 
 // Opens or collapses the sidebar (remembered). `pin` = the element that must stay where it is on screen while
-// the layout changes around it (the parent makes room, the form gets narrower or wider); default: the first one in view.
+// the layout changes around it (the parent makes room, the form gets narrower or wider); default: the selected
+// element if it is in view, else the first one in view.
 function edSetOpen(open, pin) {
   if (ed.open === open) return;
-  const el = pin || [...$("#page").querySelectorAll("[data-fid]")].find(x => x.getClientRects().length && x.getBoundingClientRect().top >= 0) || $("#pageHeading");
+  const inView = x => x.getClientRects().length && x.getBoundingClientRect().top >= 0 && x.getBoundingClientRect().top < innerHeight;
+  const el = pin || [...$("#page").querySelectorAll(".ed-sel")].find(inView)  // the element being edited, when it is on screen
+    || [...$("#page").querySelectorAll("[data-fid]")].find(inView) || $("#pageHeading");
   const top = el.getBoundingClientRect().top;
   ed.open = open;
   try { localStorage.setItem(ED_OPEN_KEY, open ? "1" : ""); } catch (e) { /* private mode: the state just is not remembered */ }
@@ -558,11 +568,13 @@ function edStatus() {
   const n = ed.problems.length, box = $("#edStatus");
   const waiting = ed.checked !== ed.version && !ed.failed;
   box.className = "ed-status " + (ed.failed ? "bad" : waiting ? "wait" : n ? "bad" : "ok");
-  // always says that nothing has to be saved by hand; with problems and an element open, one click shows the whole list
-  box.replaceChildren(ed.failed ? "Nie udało się sprawdzić zmian (brak połączenia z serwerem). "
-    : waiting ? "Sprawdzam zgodność z regułami COI…"
-    : n ? `Do poprawy: ${n} ${plural(n, ["problem", "problemy", "problemów"])}. Pobieranie JSON-a jest zablokowane. `
-    : "Zmiany zapisują się same. Zgodne z regułami COI, możesz pobrać JSON.",
+  // every state is one line of the same height, so nothing below it moves while a check runs
+  box.title = ed.failed ? "Nie udało się sprawdzić zmian: brak połączenia z serwerem. Pobieranie JSON-a jest wstrzymane."
+    : n ? "Pobieranie JSON-a jest zablokowane, dopóki są problemy." : "";
+  box.replaceChildren(ed.failed ? "Brak połączenia. "
+    : waiting ? "Sprawdzam…"
+    : n ? `Do poprawy: ${n} ${plural(n, ["problem", "problemy", "problemów"])}. `
+    : "Zgodne z regułami COI.",
     ed.failed ? h("button", {type: "button", class: "ed-link", onclick: () => { edPost(); edStatus(); }}, "Sprawdź ponownie")
     : !waiting && n && ed.sel ? h("button", {type: "button", class: "ed-link", onclick: () => edSelect(null)}, "Pokaż listę") : "");
   $("#edStripBad").hidden = !n && !ed.failed;  // the collapsed strip shows that something waits
@@ -580,6 +592,7 @@ function edStatus() {
         h("br"), p.message);
     }));
     $("#edAllWrap").hidden = !ed.problems.length;
+    $("#edHelp").hidden = ed.problems.length > 0;  // with problems the list is the whole message
   }
 }
 
@@ -645,16 +658,17 @@ function edPanel() {
   edStatus();
   if (ed.focusLabel) { ed.focusLabel = false; const l = $("[data-k=label]", body); if (l) { l.focus(); l.select(); } }
   else if (focusKey && sameElement) $(`[data-k="${CSS.escape(focusKey)}"]`, body)?.focus({preventScroll: Boolean(note)});
-  if (note) $("#edPanel").scrollTop = 0;  // the note says what just happened (e.g. after "Usuń" at the bottom of the panel)
+  if (note || !sameElement) $("#edPanel").scrollTop = 0;  // another element, or a note about what just happened: from the top
 }
 
 function edHelpPanel() {
   return [
-    h("p", {class: "ed-lead"}, "Kliknij „Edytuj” obok elementu formularza, aby go poprawić albo usunąć."),
-    h("ul", {class: "ed-tips"},
-      h("li", {}, "Pod każdym polem widać cytat z papieru, z którego powstało."),
-      h("li", {}, "Każdą zmianę sprawdzamy regułami COI. Problemy są zaznaczone na czerwono.")),
     h("div", {id: "edAllWrap", hidden: true}, h("h3", {class: "ed-h3"}, "Do poprawy"), h("ol", {class: "ed-probs", id: "edAll"})),
+    h("div", {id: "edHelp"},
+      h("p", {class: "ed-lead"}, "Kliknij „Edytuj” obok elementu formularza, aby go poprawić albo usunąć."),
+      h("ul", {class: "ed-tips"},
+        h("li", {}, "Pod każdym polem widać cytat z papieru, z którego powstało."),
+        h("li", {}, "Każdą zmianę sprawdzamy regułami COI. Problemy są zaznaczone na czerwono."))),
   ];
 }
 
@@ -667,41 +681,37 @@ function edEvidenceBox(loc) {
     box.classList.add("paper");
     box.append(quote("Z papieru", ev.quote));
   } else if (ev.source === "code" && (ev.consent_quotes || []).some(Boolean)) {
-    box.append(h("p", {}, "Zgody ze Standardów COI. Oświadczenia z papieru mają cytat przy sobie, poniżej."));
-  } else {
+    box.append(h("p", {}, "Zgody ze Standardów COI. Oświadczenia z papieru mają cytat poniżej."));
+  } else if (ev.source !== "model") {  // a page or section the model grouped has nothing to cite: no line (the legend says it once)
     box.append(h("p", {}, {
-      model: loc.kind === "tab" ? "Stronę ułożył model, grupując sekcje. Cytaty są przy polach."
-        : "Sekcję ułożył model, grupując pola. Cytaty są przy polach.",
-      code: "Dodane automatycznie według Standardów COI. Tego elementu nie ma na papierze.",
-      clerk: "Dodane przez Ciebie w edytorze. Nie ma cytatu z papieru.",
+      code: "Ze Standardów COI, nie z papieru.",
+      clerk: "Dodane przez Ciebie, bez cytatu z papieru.",
       paper: "Z papieru, bez zapisanego cytatu.",
     }[ev.source] || "Brak informacji o pochodzeniu."));
   }
   if (ev?.condition_quote) box.append(quote("Warunek z papieru", ev.condition_quote));
   if (ev?.condition_source === "clerk") box.append(h("p", {}, "Warunek ustawiony przez Ciebie."));
-  return box;  // the quote of each statement is next to it in edConsentControls
+  return box.childElementCount ? box : null;  // the quote of each statement is next to it in edConsentControls
 }
 
 function edElementPanel(loc) {
-  const consents = loc.el?.type === "CONSENT_SECTION";
   const kind = {title: "Tytuł e-usługi", tab: "Strona", section: ED_TYPE_NAMES[loc.el?.type] || "Sekcja", field: "Pole"}[loc.kind];
-  const name = loc.kind === "title" ? cfg.title : loc.kind === "tab" ? loc.tab.title : consents && !loc.el.title ? ED_TYPE_NAMES.CONSENT_SECTION : labelOf(loc.el);
+  const name = edName(loc);
   // "Usuń" sits in the heading row of every element; when the rules would refuse the result, it is off and says why
   const block = loc.kind === "title" ? "" : edRemoveBlock(loc);
   const del = loc.kind !== "title" && edBtn({tab: "Usuń stronę", section: "Usuń sekcję", field: "Usuń pole"}[loc.kind], "del",
     () => edRemove(loc.kind === "tab" ? loc.tab.id : loc.el.id), {danger: true, disabled: Boolean(block)});
   const out = [h("div", {class: "ed-kind-row"}, h("p", {class: "ed-kind"}, kind), del),
-    h("h3", {class: "ed-title"}, name || "(bez tytułu)"), block ? h("p", {class: "ed-hint ed-block"}, block) : "",
+    h("h3", {class: "ed-title"}, name), block ? h("p", {class: "ed-hint ed-block"}, block) : "",
     edEvidenceBox(loc) || "", ed.note ? "" : h("ul", {class: "ed-probs", id: "edMine"})];
-  const head = out.length;
   if (loc.kind === "title") out.push(edRow("Tytuł e-usługi", edInput(cfg.title || "", "label", v => { cfg.title = v; }),
     "Zaczyna się od „Wniosek”, „Zgłoszenie”, „Deklaracja” albo „Oświadczenie”."));
   else if (loc.kind === "tab") out.push(...edTabControls(loc));
   else if (loc.kind === "section") out.push(...edSectionControls(loc));
   else out.push(...edFieldControls(loc));
-  if (loc.el && edBrokenCondition(loc.el)) {  // "Kiedy widoczne" moves up: it is the thing to fix
+  if (loc.el && edBrokenCondition(loc.el)) {  // "Kiedy widoczne" moves right under the title: it is the thing to fix
     const at = out.findIndex(n => n.classList?.contains("ed-cond-box"));
-    if (at > head) out.splice(head, 0, ...out.splice(at, 1));
+    if (at > 2) out.splice(2, 0, ...out.splice(at, 1));
   }
   return out;
 }
@@ -736,7 +746,7 @@ function edConsentControls(f) {
     list.push({description: edHtml("Oświadczam, że ", ""), required: true});
     quotes()?.push(false);
   }));
-  return h("div", {class: "ed-row"}, h("span", {class: "ed-label"}, "Zgody i oświadczenia"), h("ol", {class: "ed-consents"}, items), add);
+  return h("div", {class: "ed-row"}, h("ol", {class: "ed-consents"}, items), add);
 }
 
 function edTabControls(loc) {
@@ -747,12 +757,14 @@ function edTabControls(loc) {
     if (msg.textContent) { el.value = tab.title; return; }
     if (v !== tab.title) edChange(() => edRenameTab(tab, v));
   });
-  return [edRow("Tytuł strony", inp, "Zmiana zapisuje się po Enter albo po wyjściu z pola; warunki wskazujące tę stronę zmienią się same."), msg,
+  return [edRow("Tytuł strony", inp, "Zapisuje się po Enter."), msg,
     h("div", {class: "ed-actions"}, edBtn("+ Dodaj sekcję na końcu strony", "addsec", () => edAddSection(tab.id, null)))];
 }
 
 function edSectionControls(loc) {
   const s = loc.el, list = sortCells(loc.tab.questions), i = list.findIndex(q => q.field === s);
+  const kids = (s.repeatingSectionGrid || []).map(c => c.field);
+  const loneText = kids.length === 1 && STATIC_TYPES.includes(kids[0].type) && !kids[0].title ? kids[0] : null;
   const out = [
     edRow("Tytuł sekcji", edInput(s.title || "", "label", v => { s.title = v; edRetech(s); })),
     edRow("Opis pod tytułem", edArea(edText(s.description), "desc", v => { s.description = edHtml(v, ED_EMPTY_HTML); }), "Krótko i prostym językiem, opcjonalnie."),
@@ -761,8 +773,11 @@ function edSectionControls(loc) {
   out.push(edConditionControls(loc), h("div", {class: "ed-actions"},
     edBtn("↑ W górę", "up", () => edMove(s.id, -1), {disabled: i <= 0, label: "Przesuń sekcję w górę"}),
     edBtn("↓ W dół", "down", () => edMove(s.id, 1), {disabled: i >= list.length - 1, label: "Przesuń sekcję w dół"}),
-    edBtn(edFinish(loc) ? "+ Tekst na końcu" : "+ Pole na końcu", "addfield", () => edAddField(s.id, null)),
-    edBtn("+ Sekcja poniżej", "addsec", () => edAddSection(loc.tab.id, s.id))));
+    // an INFO_SECTION holds no fields (the rules skip its children); a section that is one text without a heading
+    // has no "Edytuj" of its own on that text, so its panel leads there
+    s.type !== "INFO_SECTION" && edBtn(edFinish(loc) ? "+ Tekst na końcu" : "+ Pole na końcu", "addfield", () => edAddField(s.id, null)),
+    edBtn("+ Sekcja poniżej", "addsec", () => edAddSection(loc.tab.id, s.id)),
+    loneText && edBtn("Edytuj tekst sekcji", "text", () => { edSelect(loneText.id); edFocusLabel(); })));
   return out;
 }
 
@@ -904,6 +919,7 @@ window.addEventListener("message", e => {
   if (d.type === "coi-preview") edStart(d.doc, d.key);
   if (!ed.on) return;
   if (d.type === "coi-open") { edSetOpen(true); edSelect(null); }
+  if (d.type === "coi-close") edSetOpen(false);
   if (d.type === "coi-problems" && d.doc === ed.doc && d.version === ed.version && d.failed) { ed.failed = true; edStatus(); }
   else if (d.type === "coi-problems" && d.doc === ed.doc && d.version === ed.version) {
     ed.failed = false;
@@ -916,6 +932,9 @@ window.addEventListener("message", e => {
   if (d.type === "coi-undo") edUndo();
   if (d.type === "coi-redo") edRedo();
 });
+
+// The citizen's view (annotations off) has no "Edytuj" links, so the sidebar steps aside; opening it turns them on again.
+$("#notesToggle").addEventListener("change", e => { if (ed.on && !e.target.checked) edSetOpen(false); });
 
 // Focus leaving the frame (a click on "JSON" or "Pobierz JSON" in the upload page): what was being typed goes out first.
 window.addEventListener("blur", () => { if (ed.on) edFlush(); });
@@ -950,14 +969,14 @@ body:not(.sidebar) #edPanel>:not(#edStrip),body.sidebar #edStrip{display:none}
 .ed-btn:disabled{opacity:.4;cursor:default;background:#fff}
 .ed-btn.danger{color:#b3261e;border-color:#b3261e}
 .ed-btn.danger:hover{background:#fdecea}
-.ed-status{padding:.5rem 1rem;font-size:14px;font-weight:600;border-bottom:1px solid #e3e7ec}
+.ed-status{height:2.4rem;line-height:2.4rem;padding:0 1rem;font-size:14px;font-weight:600;border-bottom:1px solid #e3e7ec;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ed-status.ok{background:#e6f4ea;color:#14532d}
 .ed-status.bad{background:#fdecea;color:#8c1d18}
 .ed-status.wait{background:#f3f4f6;color:#4b5563}
 #edBody{padding:1rem}
 .ed-lead{font-weight:600;margin:0 0 .5rem}
 .ed-tips{margin:0 0 1rem;padding-left:1.1rem;color:#4b5563;font-size:14px}
-.ed-h3{font-size:1rem;margin:1rem 0 .5rem}
+.ed-h3{font-size:1rem;margin:0 0 .5rem}
 .ed-kind{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#4b5563;margin:0}
 .ed-title{font-size:1.1rem;margin:.1rem 0 .75rem;word-break:break-word}
 .ed-row{margin:0 0 .9rem}
@@ -993,6 +1012,8 @@ body:not(.sidebar) #edPanel>:not(#edStrip),body.sidebar #edStrip{display:none}
 [data-fid]{scroll-margin-top:64px}
 .ed-bad{outline:2px solid #b3261e;outline-offset:4px;border-radius:6px}
 .ed-sel{outline:3px solid #0052a5;outline-offset:4px;border-radius:6px}
+body:not(.sidebar) .ed-sel:not(.ed-bad){outline:none}  /* collapsed: the selection is remembered, not shown */
+body:not(.sidebar) .ed-sel.ed-bad{outline:2px solid #b3261e}
 .ed-prob{color:#b3261e;font-weight:600;font-size:13px;margin:.3rem 0 0}
 .card>.ed-prob{margin:-.6rem 0 1rem}
 .ed-dot{color:#b3261e;font-size:12px;margin-left:.15rem}

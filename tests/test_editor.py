@@ -126,7 +126,7 @@ def test_condition_on_a_deleted_option_or_field_is_shown_on_the_dependent(coi):
 
     sec["repeatingSectionGrid"] = sec["repeatingSectionGrid"][1:]
     found = [(p["id"], p["message"]) for p in explain(coi, check(coi))]
-    assert (dependent["id"], "Warunek wskazuje pole, którego już nie ma.") in found
+    assert (dependent["id"], "Warunek zależy od pola, którego już nie ma.") in found
 
 
 def test_tab_level_problems(coi):
