@@ -147,6 +147,15 @@ def test_round5_negatives():
         assert _attr("Data urodzenia", "DATEPICKER", section=section) is None, section
 
 
+def test_round6():
+    for desc in ("Adres w chwili zdarzenia", "w okresie objętym wnioskiem", "Wpisz adres"):
+        assert _addr("Adres zameldowania wnioskodawcy", description=desc) is None, desc
+    f = PlanField(id="a1", label="Ulica", type="TEXT_FIELD", quote="q", description="adres zameldowania dziecka")
+    assert address_source(Section(id="s1", title="Adres zameldowania wnioskodawcy", address=True, fields=[f]),
+                          "Sprawa", "Wniosek o stypendium") is None
+    assert _attr("Data urodzenia", "DATEPICKER", siblings=("Pierwsze imię", "Imię (pierwsze)")) == "PESEL.birthDate"
+
+
 def test_two_qualifying_address_sections_link_neither():
     def addr(i):
         return Section(id=f"a{i}", title="Adres zameldowania wnioskodawcy", address=True,

@@ -62,8 +62,8 @@ _OTHER = re.compile(
     r"|zainteresowan|ubezpieczon|niepelnospraw|niepelnolet|ubezwlasnowol|cudzoziem|swiadczeniobiorc|zglasza(n|sz)"
     r"|\bosob(a|y|e|ie|om|ami|ach)?\b(?! (wnioskujac|skladajac))"  # the noun only: "osobowe" passes
 )
-_SECOND = re.compile(r"wspol|\bdrug(i|a|iego|iej)\b|pierwsz|kolejn|pozostal|\d|wnioskodawcow")
-_SECOND_TITLE = re.compile(r"\bnr\b|\b(ii|iii|iv)\b")  # titles only: a sibling "Nr domu" is fine
+_SECOND = re.compile(r"wspol|\bdrug(i|a|iego|iej)\b|kolejn|pozostal|\d|wnioskodawcow")
+_SECOND_TITLE = re.compile(r"\bnr\b|\b(ii|iii|iv)\b|pierwsz")  # titles only: "Nr domu", "Pierwsze imię" are fine
 # The form changes the registration, the PESEL data or citizenship: the register holds the old value.
 _CHANGE_FORM = re.compile(
     r"meldow|meldun|pobyt|zmian\w* adres|przeprowadz|pesel|sprostow|transkrypc|uzupelnien\w* akt|obywatel"
@@ -72,7 +72,7 @@ _CHANGE_FORM = re.compile(
 _CHANGED = re.compile(r"bledn|prawidlow|poprawn|sprostow|zmian|aktualiz|poprzedn|dotychczas|\bdawn"
                       r"|\bnow(y|a|e|ego|ej|ych|ym|ymi)\b")
 _IF = re.compile(r"\b(jesli|jezeli|w przypadku|o ile|gdy|kiedy|brak\w*)\b")  # conditional: may be meant empty
-# An address section description that offers another address.
+# An address page or paper line that offers another address or one tied to a past date.
 _ALT_ADDRESS = re.compile(r"\b(lub|albo|inn\w*|rozn\w*|zamieszk\w*|pobyt\w*|korespond\w*|czasow\w*|ostatni\w*"
                           r"|przed|w dniu|na dzien|wyjazd\w*|granic\w*)\b|\d")  # or one tied to a past date
 
@@ -152,11 +152,14 @@ def address_source(s: Section, page_title: str, plan_title: str) -> dict[str, st
     rest = page.replace("adres zameldowania", "")
     if _CHANGE_FORM.search(rest) or _ALT_ADDRESS.search(rest) or _CHANGED.search(page):
         return None  # a page about (re)registration, another address or changed data ("Przemeldowanie")
-    # what the section and its paper lines say: another address, a condition, a past date, changed data
-    said = _fold(s.description, *(f.label for f in s.fields), *(f.description for f in s.fields))
-    if _ALT_ADDRESS.search(said) or _IF.search(said) or _CHANGED.search(said):
+    # any note on the section or its lines may ask for another or a past address ("w chwili zdarzenia"):
+    # like the title, the description is an allow-list, and only an empty one passes
+    if s.description.strip() or any(f.description.strip() for f in s.fields):
         return None
-    if _OTHER.search(_fold(title, s.description, page, *(f.label for f in s.fields))):
+    lines = _fold(*(f.label for f in s.fields))
+    if _ALT_ADDRESS.search(lines) or _IF.search(lines) or _CHANGED.search(lines):
+        return None
+    if _OTHER.search(_fold(title, page, lines)):
         return None
     if _SECOND.search(page) or _SECOND_TITLE.search(page):
         return None
