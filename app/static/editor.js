@@ -165,11 +165,7 @@ function edRewrite(visit) {
 }
 
 // True when a SHOW condition of the element reads a field that no longer exists (its trigger was deleted).
-function edBrokenCondition(f) {
-  let broken = false;
-  for (const s of f.states || []) if (s.type === "SHOW") edWalk(cond(s.query).ast, n => { if (n.op === "path" && !refField(n.ref)) broken = true; });
-  return broken;
-}
+const edBrokenCondition = f => condGone(f);  // preview.html: the dashed line and the "Widoczne, gdy" line say it the same way
 // {field, option} when the element has exactly one SHOW condition of the form „pole” = „opcja”.
 function edSingleCondition(f) {
   const shows = (f.states || []).filter(s => s.type === "SHOW");
@@ -367,13 +363,12 @@ function edRemove(id) {
     } else loc.tab.questions = loc.tab.questions.filter(q => q.field.id !== loc.el.id);
     if (loc.kind !== "tab") edLayoutTab(loc.tab);
     ed.sel = deps ? broken[0].id : loc.kind === "field" ? loc.section.id : null;
-  }, `Usunięto ${what}. ` + (deps === 1 ? "Zależał od niego zaznaczony element."
-       : deps ? `Zależały od niego zaznaczony element i ${deps - 1} ${plural(deps - 1, ["inny", "inne", "innych"])} (na czerwono).`
-       : `${back} przyciskiem „Cofnij”.`),
+  }, `Usunięto ${what}.` + (deps ? "" : ` ${back} przyciskiem „Cofnij”.`),  // with a broken condition the panel below says what to do
      `Przywrócono ${restored}.`);
   if (deps) edShow(broken[0].id, "start");  // the element that now needs a fix, on whatever step it is: its heading and the red line under it
 }
-const edShort = text => (text.length > 60 ? text.slice(0, 57) + "…" : text);
+// At most 60 characters, cut between words.
+const edShort = text => (text.length <= 60 ? text : text.slice(0, 58).replace(/\s+\S*$/, "") + "…");
 // The one name of an element, for the panel heading and the notes about it (preview.html's nameOf: never a techName).
 const edName = loc => (loc.kind === "title" ? cfg.title : loc.kind === "tab" ? loc.tab.title : nameOf(loc.el)) || "(bez tytułu)";
 // Brings an element into view, on its own step.
@@ -587,7 +582,7 @@ function edStatus() {
     all.replaceChildren(...ed.problems.map(p => {
       const loc = p.id && edFind(p.id);
       const where = !loc ? "Cały formularz" : loc.kind === "title" ? "Tytuł e-usługi" : loc.kind === "tab" ? `Strona „${loc.tab.title}”`
-        : `${loc.tab.title} › ${labelOf(loc.el)}`;
+        : `${loc.tab.title} › ${nameOf(loc.el)}`;
       return h("li", {title: p.detail}, loc ? h("button", {type: "button", class: "ed-link", onclick: () => edReveal(p.id)}, where) : h("strong", {}, where),
         h("br"), p.message);
     }));
@@ -663,7 +658,7 @@ function edPanel() {
 
 function edHelpPanel() {
   return [
-    h("div", {id: "edAllWrap", hidden: true}, h("h3", {class: "ed-h3"}, "Do poprawy"), h("ol", {class: "ed-probs", id: "edAll"})),
+    h("div", {id: "edAllWrap", hidden: true}, h("ol", {class: "ed-probs", id: "edAll", "aria-label": "Do poprawy"})),  // the banner above already says "Do poprawy: N"
     h("div", {id: "edHelp"},
       h("p", {class: "ed-lead"}, "Kliknij „Edytuj” obok elementu formularza, aby go poprawić albo usunąć."),
       h("ul", {class: "ed-tips"},
@@ -775,8 +770,9 @@ function edSectionControls(loc) {
     edBtn("↓ W dół", "down", () => edMove(s.id, 1), {disabled: i >= list.length - 1, label: "Przesuń sekcję w dół"}),
     // an INFO_SECTION holds no fields (the rules skip its children); a section that is one text without a heading
     // has no "Edytuj" of its own on that text, so its panel leads there
-    s.type !== "INFO_SECTION" && edBtn(edFinish(loc) ? "+ Tekst na końcu" : "+ Pole na końcu", "addfield", () => edAddField(s.id, null)),
-    edBtn("+ Sekcja poniżej", "addsec", () => edAddSection(loc.tab.id, s.id)),
+    s.type !== "INFO_SECTION" && edBtn(edFinish(loc) ? "+ Tekst" : "+ Pole", "addfield", () => edAddField(s.id, null),
+      {label: edFinish(loc) ? "Dodaj tekst na końcu tej sekcji" : "Dodaj pole na końcu tej sekcji"}),
+    edBtn("+ Sekcja", "addsec", () => edAddSection(loc.tab.id, s.id), {label: "Dodaj sekcję poniżej tej"}),
     loneText && edBtn("Edytuj tekst sekcji", "text", () => { edSelect(loneText.id); edFocusLabel(); })));
   return out;
 }
@@ -857,7 +853,7 @@ function edConditionControls(loc) {
   const shown = single && triggers.some(t => t.f === single.field);
   const other = Boolean(text) && !shown, broken = edBrokenCondition(target);  // other: not a plain „pole” = „opcja” the selects can show
   if (other) box.append(h("p", {class: "ed-hint" + (broken ? " ed-err" : "")}, broken
-    ? "Pola, od którego zależał ten element, już nie ma: wybierz inne albo „nie zależy od innego pola”."
+    ? "Warunek zależy od pola, którego już nie ma. Wybierz inne albo „nie zależy od innego pola”."  // the rules' text (app/problems.py) + what to do
     : `Teraz: widoczne, gdy ${text}. Wybór poniżej zastąpi ten warunek.`));
   const groups = new Map();
   for (const t of triggers) {
@@ -867,7 +863,7 @@ function edConditionControls(loc) {
   const fieldSel = h("select", {"data-k": "condfield", "aria-label": "Zależy od pola"},
     other && h("option", {value: "-", disabled: true}, broken ? "obecny warunek (do poprawy)" : "obecny warunek"),  // so that "nie zależy" is a real change
     h("option", {value: ""}, "nie zależy od innego pola"),
-    [...groups].map(([tab, list]) => h("optgroup", {label: tab.title}, list.map(t => h("option", {value: t.f.id}, `${labelOf(t.f)} (${t.section.title || t.section.techName})`)))));
+    [...groups].map(([tab, list]) => h("optgroup", {label: tab.title}, list.map(t => h("option", {value: t.f.id}, `${nameOf(t.f)} (${nameOf(t.section)})`)))));
   fieldSel.value = shown ? single.field.id : other ? "-" : "";
   fieldSel.addEventListener("change", () => {
     const trig = triggers.find(t => t.f.id === fieldSel.value)?.f;
@@ -976,7 +972,6 @@ body:not(.sidebar) #edPanel>:not(#edStrip),body.sidebar #edStrip{display:none}
 #edBody{padding:1rem}
 .ed-lead{font-weight:600;margin:0 0 .5rem}
 .ed-tips{margin:0 0 1rem;padding-left:1.1rem;color:#4b5563;font-size:14px}
-.ed-h3{font-size:1rem;margin:0 0 .5rem}
 .ed-kind{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#4b5563;margin:0}
 .ed-title{font-size:1.1rem;margin:.1rem 0 .75rem;word-break:break-word}
 .ed-row{margin:0 0 .9rem}

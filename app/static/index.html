@@ -263,7 +263,9 @@ const $ = (selector) => document.querySelector(selector);
 const state = {
   token: sessionStorage.getItem("token"), items: [], selected: null, busy: false, hits: [], hit: -1,
   view: "preview", // e-service view: preview | json | dicts; a new file always opens in the preview
-  sidebar: false,  // the "Edycja" sidebar of the preview is open (it says so: message "coi-sidebar")
+  // the "Edycja" sidebar of the preview is open: the frame says so (message "coi-sidebar"); it starts from what the
+  // frame itself remembers, so a reload lays the panes out right at once
+  sidebar: localStorage.getItem("coi-sidebar") === "1",
   originalHidden: localStorage.getItem("coi-original") === "0", // the original pane was collapsed to its strip by hand
   originalUrl: null, previewReady: false,
   doc: 0, docItem: null, // editor: which document the iframe shows (and whose edits it sends)
@@ -670,19 +672,21 @@ function showView() {
 }
 
 // Who gets the room: the history column and the form never give way, the original pane does. It is a strip when
-// the clerk collapsed it, or when the e-service pane (wider while the "Edycja" sidebar is open) leaves it less
-// than a readable width. Below 1000 px everything is stacked and nothing has to give way.
-const ORIGINAL_MIN = 240, STACKED = 1000;
+// the clerk collapsed it, or when the open "Edycja" sidebar leaves it less than a readable width (a PDF page needs
+// about 400 px). The layout follows the sidebar only, the same in "Podgląd", "JSON" and "Słowniki". Below 1000 px
+// everything is stacked and nothing has to give way.
+const ORIGINAL_MIN = 400, STACKED = 1000;
 function originalRoom() {
-  const wide = state.sidebar && state.view === "preview" && state.selected?.status === "done";
-  return { wide, room: $("#panes").clientWidth - 12 - (wide ? 740 : 460) };
+  const wide = state.sidebar && state.selected?.status === "done";
+  return { wide, tight: wide && $("#panes").clientWidth - 12 - 740 < ORIGINAL_MIN };  // tight: no room for both
 }
 function layoutPanes() {
   const panes = $("#panes");
   if (panes.hidden) return;
-  const { wide, room } = originalRoom(), stacked = innerWidth <= STACKED;
+  const { wide, tight } = originalRoom(), stacked = innerWidth <= STACKED;
   panes.classList.toggle("wide", wide);
-  panes.classList.toggle("no-original", !stacked && (state.originalHidden || room < ORIGINAL_MIN));
+  panes.classList.toggle("no-original", !stacked && (state.originalHidden || tight));
+  $("#original-strip").title = tight ? "Rozwiń oryginał. Panel edycji się zwinie, bo oba się nie mieszczą." : "Rozwiń oryginał";
 }
 new ResizeObserver(layoutPanes).observe($("#panes"));
 $("#original-collapse").addEventListener("click", () => {
@@ -695,9 +699,10 @@ $("#original-collapse").addEventListener("click", () => {
 $("#original-strip").addEventListener("click", () => {
   state.originalHidden = false;
   localStorage.setItem("coi-original", "1");
-  if (originalRoom().room < ORIGINAL_MIN) $("#preview-frame").contentWindow.postMessage({ type: "coi-close", doc: state.doc }, location.origin);
+  if (originalRoom().tight) $("#preview-frame").contentWindow.postMessage({ type: "coi-close", doc: state.doc }, location.origin);
   layoutPanes();
-  $("#original-collapse").focus();
+  // focus goes to the control that is on screen once the sidebar has answered and the panes are laid out
+  setTimeout(() => $($("#panes").classList.contains("no-original") ? "#original-strip" : "#original-collapse").focus(), 150);
 });
 
 for (const button of document.querySelectorAll(".switch button")) {

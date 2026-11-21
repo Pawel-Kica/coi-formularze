@@ -325,7 +325,7 @@ function nameOf(f) {
     const text = sanitize(f.description).textContent.replace(/\s+/g, " ").trim();
     return !text ? "Tekst" : text.length > 40 ? text.slice(0, 39) + "…" : text;
   }
-  return labelOf(f);
+  return "(bez etykiety)";
 }
 
 const consentsOf = f => (f.consentSectionConfig && Array.isArray(f.consentSectionConfig.consents)) ? f.consentSectionConfig.consents : [];
@@ -578,6 +578,12 @@ function describeCond(n, parentOp) {
     default: return String(n.v);
   }
 }
+// True when a SHOW condition of the element reads a field that no longer exists (it was removed in the editor).
+function condGone(f) {
+  const gone = n => Boolean(n) && typeof n === "object" && ((n.op === "path" && !refField(n.ref)) || gone(n.l) || gone(n.r) || gone(n.e));
+  return (f.states || []).some(s => s.type === "SHOW" && gone(cond(s.query).ast));
+}
+const COND_GONE = "Pole, od którego to zależy, zostało usunięte.";
 // All SHOW conditions of an element in plain words, "" when it is always visible.
 function condText(f) {
   return (f.states || []).filter(s => s.type === "SHOW").map(s => {
@@ -608,7 +614,7 @@ function notesOf(f, kind, standard) {
   } else if (ev?.source === "clerk") out.push(h("p", {class: "src"}, "Dodane w edytorze, bez cytatu z papieru."));
   if (kind !== "tab" && !codeField) {
     const ct = condText(f);
-    if (ct) out.push(h("p", {class: "src cond"}, h("strong", {}, "Widoczne, gdy: "), ct));
+    if (ct) out.push(h("p", {class: "src cond"}, ...(condGone(f) ? [COND_GONE] : [h("strong", {}, "Widoczne, gdy: "), ct])));
     // the quote behind the condition, unless it only repeats the quote already shown under the question it reads
     if (ev?.condition_quote && !triggersOf(f).some(t => evidence[t.id]?.quote === ev.condition_quote)) out.push(quoteLine("Warunek z papieru", ev.condition_quote));
     else if (ct && ev?.condition_source === "clerk") out.push(h("p", {class: "src"}, "Warunek ustawiony w edytorze."));
@@ -647,7 +653,7 @@ function ghostOf(f, kind) {
   const ct = condText(f);
   if (!ct || (kind === "field" && evidence[f.id]?.source === "code")) return null;
   const what = kind === "section" ? "Ukryta sekcja" : STATIC_TYPES.includes(f.type) ? "Ukryty tekst" : "Ukryte pole";
-  return h("p", {class: "ghost"}, fixButton(f), h("strong", {}, `${what} „${nameOf(f)}”. `), `Pokaże się, gdy ${ct}.`);
+  return h("p", {class: "ghost"}, fixButton(f), h("strong", {}, `${what} „${nameOf(f)}”. `), condGone(f) ? COND_GONE : `Pokaże się, gdy ${ct}.`);
 }
 
 // The one line under the heading of a standard page: code built it, and what on it (if anything) is from the paper.
