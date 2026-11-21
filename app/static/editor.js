@@ -894,6 +894,7 @@ body.editmode .tech{display:none}
 .ed-item.ed-bad{outline:2px solid #b3261e}
 .ed-item.ed-sel{outline:3px solid #0052a5}
 .ed-prob{color:#b3261e;font-weight:600;font-size:13px;margin:.3rem 0 0}
+.card>.ed-prob{margin:-.6rem 0 1rem}
 .ed-add{display:block;width:100%;margin-top:.75rem;background:none;border:1px dashed #8a94a6;border-radius:6px;color:#0052a5;font:inherit;font-size:14px;font-weight:600;padding:.45rem .9rem;cursor:pointer}
 .ed-add:hover{border-color:#0052a5;background:#f3f7fc}
 .ed-add-section{margin-top:1rem;background:#fff}
