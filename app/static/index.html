@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cyfryzacja formularzy | generator e-usług COI</title>
 <!-- One self-contained page served by the API at "/": log in, drop forms, check each result against its original.
-     Left column = one file at a time, or many with "Wrzuć wiele plików" (sent one by one), plus history (IndexedDB)
+     Left column = one file at a time, or many with "Wgraj wiele plików naraz" (sent one by one), plus history (IndexedDB)
      with a ZIP of all results. Main area = original document | e-service, one of four views: "Podgląd" (the form
      with the paper quote under every field), "Edytuj" (the click editor, /preview in edit mode via /editor.js; edits
      are saved in history and checked with the COI rules), "JSON" (tree) and "Słowniki" (bonus II proposals).
@@ -70,7 +70,7 @@
   .status { white-space: nowrap; }
   .status.done { color: var(--ok); } .status.error { color: var(--err); } .status.interrupted { color: var(--warn); }
   /* result: always two panes, original | result */
-  #result-name { margin: 0 0 10px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #original-name { flex: 1; min-width: 0; margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .9rem; color: var(--muted); }
   /* nothing selected yet: the three steps of the whole job */
   #result-empty { margin: auto; max-width: 520px; padding: 24px; }
   #result-empty h2 { font-size: 1.3rem; }
@@ -80,7 +80,7 @@
   .pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
   .pane-head { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 6px 10px;
                background: #f8fafc; border-bottom: 1px solid var(--line); min-height: 46px; }
-  .pane-head h3 { margin-right: auto; }
+  .pane-head h3:last-child { margin-right: auto; }
   .pane-head a.button { background: #fff; color: var(--navy); }
   .pane-head a.button:hover { background: var(--navy-dark); color: #fff; }
   .pane-head .switch { margin-right: auto; }
@@ -177,17 +177,18 @@
         <li><strong>Popraw, co trzeba, i pobierz JSON</strong> gotowy do importu w COI. „Edytuj” obok pola otwiera je do poprawy.</li>
       </ol>
     </div>
-    <p id="result-name" class="name" hidden></p>
     <div class="panes" id="panes" hidden>
       <div class="pane" role="region" aria-labelledby="original-title">
         <div class="pane-head">
           <h3 id="original-title">Oryginał</h3>
+          <span id="original-name"></span>
           <a id="original-download" class="button small" download>Pobierz plik</a>
         </div>
         <div class="pane-body" id="original"></div>
       </div>
       <div class="pane" role="region" aria-label="E-usługa">
         <div class="pane-head">
+          <h3 id="output-title" hidden>E-usługa</h3>
           <div class="switch" role="group" aria-label="Widok e-usługi">
             <button type="button" class="small" data-view="preview" aria-pressed="true">Podgląd</button>
             <button type="button" class="small" data-view="edit" aria-pressed="false">Edytuj</button>
@@ -248,7 +249,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   token: sessionStorage.getItem("token"), items: [], selected: null, busy: false, hits: [], hit: -1,
-  view: localStorage.getItem("coi-view") === "json" ? "json" : "preview", // result view: preview | edit | json | dicts; only preview/json are kept across reloads
+  view: "preview", // e-service view: preview | edit | json | dicts; a new file always opens in the preview
   originalUrl: null, previewReady: false,
   doc: 0, docItem: null, lastCheck: null, // editor: which document the iframe shows, the newest rules check asked for
 };
@@ -348,7 +349,7 @@ $("#login-form").addEventListener("submit", async (event) => {
 });
 $("#logout").addEventListener("click", () => logout());
 
-// --- files: single file by default, many with "Wrzuć wiele plików"; either way one request at a time ---
+// --- files: single file by default, many with "Wgraj wiele plików naraz"; either way one request at a time ---
 
 // Batch mode (bonus VI) is an explicit opt-in, remembered in localStorage.
 function setBatch(on) {
@@ -359,7 +360,7 @@ function setBatch(on) {
   localStorage.setItem("coi-batch", on ? "1" : "");
 }
 setBatch(localStorage.getItem("coi-batch") === "1");
-$("#batch").addEventListener("change", (event) => setBatch(event.target.checked));
+$("#batch").addEventListener("change", (event) => { setBatch(event.target.checked); renderFiles(); });
 
 async function addFiles(files) {
   if (!files.length) return;
@@ -368,6 +369,13 @@ async function addFiles(files) {
     files = files.slice(0, 1);
     $("#announce").textContent = `Biorę tylko pierwszy plik (${files[0].name}). Aby wgrać kilka naraz, zaznacz „Wgraj wiele plików naraz”.`;
   }
+  const known = $("#file").accept.split(",");
+  const wrong = files.filter((file) => !known.includes("." + file.name.split(".").pop().toLowerCase()));
+  if (wrong.length) { // said here, not as a failed row whose "Spróbuj ponownie" could never work
+    $("#announce").textContent = `Ten format nie jest obsługiwany: ${wrong.map((file) => file.name).join(", ")}. Wgraj PDF, DOC, DOCX, ODS, XLSX, XLS, JPG albo PNG.`;
+    files = files.filter((file) => !wrong.includes(file));
+    if (!files.length) return;
+  }
   const added = [];
   for (const file of files) {
     const item = { file, created: Date.now(), status: "queued", started: 0, result: null, error: "" };
@@ -375,6 +383,7 @@ async function addFiles(files) {
     added.push(item);
     await persist(item);
   }
+  state.view = "preview"; // also when the last file was left in "Edytuj" or "JSON"
   select(added[0]); // the original shows at once, the e-service pane counts the seconds
   processQueue();
 }
@@ -458,7 +467,8 @@ function renderFiles() {
       pick.addEventListener("click", () => select(item));
       const status = el("span", "status");
       const sub = el("span", "sub");
-      sub.append(el("span", "", when(item.created)), status);
+      const kind = item.file.name.includes(".") ? item.file.name.split(".").pop().toUpperCase() + " · " : ""; // tells the PDF from its scan
+      sub.append(el("span", "", kind + when(item.created)), status);
       const err = el("span", "err");
       pick.append(el("span", "name", item.file.name), sub, err);
       const del = el("button", "del", "×");
@@ -479,9 +489,9 @@ function renderFiles() {
     item.row.status.textContent = item.status === "working" ? `${STATUS.working}… ${seconds} s` : fix ? "Do poprawy" : STATUS[item.status];
   }
   $("#history-empty").hidden = state.items.length > 0;
-  $("#clear").disabled = state.items.length === 0;
+  $("#clear").hidden = state.items.length === 0;
   const done = state.items.filter(exportable).length;
-  $("#zip").hidden = done < 2; // one result has its own "Pobierz JSON"
+  $("#zip").hidden = done < 2 || !$("#batch").checked; // part of the batch mode; one result has its own "Pobierz JSON"
   $("#zip").textContent = `Pobierz wszystkie JSON-y (${done})`;
 }
 
@@ -505,8 +515,8 @@ function select(item) {
   state.selected = item;
   renderFiles();
   $("#result-empty").hidden = Boolean(item);
-  $("#panes").hidden = $("#result-name").hidden = !item;
-  $("#result-name").textContent = item ? item.file.name : "";
+  $("#panes").hidden = !item;
+  $("#original-name").textContent = $("#original-name").title = item ? item.file.name : "";
   if (changed) showOriginal(item);
   if (!item) return;
   updateActions();
@@ -544,6 +554,7 @@ function renderNote(item) {
 // Sends a failed or interrupted file once more.
 function retry(item) {
   Object.assign(item, { status: "queued", error: "", started: 0 });
+  state.view = "preview";
   persist(item);
   select(item);
   processQueue();
@@ -603,10 +614,9 @@ async function originalText(item) {
 function showView() {
   const done = state.selected?.status === "done";
   if (state.view === "dicts" && $("#dicts-tab").hidden) state.view = "preview"; // this file has no dictionary proposals
-  for (const button of document.querySelectorAll(".switch button")) {
-    button.setAttribute("aria-pressed", String(button.dataset.view === state.view));
-    button.disabled = !done; // nothing to preview, edit or read yet
-  }
+  for (const button of document.querySelectorAll(".switch button")) button.setAttribute("aria-pressed", String(button.dataset.view === state.view));
+  $(".switch").hidden = $("#download").hidden = !done; // nothing to preview, edit or download yet: just the pane title
+  $("#output-title").hidden = done;
   const frame = state.view === "preview" || state.view === "edit"; // the same iframe previews and edits
   $("#preview-frame").hidden = !done || !frame;
   $("#json-view").hidden = !done || state.view !== "json";
@@ -618,7 +628,6 @@ for (const button of document.querySelectorAll(".switch button")) {
   button.addEventListener("click", () => {
     const was = state.view;
     state.view = button.dataset.view;
-    if (state.view === "preview" || state.view === "json") localStorage.setItem("coi-view", state.view);
     if (state.selected) renderNote(state.selected);
     showView();
     if (state.view === "json" && state.selected?.status === "done") renderTree(); // shows the edits too
@@ -649,10 +658,9 @@ function exportable(item) { return item.status === "done" && !(item.problems?.le
 function updateActions() {
   const item = state.selected, done = item?.status === "done", blocked = done && !exportable(item);
   $("#download").disabled = $("#copy").disabled = !done || blocked;
-  $("#download").title = blocked ? "Popraw problemy w edytorze, aby pobrać JSON" : "";
   const status = $("#edit-status");
   status.className = blocked ? "bad" : "muted";
-  status.textContent = blocked ? `Do poprawy: ${item.problems.length}` : ""; // why "Pobierz JSON" is off; the editor panel has the details
+  status.textContent = blocked ? `Do poprawy: ${item.problems.length}. Otwórz „Edytuj”.` : ""; // why "Pobierz JSON" is off; the editor panel lists the problems
   renderFiles();
 }
 

@@ -107,7 +107,9 @@ async def convert(
         coi = await run_in_threadpool(pipeline.convert, data, filename)
     except httpx.HTTPStatusError:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Model językowy zwrócił błąd.")
-    except httpx.TransportError, ConnectionError, TimeoutError:
+    except httpx.TimeoutException, TimeoutError:  # the model is up but too slow: not "niedostępny"
+        raise HTTPException(status.HTTP_504_GATEWAY_TIMEOUT, "Model nie odpowiedział na czas. Spróbuj ponownie.")
+    except httpx.TransportError, ConnectionError:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Model językowy jest niedostępny.")
     except ValueError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Nie udało się odczytać formularza: {error}")

@@ -112,7 +112,6 @@ body:not(.editmode) .src.edit-only{display:none}
 .card>.src+.src{margin-top:-.7rem}
 #pageHeading~.src,.legend{margin:0 0 1rem}
 .legend{border-left-color:#1e7b34}
-body.editmode .read-only{display:none}
 /* "Edytuj" next to every element of the embedded preview (annotations on): one click from reading a field to fixing it */
 .fix{display:none}
 .embed .cell{display:flow-root}
@@ -123,6 +122,7 @@ body.embed.notes:not(.editmode) .card>.fix{margin-top:.1rem}
 /* a hidden element in annotation mode: one dashed line saying what would show it */
 body.ghosts .cond-hidden:has(>.ghost){display:block!important}
 body.ghosts .cond-hidden>:not(.ghost){display:none!important}
+body.embed.notes:not(.editmode) .ghost>.fix{margin-top:0}
 body.ghosts .cond-hidden>.ghost{display:block;margin:0;padding:.45rem .75rem;border:1px dashed #8a94a6;border-radius:6px;background:#f8fafc;color:#4b5563;font-size:13px;line-height:1.4}
 body.ghosts section.card.cond-hidden{padding:0;background:none;box-shadow:none}
 @keyframes flash{from{background:#fff3b0;box-shadow:0 0 0 6px #fff3b0}to{background:transparent;box-shadow:0 0 0 6px transparent}}
@@ -596,28 +596,49 @@ function notesOf(f, kind, standard) {
   if (kind !== "tab" && !codeField) {
     const ct = condText(f);
     if (ct) out.push(h("p", {class: "src cond"}, h("strong", {}, "Widoczne, gdy: "), ct));
-    if (ev?.condition_quote) out.push(quoteLine("Warunek z papieru", ev.condition_quote));
+    // the quote behind the condition, unless it only repeats the quote already shown under the question it reads
+    if (ev?.condition_quote && !triggersOf(f).some(t => evidence[t.id]?.quote === ev.condition_quote)) out.push(quoteLine("Warunek z papieru", ev.condition_quote));
     else if (ct && ev?.condition_source === "clerk") out.push(h("p", {class: "src"}, "Warunek ustawiony w edytorze."));
   }
   (ev?.consent_quotes || []).forEach((q, i) => { if (q) out.push(quoteLine(`Oświadczenie ${i + 1} z papieru`, q)); });
+  if (kind === "field" && !codeField) { // a question from the paper that shows or hides other elements: say which
+    const deps = dependentsOf(f).map(d => `„${labelOf(d)}”`);
+    if (deps.length) out.push(h("p", {class: "src cond"}, h("strong", {}, "Od tej odpowiedzi zależy: "), deps.join(", ")));
+  }
+  return out;
+}
+
+// The fields whose answers the SHOW conditions of `f` read.
+function triggersOf(f) {
+  const out = [];
+  const walk = n => { if (!n || typeof n !== "object") return; if (n.op === "path") { const t = refField(n.ref); if (t) out.push(t); } for (const k of ["l", "r", "e"]) walk(n[k]); };
+  for (const s of f.states || []) if (s.type === "SHOW") walk(cond(s.query).ast);
+  return out;
+}
+// Every element whose SHOW condition reads the answer of `f`.
+function dependentsOf(f) {
+  const out = [];
+  eachField(x => { if (x !== f && triggersOf(x).includes(f)) out.push(x); });
   return out;
 }
 
 // "Edytuj" next to an element: asks the upload page to open the click editor on it (embedded preview only).
 // Standard pages are built by code and stay as they are, except what came from the paper: the addressee and the statements.
 function fixButton(f, kind, standard) {
-  const editable = !standard || (kind === "field" && (ADDRESSEE_FIELDS.includes(f.techName) || f.type === "CONSENT_SECTION"));
+  const editable = standard ? kind === "field" && (ADDRESSEE_FIELDS.includes(f.techName) || f.type === "CONSENT_SECTION")
+    : !(kind === "field" && evidence[f.id]?.source === "code"); // address-block fields: the section's "Edytuj" reaches them
   return EMBED && editable && h("button", {type: "button", class: "fix", "aria-label": `Edytuj: ${labelOf(f)}`,
     onclick: () => parent.postMessage({type: "coi-edit-request", id: f.id}, location.origin)}, "Edytuj");
 }
 
-// One dashed line that stands in for a hidden element in annotation mode, or null when the element is always
-// visible. Code-made fields (the two address variants) stay simply hidden.
-function ghostOf(f, kind) {
+// One dashed line that stands in for a hidden element in annotation mode (with its own "Edytuj": the condition is
+// fixed from where it is read), or null when the element is always visible. Code-made fields (the two address
+// variants) stay simply hidden.
+function ghostOf(f, kind, standard) {
   const ct = condText(f);
   if (!ct || (kind === "field" && evidence[f.id]?.source === "code")) return null;
   const what = kind === "section" ? "Ukryta sekcja" : STATIC_TYPES.includes(f.type) ? "Ukryty tekst" : "Ukryte pole";
-  return h("p", {class: "ghost"}, h("strong", {}, `${what} „${labelOf(f)}”. `), `Pokaże się, gdy ${ct}.`);
+  return h("p", {class: "ghost"}, fixButton(f, kind, standard), h("strong", {}, `${what} „${labelOf(f)}”. `), `Pokaże się, gdy ${ct}.`);
 }
 
 // The line under the form title: what the green quotes are, and how many elements have one.
@@ -625,8 +646,7 @@ function renderLegend() {
   const n = Object.values(evidence).filter(e => e.source === "paper" && e.quote).length;
   $("#legend").replaceChildren(...(!hasEvidence()
     ? ["Ten plik nie ma cytatów z papieru (wczytany JSON albo starszy wynik). Wgraj formularz ponownie, aby je zobaczyć."]
-    : [`Z papieru: ${n} ${plural(n, ["element", "elementy", "elementów"])}, pod każdym jest dosłowny cytat z formularza.`,
-       EMBED && h("span", {class: "read-only"}, " „Edytuj” obok elementu otwiera go do poprawy.")].filter(Boolean)));
+    : [`Z papieru: ${n} ${plural(n, ["element", "elementy", "elementów"])}, pod każdym jest dosłowny cytat z formularza.`]));
 }
 // Polish plural: plural(3, ["pole", "pola", "pól"]) -> "pola".
 const plural = (n, [one, few, many]) => n === 1 ? one : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? few : many;
@@ -823,7 +843,7 @@ function renderQuestion(tab, q) {
 function renderSection(tab, q) {
   const f = q.field, hid = uid(), hint = hintEl(f.description);
   const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
-    ghostOf(f, "section"), fixButton(f, "section", isStandard(tab)), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q),
+    ghostOf(f, "section", isStandard(tab)), fixButton(f, "section", isStandard(tab)), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q),
     layoutGrid(f.repeatingSectionGrid, c => renderField(c, {store: answers[tab.title][f.techName], row: null, standard: isStandard(tab)})));
   card._entry = {field: f, row: null, controls: []};
   return card;
@@ -850,7 +870,7 @@ function renderRepeating(tab, q) {
   }
   drawRows();
   const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
-    ghostOf(f, "section"), fixButton(f, "section", isStandard(tab)), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q), list, addBtn);
+    ghostOf(f, "section", isStandard(tab)), fixButton(f, "section", isStandard(tab)), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q), list, addBtn);
   card._entry = {field: f, row: null, controls: []};
   return card;
 }
@@ -859,7 +879,7 @@ function renderRepeating(tab, q) {
 function renderField(cell, ctx) {
   const f = cell.field, id = uid(), t = f.type, tn = f.techName, st = ctx.store;
   const req = isRequired(f), opt = req || f.readOnly ? "" : " (opcjonalnie)", title = labelOf(f);  // read-only: user cannot fill it, so "optional" means nothing
-  const wrap = h("div", {class: "cell", "data-bound": true, "data-type": t, "data-fid": f.id}, ghostOf(f, "field"));
+  const wrap = h("div", {class: "cell", "data-bound": true, "data-type": t, "data-fid": f.id}, ghostOf(f, "field", ctx.standard));
   const entry = wrap._entry = {field: f, row: ctx.row, store: st, controls: [], id};
   const errId = id + "-err";
   const hint = STATIC_TYPES.includes(t) ? null : hintEl(f.description);
@@ -1216,8 +1236,11 @@ if (EMBED) {
   window.addEventListener("message", e => {
     if (e.origin !== location.origin || e.data?.type !== "coi-preview") return;
     const same = cfg && e.data.key !== undefined && e.data.key === shownKey;
-    const step = same ? pageIdx : 0, y = same ? scrollY : 0;
+    const step = same ? pageIdx : 0;
     const edited = same && $(".ed-sel")?.dataset.fid; // back from the editor: the element that was being fixed
+    // otherwise the element at the top of the screen keeps its place (the two layouts differ, raw scroll would not)
+    const top = same && !edited && [...$("#page").querySelectorAll("[data-fid]")].find(x => x.getBoundingClientRect().top >= 0);
+    const anchor = top && scrollY > 0 ? {id: top.dataset.fid, at: top.getBoundingClientRect().top} : null;
     if (!same) kept = null;
     else if (!document.body.classList.contains("editmode")) kept = answers;
     shownKey = e.data.key;
@@ -1228,8 +1251,10 @@ if (EMBED) {
     if (same) go(step, false);
     // after editor.js has left or entered edit mode (its listener runs next and changes the layout)
     setTimeout(() => {
-      const back = edited && $(`#page [data-fid="${CSS.escape(edited)}"]`);
-      if (back) back.scrollIntoView({block: "center"}); else if (!e.data.select) window.scrollTo(0, y);
+      const find = id => id && $(`#page [data-fid="${CSS.escape(id)}"]`);
+      const back = find(edited), kept = find(anchor?.id);
+      if (back) back.scrollIntoView({block: "center"});
+      else if (kept && !e.data.select) window.scrollBy(0, kept.getBoundingClientRect().top - anchor.at);
     });
   });
 } else {

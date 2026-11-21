@@ -472,8 +472,11 @@ function edStatus() {
   const n = ed.problems.length, box = $("#edStatus");
   const waiting = ed.checked !== ed.version;
   box.className = "ed-status " + (waiting ? "wait" : n ? "bad" : "ok");
-  box.textContent = waiting ? "Sprawdzam zgodność z regułami COI…"
-    : n ? `Do poprawy: ${n} ${plural(n, ["problem", "problemy", "problemów"])}. Pobieranie JSON-a jest zablokowane.` : "Zgodne z regułami COI. Możesz pobrać JSON.";
+  // always says that nothing has to be saved by hand; with problems and an element open, one click shows the whole list
+  box.replaceChildren(waiting ? "Sprawdzam zgodność z regułami COI…"
+    : n ? `Do poprawy: ${n} ${plural(n, ["problem", "problemy", "problemów"])}. Pobieranie JSON-a jest zablokowane. `
+    : "Zmiany zapisują się same. Zgodne z regułami COI, możesz pobrać JSON.",
+    !waiting && n && ed.sel ? h("button", {type: "button", class: "ed-link", onclick: () => edSelect(null)}, "Pokaż listę") : "");
   $("#edUndo").disabled = !ed.undo.length && !ed.pending;
   $("#edRedo").disabled = !ed.redo.length;
   const mine = $("#edMine");
@@ -557,7 +560,7 @@ function edHelpPanel() {
     h("p", {class: "ed-lead"}, "Kliknij dowolny element formularza, aby go poprawić."),
     h("ul", {class: "ed-tips"},
       h("li", {}, "Przy każdym polu widać cytat z papieru, z którego powstało."),
-      h("li", {}, "Zmiany zapisują się same w historii; Ctrl+Z cofa ostatnią."),
+      h("li", {}, "Ctrl+Z cofa ostatnią zmianę."),
       h("li", {}, "Po każdej zmianie sprawdzamy formularz regułami COI. Problemy są zaznaczone na czerwono.")),
     h("div", {id: "edAllWrap", hidden: true}, h("h3", {class: "ed-h3"}, "Do poprawy"), h("ol", {class: "ed-probs", id: "edAll"})),
   ];
@@ -822,8 +825,8 @@ document.addEventListener("keydown", e => {
 });
 
 const ED_CSS = `
-body.editmode{padding-right:380px}
-#edPanel{display:none;position:fixed;top:0;right:0;bottom:0;width:380px;background:#fff;border-left:1px solid #c5ccd6;box-shadow:-4px 0 16px rgba(16,24,40,.06);overflow:auto;font-size:15px;z-index:20}
+body.editmode{padding-right:340px}
+#edPanel{display:none;position:fixed;top:0;right:0;bottom:0;width:340px;background:#fff;border-left:1px solid #c5ccd6;box-shadow:-4px 0 16px rgba(16,24,40,.06);overflow:auto;font-size:15px;z-index:20}
 body.editmode #edPanel{display:block}
 .ed-top{position:sticky;top:0;z-index:1;background:#fff}
 .ed-head{display:flex;align-items:center;gap:.5rem;padding:.6rem 1rem;border-bottom:1px solid #e3e7ec}

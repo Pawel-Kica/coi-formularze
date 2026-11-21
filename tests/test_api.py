@@ -220,6 +220,7 @@ def test_exactly_one_file(client, auth):
     [
         (ValueError("brak tekstu"), 422),
         (httpx.ConnectError("refused"), 503),
+        (httpx.ReadTimeout("slow model"), 504),
         (httpx.HTTPStatusError("500", request=httpx.Request("POST", "http://x"), response=httpx.Response(500)), 502),
     ],
 )
