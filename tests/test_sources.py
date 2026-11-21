@@ -80,7 +80,11 @@ def test_docx_places_are_text_lines():
     for eid, p in places.items():
         a, b = p["lines"]
         assert p["text"] == "\n".join(paper.raw[a:b + 1])
-        assert normalize(ev[eid]["quote"]).split()[0] in normalize(p["text"])
+        quote = ev[eid]["quote"]
+        if quote:
+            assert normalize(quote).split()[0] in normalize(p["text"])
+        else:  # a section without a quote is placed at its paper heading (6043615)
+            assert p["text"].strip()
 
 
 @needs_data
