@@ -28,7 +28,7 @@ from app.builder.core import (
     section,
     tab,
 )  # fmt: skip
-from app.builder.registry import address_source, pesel_attribute
+from app.builder.registry import address_source, pesel_links
 from app.builder.standard import (
     CONTACT,
     DANE,
@@ -170,6 +170,7 @@ def _plan_pages(ctx: Ctx, plan: Plan, known: dict[str, dict]) -> list[dict]:
     # editable twin covers the other answers (a read-only wrong value cannot be fixed).
     own, own_q = own_filing(plan.applicant)
     variants = [(True, own_q), (False, negate(own_q))] if own_q else [(True, None)]
+    links = pesel_links(plan, titles) if own else {}
     tabs = []
     for title, page in zip(titles, plan.pages):
         sections = []
@@ -188,16 +189,16 @@ def _plan_pages(ctx: Ctx, plan: Plan, known: dict[str, dict]) -> list[dict]:
                                             registry=source if fed else None,
                                             query=all_of(show_q, extra_q),
                                             tab_title=title, description=desc, register=False)
-                    if fed:  # as in `_field`: an empty registry value must not block sending
+                    if fed:  # as in `_field`: an empty or odd registry value must not block sending
                         for c in built["repeatingSectionGrid"]:
                             if c["field"].get("defaultValueType") == "EXTERNAL_SYSTEM":
-                                c["field"]["validation"] = [v for v in c["field"]["validation"] if v != "REQUIRED"]
+                                c["field"]["validation"] = []
                     known[built["id"]] = _ev("paper", quote, plan_id=s.id, cond=s.show_if if show_q else None)
                     sections.append(built)
                 continue
             fields = []
             for f in s.fields:
-                attr = pesel_attribute(f, s, title) if own else None
+                attr = links.get(id(f))
                 for i, (fed, extra_q) in enumerate(variants if attr else [(False, None)]):
                     tech = fld_tech[id(f)] if i == 0 else ctx.tech(f"{fld_tech[id(f)]}_inna_osoba")
                     built_field = _field(ctx, f, tech, st, locs, registry=attr if fed else None,
@@ -233,9 +234,8 @@ def _field(ctx: Ctx, f: PlanField, tech: str, section_tech: str, locs: dict[str,
     desc = html_paragraphs(f.description) if f.description.strip() else ""
     label = f.label.strip()
     if registry:  # only TEXT_FIELD / DATEPICKER labels qualify (registry.pesel_attribute)
-        # no REQUIRED: the register may lack the value and the citizen cannot type it in
-        return field(ctx, type_, label, tech, description=desc, query=query, read_only=True,
-                     validation=detect_validators(label) if type_ == "TEXT_FIELD" else [],
+        # no validators: the register may lack the value and the citizen cannot type it in
+        return field(ctx, type_, label, tech, description=desc, query=query, read_only=True, validation=[],
                      extra={"defaultValue": registry, "defaultValueType": "EXTERNAL_SYSTEM"})
     if type_ == "TEXT_FIELD":
         if not desc and "telefon" in ascii_fold(label).lower():  # bonus VI: no phone validator in COI

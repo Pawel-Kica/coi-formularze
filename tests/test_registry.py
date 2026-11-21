@@ -14,9 +14,12 @@ def _f(label, type_="TEXT_FIELD", **kw):
     return PlanField(id="f1", label=label, type=type_, quote="q", **kw)
 
 
-def _attr(label, type_="TEXT_FIELD", section="Dane wnioskodawcy", page="Sprawa", repeating=False, **kw):
+def _attr(label, type_="TEXT_FIELD", section="Dane wnioskodawcy", page="Sprawa", repeating=False,
+          plan_title="Wniosek o stypendium", siblings=(), **kw):
     f = _f(label, type_, **kw)
-    return pesel_attribute(f, Section(id="s1", title=section, repeating=repeating, fields=[f]), page)
+    others = [PlanField(id=f"g{i}", label=lab, type="TEXT_FIELD", quote="g") for i, lab in enumerate(siblings)]
+    sec = Section(id="s1", title=section, repeating=repeating, fields=[f, *others])
+    return pesel_attribute(f, sec, page, plan_title)
 
 
 @pytest.mark.parametrize("label,type_,section,attr", [
@@ -81,6 +84,18 @@ def test_negative_context_outside_section_title():
     assert _attr("Data urodzenia", "DATEPICKER", repeating=True) is None  # a repeating section never
 
 
+def test_mixed_sections_and_registry_changing_forms():
+    assert _attr("Data urodzenia", "DATEPICKER", siblings=("Imię ojca", "Obywatelstwo")) == "PESEL.birthDate"
+    assert _attr("Data urodzenia", "DATEPICKER", siblings=("Imię i nazwisko małżonka",)) is None
+    assert _attr("Data urodzenia", "DATEPICKER", siblings=("Wnioskodawca 2: imię",)) is None
+    for title in ("Wniosek o nadanie numeru PESEL", "Wniosek o sprostowanie aktu urodzenia",
+                  "Formularz meldunkowy", "Wniosek o zmianę adresu"):
+        assert _attr("Data urodzenia", "DATEPICKER", plan_title=title) is None, title
+    for page in ("Dane wnuczki", "Osoba kontaktowa", "Dane studenta", "Dane cudzoziemca"):
+        assert _attr("Data urodzenia wnioskodawcy", "DATEPICKER", page=page) is None, page
+    assert _attr("Twoja data urodzenia", "DATEPICKER", section="Dane osoby, którą zgłaszasz") is None
+
+
 def _addr(title, plan_title="Wniosek o stypendium", page="Sprawa", labels=("Ulica", "Kod pocztowy")):
     fields = [PlanField(id=f"a{i}", label=lab, type="TEXT_FIELD", quote="q") for i, lab in enumerate(labels)]
     return address_source(Section(id="s1", title=title, address=True, fields=fields), page, plan_title)
@@ -99,6 +114,13 @@ def test_address_source():
     assert _addr("Adres zameldowania kandydata") is None
     assert _addr("Adres zameldowania") is None  # whose? no applicant mention
     assert _addr("Adres zameldowania", page="Dane wnioskodawcy") is None  # the page never counts
+    for tail in ("(dziecka)", "(pełnomocnika)", "(współmałżonka)", "(nr 2)", "(drugiego)", "(na pobyt czasowy)"):
+        assert _addr(f"Adres zameldowania wnioskodawcy {tail}") is None, tail
+    assert _addr("Twój adres zameldowania (przedstawiciela ustawowego)") is None
+    for tail in ("(dotyczy współwnioskodawcy)", "(nie dotyczy pełnomocnika)", "(osoby małoletniej)"):
+        assert _addr(f"Adres zameldowania wnioskodawcy {tail}") is None, tail
+    for title in ("Formularz meldunkowy", "Wniosek o przemeldowanie", "Wniosek o zmianę adresu"):
+        assert _addr("Adres zameldowania wnioskodawcy", plan_title=title) is None, title
     assert _addr("Adres zamieszkania wnioskodawcy") is None  # residence is not registration (MLPZ on Dane)
     assert _addr("Adres zameldowania dziecka wnioskodawcy") is None
     assert _addr("Nowy adres zameldowania wnioskodawcy") is None
@@ -125,8 +147,8 @@ def _by_tech(coi):
 
 def _self_plan(applicant):
     return _plan([
-        Section(id="s1", title="Dane wnioskodawcy", fields=[
-            _f("Data urodzenia", "DATEPICKER", required=True),
+        Section(id="s1", title="Dane wnioskodawcy", fields=[_f("Data urodzenia", "DATEPICKER", required=True)]),
+        Section(id="s3", title="Dane dziecka", fields=[
             PlanField(id="f2", label="Data urodzenia dziecka", type="DATEPICKER", quote="q2"),
         ]),
         Section(id="s2", title="Adres zameldowania wnioskodawcy", address=True, fields=[
@@ -153,7 +175,7 @@ def test_solo_filer_gets_read_only_registry_fields():
     assert not any(k.endswith("_zagranica") for k in sources)
     assert all(c["field"]["readOnly"] for c in addr["repeatingSectionGrid"])
     fed = [c["field"] for c in addr["repeatingSectionGrid"] if c["field"].get("defaultValueType")]
-    assert fed and not any("REQUIRED" in f["validation"] for f in fed)
+    assert fed and not any(f["validation"] for f in fed)  # no REQUIRED, no ZIP_CODE on register values
 
 
 def test_proxy_possible_adds_editable_twin_for_other_filers():
@@ -169,6 +191,19 @@ def test_proxy_possible_adds_editable_twin_for_other_filers():
     addr_twin = t["adres_zameldowania_wnioskodawcy_inna_osoba"]
     assert addr_twin["states"][0]["query"].startswith("$not" + own)
     assert not any(c["field"]["readOnly"] for c in addr_twin["repeatingSectionGrid"])
+
+
+def test_attribute_on_two_fields_is_linked_on_neither():
+    plan = _plan([
+        Section(id="s1", title="Dane wnioskodawcy", fields=[_f("Data urodzenia", "DATEPICKER")]),
+        Section(id="s2", title="Twoje dane", fields=[
+            PlanField(id="f2", label="Data urodzenia", type="DATEPICKER", quote="q2"),
+            PlanField(id="f3", label="Miejsce urodzenia", type="TEXT_FIELD", quote="q3"),
+        ]),
+    ], SOLO)
+    t = _by_tech(build(plan))
+    assert not t["data_urodzenia"]["readOnly"] and not t["data_urodzenia_2"]["readOnly"]
+    assert t["miejsce_urodzenia"]["defaultValue"] == "PESEL.birthPlace"
 
 
 def test_entity_only_filer_never_gets_registry():
