@@ -114,6 +114,12 @@ Zmienne środowiskowe albo plik `.env` (wzór: `.env.example`).
 | `LLM_VISION_CONDITIONS_SIDE` | `1024` | Dłuższy bok obrazów w 2. przebiegu (warunki), px; `0` = 2. przebieg bez obrazów |
 | `LLM_VISION_TEXT` | `1` | `0` = model dostaje same obrazy stron, bez wyciągniętego tekstu (tylko gdy obraz ma każda strona pliku, dłuższy plik zostaje przy tekście); cytaty model przepisuje z obrazu, a filtr sprawdza je z naszym tekstem z progiem jak dla OCR |
 | `LLM_VISION_GRAY` | `0` | `1` = obrazy stron w skali szarości |
+| `PIPELINE` | `text` | `images` = każdy plik (też DOC/DOCX/ODS/XLS/XLSX przez LibreOffice) zamieniany na obrazy stron, model wizyjny przepisuje każdą stronę do Markdown, planer czyta ten Markdown zamiast wyciągniętego tekstu |
+| `TRANSCRIBE_MODEL` | `LLM_MODEL` | Model wizyjny przepisujący strony przy `PIPELINE=images` |
+| `TRANSCRIBE_SIDE` | `1024` | Dłuższy bok obrazu strony wysyłanego do przepisania, px (ok. 1,4 tys. tokenów na stronę) |
+| `TRANSCRIBE_WORKERS` | `4` | Ile stron przepisywanych naraz |
+| `TRANSCRIBE_TIMEOUT_S` | `180` | Limit czasu przepisania jednej strony (s), potem jedna ponowna próba |
+| `SOFFICE` | `soffice` | Program LibreOffice do zamiany plików biurowych na PDF (na macOS sprawdzana też ścieżka aplikacji) |
 | `OCR_ENGINE` | `tesseract` | `tesseract` albo `vlm` (model wizyjny w Ollamie) |
 | `OCR_VLM_MODEL` | `LLM_MODEL` | Model wizyjny dla `OCR_ENGINE=vlm`; domyślnie ten sam co `LLM_MODEL` (musi czytać obrazy) |
 

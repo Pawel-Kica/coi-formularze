@@ -1,6 +1,6 @@
 """End-to-end run of the real pipeline over form files: the definition-of-done table.
 
-For every file: extract -> make_plan -> filter_plan -> build -> check. Saves
+For every file: read (extract, or PIPELINE=images: page Markdown) -> make_plan -> filter_plan -> build -> check. Saves
 `<out>/<set>/<form>/<ext>.plan.json` and `.coi.json`, then prints per file:
 JSON produced (1), COI rules problems (2), quote-filter drops (hallucination
 proxy), score vs the gold plan, for forms 1 and 5 score vs the COI reference (3)
@@ -23,9 +23,10 @@ import time
 from pathlib import Path
 
 from app.builder import build
-from app.extract import extract
+from app.config import settings
 from app.llm.planner import make_plan
-from app.llm.vision import images_only, page_images, setup
+from app.llm.vision import images_only, setup
+from app.pipeline import read
 from app.plan import Plan
 from app.quotes import filter_plan, threshold_for
 from app.rules import check
@@ -96,8 +97,9 @@ def run_file(form: str, path: Path, out: Path, rebuild: bool = False) -> dict:
         t = time.time()
         try:
             data = path.read_bytes()
-            doc = extract(data, path.name)
-            pages = page_images(data, path.name)
+            doc, pages = read(data, path.name)
+            (out / form).mkdir(parents=True, exist_ok=True)
+            (out / form / f"{ext}.text.md").write_text(doc.text)  # what the planner read
             plan, dropped = filter_plan(make_plan(doc.text, pages), doc.text,
                                         threshold_for(doc.method, images_only(pages)))
             coi = build(plan)
@@ -152,7 +154,11 @@ def main() -> int:
     out = Path(a.out) / ("bip" if a.bip else "coi")
     files = bip_files() if a.bip else coi_files(set(a.forms.split(",")) if a.forms else None,
                                                 set(a.formats.split(",")) if a.formats else None)
-    print("llm:", json.dumps(setup()), flush=True)
+    llm = setup()
+    if settings.pipeline == "images":  # tells an images run apart from a text run in the log
+        llm |= {"pipeline": "images", "transcribe_model": settings.transcribe_model or settings.llm_model,
+                "transcribe_side": settings.transcribe_side}
+    print("llm:", json.dumps(llm), flush=True)
     rows = []
     for form, path in files:
         r = run_file(form, path, out, a.rebuild)
@@ -165,7 +171,7 @@ def main() -> int:
     cons = consistency(rows, out)
     summary = {"files": len(rows), "json_ok": sum(bool(r.get("ok")) for r in rows),
                "rules_ok": sum(bool(r.get("ok")) and not r["problems"] for r in rows), "consistency": cons,
-               "llm": setup()}
+               "llm": llm}
     (out / "summary.json").write_text(json.dumps({"summary": summary, "rows": rows}, ensure_ascii=False, indent=1))
     print(json.dumps(summary, ensure_ascii=False))
     return 0

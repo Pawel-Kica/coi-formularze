@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from app import pipeline
 from app.config import settings
 from app.llm import planner
 from app.quotes import THRESHOLD_OCR
@@ -167,7 +168,7 @@ def test_run_file_images_only_uses_ocr_threshold_and_keeps_meta(monkeypatch, tmp
         seen["threshold"] = threshold
         return plan, ["field f9 'X': quote not in text: 'y'"]
 
-    monkeypatch.setattr(run_all, "extract", lambda data, name: type("D", (), {"text": "Imię ____", "method": "pdf-text"})())
+    monkeypatch.setattr(pipeline, "extract", lambda data, name: type("D", (), {"text": "Imię ____", "method": "pdf-text"})())
     monkeypatch.setattr(run_all, "make_plan", lambda text, pages: planner.draft_to_plan(PASS1))
     monkeypatch.setattr(run_all, "filter_plan", fake_filter)
     monkeypatch.setattr(run_all, "reference", lambda form: None)

@@ -28,7 +28,7 @@ def bodies(monkeypatch):
     """Request bodies the planner sends; the stub answers both passes."""
     seen = []
 
-    def post(url, body):
+    def post(url, body, timeout=None, tries=3):
         seen.append(body)
         ans = PASS1 if body["response_format"]["json_schema"]["name"] == "plan" else {"new_questions": [], "conditions": []}
 

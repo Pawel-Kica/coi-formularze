@@ -59,6 +59,15 @@ class Settings(BaseSettings):
     # OCR
     ocr_engine: str = "tesseract"  # "tesseract" or "vlm" (vision model in Ollama)
     ocr_vlm_model: str | None = None  # model for OCR_ENGINE=vlm; unset = LLM_MODEL (must read images)
+
+    # PIPELINE=images (app/llm/transcribe.py): every file -> page images -> Markdown, one vision call
+    # per page -> the planner reads the Markdown instead of our extracted text. "text" = extraction.
+    pipeline: Literal["text", "images"] = "text"
+    transcribe_model: str | None = None  # unset = LLM_MODEL (must read images)
+    transcribe_side: int = 1024  # long side of a page image sent for transcription, px (1024 reads form 8 fine)
+    transcribe_workers: int = 4  # pages transcribed at the same time
+    transcribe_timeout_s: float = 180  # per page call; one more try after a timeout, so a stuck page costs <= 6 min
+    soffice: str = "soffice"  # LibreOffice binary (DOC/DOCX/ODS/XLS/XLSX -> PDF); macOS app path tried too
     # Dev only: folder of bench runs (e.g. bench/runs) for the review page /review (app/review.py).
     # Unset = the page and its endpoints answer 404, as in Docker and for the jury.
     review_runs_dir: Path | None = None

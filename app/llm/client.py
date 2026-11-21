@@ -109,14 +109,14 @@ def _retry_wait(response: httpx.Response | None, attempt: int) -> float:
     return min(max(wait, 1.0), 60.0)
 
 
-def _post(url: str, body: dict) -> httpx.Response:
+def _post(url: str, body: dict, timeout: float | None = None, tries: int = MAX_TRIES) -> httpx.Response:
     """POST with retries on 429/5xx/transport errors, without leaking the key: failures are
     re-raised outside the `except` block as fresh exceptions (no chained original, whose
     request carries the Authorization header)."""
-    for attempt in range(1, MAX_TRIES + 1):
+    for attempt in range(1, tries + 1):
         failure = None
         try:
-            r = httpx.post(url, json=body, headers=_headers(), timeout=settings.llm_timeout_s)
+            r = httpx.post(url, json=body, headers=_headers(), timeout=timeout or settings.llm_timeout_s)
             r.raise_for_status()
             return r
         except httpx.HTTPStatusError as e:
@@ -124,7 +124,7 @@ def _post(url: str, body: dict) -> httpx.Response:
         except httpx.TransportError as e:
             failure = ("transport", type(e))
         retryable = failure[0] == "transport" or failure[1].status_code == 429 or failure[1].status_code >= 500
-        if not retryable or attempt == MAX_TRIES:
+        if not retryable or attempt == tries:
             break
         time.sleep(_retry_wait(failure[1] if failure[0] == "status" else None, attempt))
     if failure[0] == "status":
@@ -150,6 +150,44 @@ def chat_json(
 
     Raises LLMError when the answer is not valid JSON, httpx errors on HTTP failures.
     """
+    response_format = {
+        "type": "json_schema",
+        "json_schema": {"name": name, "schema": strict_schema(schema), "strict": True},
+    }
+    raw, seconds, stats = _chat(system, user, model, max_tokens, seed, frequency_penalty, images, response_format)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise LLMError(f"model returned invalid JSON (finish_reason={stats['finish_reason']}): {e}") from None
+    if not isinstance(data, dict):
+        raise LLMError("model returned JSON that is not an object")
+    return ChatResult(data=data, raw=raw, seconds=seconds, prompt_tokens=stats["prompt_tokens"] or 0,
+                      output_tokens=stats["output_tokens"] or 0, stats=stats)
+
+
+def chat_text(
+    system: str,
+    user: str,
+    model: str | None = None,
+    max_tokens: int = 8000,
+    images: list[str] | None = None,
+    presence_penalty: float = 0.0,
+    timeout: float | None = None,
+    tries: int = MAX_TRIES,
+) -> ChatResult:
+    """The same deterministic call without a schema: the answer is free text (`raw`, `data` empty),
+    e.g. a page transcribed to Markdown (`app.llm.transcribe`). Raises LLMError when the answer is
+    empty or cut off by `max_tokens`. `timeout` (s, unset = LLM_TIMEOUT_S) and `tries` per HTTP attempt."""
+    raw, seconds, stats = _chat(system, user, model, max_tokens, 42, 0.0, images, None, presence_penalty, timeout, tries)
+    if not raw.strip() or stats["finish_reason"] == "length":
+        raise LLMError(f"model returned no usable text (finish_reason={stats['finish_reason']})")
+    return ChatResult(data={}, raw=raw, seconds=seconds, prompt_tokens=stats["prompt_tokens"] or 0,
+                      output_tokens=stats["output_tokens"] or 0, stats=stats)
+
+
+def _chat(system, user, model, max_tokens, seed, frequency_penalty, images, response_format, presence_penalty=0.0,
+          timeout=None, tries=MAX_TRIES):
+    """One chat completion -> (answer text, seconds, stats); logs the call in CALLS."""
     model = model or settings.llm_model
     content = user
     if images:
@@ -158,18 +196,18 @@ def chat_json(
     body = {
         "model": model,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": content}],
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {"name": name, "schema": strict_schema(schema), "strict": True},
-        },
         "temperature": 0,
         "max_tokens": max_tokens,
         **model_params(model, seed),
     }
+    if response_format:
+        body["response_format"] = response_format
     if frequency_penalty:
         body["frequency_penalty"] = frequency_penalty
+    if presence_penalty:
+        body["presence_penalty"] = presence_penalty
     t0 = time.monotonic()
-    out = _post(f"{base_url()}/chat/completions", body).json()
+    out = _post(f"{base_url()}/chat/completions", body, timeout, tries).json()
     seconds = time.monotonic() - t0
     choice = (out.get("choices") or [{}])[0]
     raw = (choice.get("message") or {}).get("content") or ""
@@ -180,14 +218,7 @@ def chat_json(
         "finish_reason": choice.get("finish_reason"),
     }
     CALLS.append({"model": model, "seconds": round(seconds, 2), **stats})
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as e:
-        raise LLMError(f"model returned invalid JSON (finish_reason={stats['finish_reason']}): {e}") from None
-    if not isinstance(data, dict):
-        raise LLMError("model returned JSON that is not an object")
-    return ChatResult(data=data, raw=raw, seconds=seconds, prompt_tokens=stats["prompt_tokens"] or 0,
-                      output_tokens=stats["output_tokens"] or 0, stats=stats)
+    return raw, seconds, stats
 
 
 async def health() -> str:
