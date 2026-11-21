@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Podgląd e-usługi COI</title>
+<link rel="icon" href="data:,">
+<style>
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:#1b1f24;background:#eef2f6}
+:focus-visible{outline:3px solid #0052a5;outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+a{color:#0052a5}
+
+/* tool bar (not part of the e-service) */
+.toolbar{background:#1d2633;color:#fff;display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;padding:.5rem 1rem;font-size:14px;position:relative}
+.toolbar :focus-visible{outline-color:#ffcf40}
+.tb-title{font-weight:700;margin-right:auto;font-size:15px}
+.tb-btn{background:transparent;color:#fff;border:1px solid #9aa7b8;border-radius:4px;padding:.3rem .7rem;font:inherit;cursor:pointer}
+.tb-btn:hover{background:#2e3a4b}
+.toolbar label{display:flex;gap:.4rem;align-items:center;cursor:pointer}
+.issues summary{cursor:pointer;border:1px solid #9aa7b8;border-radius:4px;padding:.3rem .7rem;list-style:none}
+.issues summary::-webkit-details-marker{display:none}
+.issues.has summary{border-color:#ffcf40;color:#ffcf40}
+.issues ol{position:absolute;right:1rem;top:100%;z-index:10;margin:0;width:min(640px,92vw);max-height:60vh;overflow:auto;background:#fff;color:#1b1f24;border:1px solid #8a94a6;border-radius:6px;padding:.75rem 1rem .75rem 2.25rem;box-shadow:0 6px 20px rgba(0,0,0,.2);font-size:13px}
+.issues li{margin:.2rem 0;word-break:break-word}
+.load-error{max-width:880px;margin:1rem auto 0;padding:.75rem 1rem;border:2px solid #b3261e;background:#fff;color:#b3261e;border-radius:6px;font-weight:600}
+.load-error:empty{display:none}
+
+/* empty state */
+.empty{max-width:720px;margin:2rem auto;padding:0 1rem}
+.drop{border:3px dashed #8a94a6;border-radius:12px;background:#fff;padding:2.5rem 1.5rem;text-align:center}
+.drop.over,body.dragging .drop{border-color:#0052a5;background:#e8f0fb}
+.drop p{margin:.25rem 0 1rem;font-size:1.15rem}
+.empty textarea{min-height:10rem;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace}
+
+/* e-service */
+.wrap{max-width:880px;margin:0 auto;padding:1.5rem 1rem 4rem}
+h1{font-size:1.6rem;line-height:1.25;margin:.25rem 0 1rem}
+.stepper{list-style:none;display:flex;flex-wrap:wrap;gap:.25rem .5rem;padding:0;margin:0 0 1.5rem}
+.stepper li>*{display:flex;align-items:center;gap:.4rem;font:inherit;font-size:14px;color:#4b5563;background:none;border:0;padding:.25rem .4rem;border-radius:4px}
+.stepper button{cursor:pointer;color:#0052a5;text-decoration:underline}
+.stepper .num{display:inline-grid;place-items:center;width:1.6rem;height:1.6rem;border-radius:50%;border:1px solid currentColor;font-weight:700;text-decoration:none}
+.stepper [aria-current]{color:#1b1f24;font-weight:700}
+.stepper [aria-current] .num{background:#003a80;color:#fff;border-color:#003a80}
+#pageHeading{font-size:1.3rem;margin:0 0 1rem}
+.grid{display:grid;gap:1rem 1.25rem}
+.card{background:#fff;border-radius:8px;padding:1.25rem 1.5rem;box-shadow:0 1px 3px rgba(16,24,40,.08)}
+.card h3{font-size:1.15rem;margin:0 0 1rem}
+.card h4{font-size:1rem;margin:0 0 .75rem}
+.cell>label,.group>legend{display:block;margin-bottom:.35rem;font-size:15px;padding:0}
+input[type=text],input[type=date],textarea,select{width:100%;font:inherit;padding:.55rem .75rem;border:1px solid #1b1f24;border-radius:4px;background:#fff;color:inherit;min-height:44px}
+textarea{min-height:6rem}
+input.ro,textarea.ro,select:disabled{background:#f3f4f6;border-color:#f3f4f6;color:#1b1f24;opacity:1}
+.group{border:0;padding:0;margin:0;min-width:0}
+.choice{display:flex;align-items:flex-start;gap:.5rem;margin:.4rem 0}
+.choice input{width:20px;height:20px;margin:.15rem 0 0;accent-color:#0052a5;flex:none}
+.choice label p{margin:0}
+.hint{color:#4b5563;font-size:14px;margin:0 0 .5rem}
+.hint p,.textblock p,.info p{margin:.2rem 0 .5rem}
+.caption{font-size:13px;color:#4b5563;margin:.3rem 0 0}
+.err{color:#b3261e;font-size:14px;margin:.35rem 0 0;font-weight:600}
+[aria-invalid=true]{border-color:#b3261e!important;box-shadow:0 0 0 1px #b3261e}
+.errsum{border:2px solid #b3261e;background:#fff;padding:1rem 1.25rem;border-radius:8px;margin-bottom:1rem}
+.errsum h3{margin:0 0 .5rem;font-size:1.05rem;color:#b3261e}
+.errsum ul{margin:0;padding-left:1.25rem}
+.info{background:#e8f0fb;border-left:4px solid #0052a5;padding:.75rem 1rem;border-radius:4px}
+.tip summary{cursor:pointer;color:#0052a5;font-size:14px;font-weight:600}
+.filebox{border:1px solid #8a94a6;border-radius:4px;padding:1rem;max-width:440px}
+.filebox.over{background:#e8f0fb;border-color:#0052a5}
+.filebox .btn-outline{display:block;margin:0 auto .75rem}
+.filebox table{width:100%;font-size:12px;border-collapse:collapse;color:#4b5563}
+.filebox td{padding:.2rem 0;border-top:1px solid #e3e7ec}
+.filebox td+td{font-weight:700;color:#1b1f24}
+.files{margin:.25rem 0 .5rem;padding-left:1.25rem;font-size:14px}
+.row-card{border:1px solid #c5ccd6;border-radius:8px;padding:1rem 1.25rem;margin-bottom:1rem}
+.row-head{display:flex;justify-content:space-between;align-items:center}
+.btn{background:#003a80;color:#fff;border:1px solid #003a80;border-radius:4px;padding:.6rem 1.25rem;font:inherit;font-weight:700;cursor:pointer;min-height:44px}
+.btn:hover{background:#002a5e}
+.btn-outline{background:#fff;color:#003a80;border:1px solid #003a80;border-radius:4px;padding:.55rem 1.1rem;font:inherit;font-weight:700;cursor:pointer;min-height:44px}
+.btn-link{background:none;border:0;color:#0052a5;font:inherit;font-weight:700;cursor:pointer;padding:.25rem}
+.danger{color:#b3261e}
+.nav{display:flex;align-items:center;flex-wrap:wrap;gap:.75rem;margin-top:1.5rem}
+.nav .spacer{flex:1}
+.status{margin:1rem 0 0;padding:.75rem 1rem;border-radius:6px;background:#e6f4ea;border:1px solid #1e7b34;color:#14532d;font-weight:600}
+.status:empty{display:none}
+.summary dl{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:.25rem 1rem;margin:0 0 1rem}
+.summary dt{color:#4b5563}
+.summary dd{margin:0;word-break:break-word}
+.summary h4{margin:1rem 0 .5rem}
+.summary h5{margin:.5rem 0;font-size:.95rem}
+
+/* conditions and tech mode */
+.cond-hidden{display:none!important}
+body.techmode .cond-hidden{display:block!important;opacity:.55;outline:2px dashed #6b7280;outline-offset:3px}
+body.techmode .cond-hidden::before{content:"ukryte: warunek niespełniony";display:block;font:12px ui-monospace,Menlo,Consolas,monospace;color:#6b2c00}
+.tech{display:none;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;color:#5b3c00;background:#fff7e0;padding:.15rem .4rem;border-radius:3px;margin:.3rem 0 0;word-break:break-word}
+body.techmode .tech{display:block}
+@media (max-width:640px){
+  .grid{grid-template-columns:1fr!important}
+  .grid>*{grid-column:auto!important}
+  .card{padding:1rem}
+  .summary dl{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<header class="toolbar">
+  <span class="tb-title">Podgląd e-usługi COI</span>
+  <button type="button" class="tb-btn" id="tbOpen">Wczytaj plik JSON</button>
+  <input type="file" id="fileInput" accept=".json,application/json" hidden>
+  <button type="button" class="tb-btn" id="tbPaste">Wklej JSON</button>
+  <label><input type="checkbox" id="techToggle"> Pokaż techniczne</label>
+  <details class="issues" id="issuesBox"><summary>Uwagi (0)</summary><ol></ol></details>
+  <button type="button" class="tb-btn" id="tbReset">Zacznij od nowa</button>
+</header>
+<div class="load-error" id="loadError" role="alert"></div>
+
+<div class="empty" id="empty">
+  <div class="drop" id="drop">
+    <p><strong>Przeciągnij tutaj plik JSON</strong> z konfiguracją e-usługi COI</p>
+    <button type="button" class="btn" id="emptyOpen">Wybierz plik</button>
+  </div>
+  <p><label for="emptyText">Albo wklej JSON:</label></p>
+  <textarea id="emptyText" spellcheck="false"></textarea>
+  <p><button type="button" class="btn-outline" id="emptyLoad">Wczytaj</button></p>
+</div>
+
+<main class="wrap" id="app" hidden>
+  <h1 id="formTitle"></h1>
+  <nav aria-label="Kroki wniosku" id="stepNav"></nav>
+  <div id="page"></div>
+</main>
+<div class="sr-only" aria-live="polite" id="live"></div>
+
+<dialog id="pasteDlg" aria-labelledby="pasteH">
+  <form method="dialog">
+    <h2 id="pasteH">Wklej JSON</h2>
+    <label for="pasteText" class="sr-only">Konfiguracja JSON</label>
+    <textarea id="pasteText" rows="16" cols="80" spellcheck="false" style="font:13px ui-monospace,Menlo,monospace"></textarea>
+    <p class="nav"><button value="ok" class="btn" id="pasteOk">Wczytaj</button><button value="cancel" class="btn-outline">Anuluj</button></p>
+  </form>
+</dialog>
+
+<script>
+"use strict";
+const STORE_KEY = "coi-preview";
+const KNOWN_TYPES = ["SECTION","REPEATING_SECTION","TEXT_FIELD","TEXTAREA","NUMBER","DATEPICKER","RADIO","SELECT","CHECKBOX","FILE_UPLOADER","TEXT_BLOCK","INFO_SECTION","CONSENT_SECTION"];
+const STATIC_TYPES = ["TEXT_BLOCK","INFO_SECTION"];
+
+// Sample person from the state registries (MLPZ.* and PESEL.* share the keys).
+const REGISTRY = {name:"Jan", surname:"Kowalski", pesel:"44051401359", postCode:"85-001", city:"Bydgoszcz", street:"Gdańska",
+  building:"12", apartment:"4", phoneNumber:"+48 600 100 200", email:"jan.kowalski@example.pl"};
+
+// Preview dictionaries (the real ones live in COI).
+const VOIVODESHIPS = ["dolnośląskie","kujawsko-pomorskie","lubelskie","lubuskie","łódzkie","małopolskie","mazowieckie","opolskie",
+  "podkarpackie","podlaskie","pomorskie","śląskie","świętokrzyskie","warmińsko-mazurskie","wielkopolskie","zachodniopomorskie"];
+const COUNTRIES = ["Polska","Armenia","Australia","Austria","Belgia","Białoruś","Brazylia","Bułgaria","Chiny","Chorwacja","Cypr","Czechy",
+  "Dania","Estonia","Finlandia","Francja","Grecja","Gruzja","Hiszpania","Holandia","Indie","Irlandia","Islandia","Japonia","Kanada",
+  "Litwa","Luksemburg","Łotwa","Malta","Mołdawia","Niemcy","Norwegia","Portugalia","Rumunia","Słowacja","Słowenia","Stany Zjednoczone",
+  "Szwajcaria","Szwecja","Turcja","Ukraina","Węgry","Wielka Brytania","Włochy"];
+const PHONE_CODES = ["+48 Polska","+49 Niemcy","+420 Czechy","+421 Słowacja","+380 Ukraina","+370 Litwa","+44 Wielka Brytania",
+  "+33 Francja","+353 Irlandia","+1 USA i Kanada"];
+
+let cfg = null, pages = [], answers = {}, pageIdx = 0, visited = new Set(), issues = [], uidN = 0;
+const conds = new Map(); // query string -> {ast} | {err}
+const $ = (s, r = document) => r.querySelector(s);
+const uid = () => "u" + (++uidN);
+const isTech = () => document.body.classList.contains("techmode");
+
+// Builds an element: h("div", {class: "x", onclick: fn}, child, "text"). Null/false attrs and children are skipped.
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "class") el.className = v;
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) el.append(c.nodeType ? c : String(c));
+  return el;
+}
+
+// Records a problem with the loaded config (shown under "Uwagi").
+function issue(msg) {
+  if (!issues.includes(msg)) { issues.push(msg); renderIssues(); }
+}
+
+function renderIssues() {
+  const box = $("#issuesBox");
+  box.classList.toggle("has", issues.length > 0);
+  $("summary", box).textContent = `Uwagi (${issues.length})`;
+  $("ol", box).replaceChildren(...(issues.length ? issues.map(m => h("li", {}, m)) : [h("li", {}, "Brak uwag.")]));
+}
+
+/* ---------- HTML sanitizer ---------- */
+const ALLOWED_TAGS = new Set(["P","BR","STRONG","B","EM","I","U","UL","OL","LI","A","SPAN","H3","H4"]);
+const DROP_TAGS = new Set(["SCRIPT","STYLE","IFRAME","OBJECT","EMBED","TEMPLATE","HEAD","TITLE","META","LINK","SVG","MATH","NOSCRIPT","TEXTAREA","SELECT","BUTTON","INPUT"]);
+
+// Turns an HTML string from the config into a safe fragment: allowed tags only, no attributes except safe link hrefs.
+function sanitize(html) {
+  const frag = document.createDocumentFragment();
+  if (html == null || html === "") return frag;
+  const doc = new DOMParser().parseFromString(String(html), "text/html");
+  const walk = (src, dst) => {
+    for (const n of src.childNodes) {
+      if (n.nodeType === 3) dst.append(n.data);
+      else if (n.nodeType === 1 && !DROP_TAGS.has(n.tagName)) {
+        if (!ALLOWED_TAGS.has(n.tagName)) { walk(n, dst); continue; }
+        const el = document.createElement(n.tagName.toLowerCase());
+        if (n.tagName === "A") {
+          const href = (n.getAttribute("href") || "").trim();
+          if (/^(https?:|mailto:)/i.test(href)) { el.href = href; el.target = "_blank"; el.rel = "noopener"; }
+        }
+        walk(n, el);
+        dst.append(el);
+      }
+    }
+  };
+  walk(doc.body, frag);
+  return frag;
+}
+
+// Hint element from a field description, or null when the description has no text.
+function hintEl(html) {
+  const frag = sanitize(html);
+  return frag.textContent.trim() ? h("div", {class: "hint", id: uid()}, frag) : null;
+}
+
+/* ---------- config helpers ---------- */
+// Validator names of a field; tolerates {} and objects like {type: "PESEL"}.
+function validators(f) {
+  let v = f.validation;
+  if (!Array.isArray(v)) v = v && typeof v === "object" && Object.keys(v).length ? [v] : [];
+  return v.map(x => typeof x === "string" ? x : (x && (x.type || x.name)) || "").filter(Boolean).map(s => String(s).toUpperCase());
+}
+const isRequired = f => validators(f).includes("REQUIRED");
+
+// Preview dictionary for a dictionaryName, or null when unknown.
+function dictFor(name) {
+  const n = String(name || "");
+  if (/^TERYT|wojew/i.test(n)) return VOIVODESHIPS;
+  if (/kraj|countr/i.test(n)) return COUNTRIES;
+  if (/kierunk/i.test(n)) return PHONE_CODES;
+  if (/powiat/i.test(n)) return ["bydgoski","Bydgoszcz (miasto na prawach powiatu)","toruński","inowrocławski","świecki"];
+  if (/gmin/i.test(n)) return ["Bydgoszcz","Białe Błota","Osielsko","Koronowo","Solec Kujawski"];
+  if (/miejscow/i.test(n)) return ["Bydgoszcz","Toruń","Osielsko","Białe Błota","Koronowo"];
+  return null;
+}
+
+// Option labels for RADIO/SELECT/CHECKBOX: the dictionary if known, else field.options (name || id).
+function optionsOf(f) {
+  const d = f.dictionaryName && dictFor(f.dictionaryName);
+  if (d) return d;
+  return (f.options || []).map(o => typeof o === "string" ? o : (o && (o.name || o.id || o.techName)) || "").filter(Boolean);
+}
+
+// Visible label of a field (TERYT selects shown as "Województwo").
+function labelOf(f) {
+  const t = f.title || f.techName || "(bez tytułu)";
+  if (f.dictionaryName && dictFor(f.dictionaryName) === VOIVODESHIPS && (t === f.dictionaryName || /^TERYT/i.test(t))) return "Województwo";
+  return t;
+}
+
+const consentsOf = f => (f.consentSectionConfig && Array.isArray(f.consentSectionConfig.consents)) ? f.consentSectionConfig.consents : [];
+// A consent is required if it says so, else the section config says so, else the field has REQUIRED.
+function consentRequired(f, c) {
+  if (c && typeof c.required === "boolean") return c.required;
+  const cfgReq = f.consentSectionConfig && f.consentSectionConfig.required;
+  return typeof cfgReq === "boolean" ? cfgReq : isRequired(f);
+}
+
+function registryValue(path) {
+  const key = path.split(".").slice(1).join(".");
+  return REGISTRY[key] ?? `‹${path}›`;
+}
+
+// Initial answer for a field (registry prefill, plain default, or an empty value of the right shape).
+function defaultOf(f) {
+  let dv = f.defaultValue;
+  if (f.type === "CONSENT_SECTION") return consentsOf(f).map(() => false);
+  if (f.type === "FILE_UPLOADER") return [];
+  if (f.defaultValueType === "EXTERNAL_SYSTEM") {
+    const s = Array.isArray(dv) ? dv[0] : dv;
+    if (s) return registryValue(String(s));
+  }
+  if (f.type === "CHECKBOX") {
+    if (optionsOf(f).length) return Array.isArray(dv) ? dv.map(String) : (dv ? [String(dv)] : []);
+    return dv === true || dv === "true";
+  }
+  if (Array.isArray(dv)) dv = dv[0];
+  return dv == null || typeof dv === "object" ? "" : String(dv);
+}
+
+const sortCells = cells => [...cells].sort((a, b) => ((+a.y || 0) - (+b.y || 0)) || ((+a.x || 0) - (+b.x || 0)));
+const minRows = q => Math.max(1, +(q.minItemRows ?? q.field.minItemRows) || 1);
+
+function rowDefaults(sec) {
+  const row = {};
+  for (const c of sec.repeatingSectionGrid) row[c.field.techName] = defaultOf(c.field);
+  return row;
+}
+
+// answers[tabTitle][sectionTech] = {fieldTech: value} for SECTION, [{...}, ...] for REPEATING_SECTION; loose fields in __root.
+function resetAnswers() {
+  answers = {};
+  for (const tab of cfg.tabs) {
+    const a = answers[tab.title] = {__root: {}};
+    for (const q of tab.questions) {
+      const f = q.field;
+      if (f.type === "SECTION") a[f.techName] = rowDefaults(f);
+      else if (f.type === "REPEATING_SECTION") a[f.techName] = Array.from({length: minRows(q)}, () => rowDefaults(f));
+      else a.__root[f.techName] = defaultOf(f);
+    }
+  }
+}
+
+/* ---------- conditions (JSONata subset) ---------- */
+const Q = String.raw`(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")`;
+const SEL = key => String.raw`\[\s*(${Q})\s+in\s+${key}\s*\]`;
+const RE_GRID = new RegExp("^tabs" + SEL("title") + String.raw`\.questions` + SEL(String.raw`field\.techName`) +
+  String.raw`\.field\.repeatingSectionGrid` + SEL(String.raw`field\.techName`) + String.raw`\.field\.__userAnswer$`);
+const RE_ROWS = new RegExp("^tabs" + SEL("title") + String.raw`\.questions` + SEL(String.raw`field\.techName`) +
+  String.raw`\.field\.__userAnswer(\[\s*\$repeatingSectionIndex\s*\])?` + SEL("fieldTechName") + String.raw`\.answers$`);
+const unquote = s => s.slice(1, -1).replace(/\\(.)/g, "$1");
+
+// Maps a path string to {tab, section, field, row} or throws.
+function parsePath(p) {
+  let m = RE_GRID.exec(p);
+  if (m) return {tab: unquote(m[1]), section: unquote(m[2]), field: unquote(m[3]), row: false, shape: "grid"};
+  m = RE_ROWS.exec(p);
+  if (m) return {tab: unquote(m[1]), section: unquote(m[2]), field: unquote(m[4]), row: !!m[3], shape: "rows"};
+  throw new Error("nieobsługiwana ścieżka " + p.slice(0, 80));
+}
+
+// Recursive-descent parser: or -> and -> unary ($not(...) | (expr) | comparison) -> operand [in|=|!= operand].
+function parseQuery(src) {
+  if (typeof src !== "string") throw new Error("zapytanie nie jest tekstem");
+  let i = 0;
+  const ws = () => { while (i < src.length && /\s/.test(src[i])) i++; };
+  const kw = w => {
+    ws();
+    if (src.startsWith(w, i) && !/[\w$]/.test(src[i + w.length] || "")) { i += w.length; return true; }
+    return false;
+  };
+  const expect = c => { ws(); if (src[i] !== c) throw new Error(`oczekiwano „${c}” na pozycji ${i}`); i++; };
+  const orExpr = () => { let l = andExpr(); while (kw("or")) l = {op: "or", l, r: andExpr()}; return l; };
+  const andExpr = () => { let l = unary(); while (kw("and")) l = {op: "and", l, r: unary()}; return l; };
+  const unary = () => {
+    ws();
+    if (src.startsWith("$not", i)) { i += 4; expect("("); const e = orExpr(); expect(")"); return {op: "not", e}; }
+    if (src[i] === "(") { i++; const e = orExpr(); expect(")"); return e; }
+    return comparison();
+  };
+  const comparison = () => {
+    const l = operand();
+    ws();
+    if (src.startsWith("!=", i)) { i += 2; return {op: "!=", l, r: operand()}; }
+    if (src[i] === "=") { i++; return {op: "=", l, r: operand()}; }
+    if (kw("in")) return {op: "in", l, r: operand()};
+    return l;
+  };
+  const operand = () => {
+    ws();
+    const c = src[i];
+    if (c === '"' || c === "'") {
+      let j = i + 1;
+      while (j < src.length && src[j] !== c) j += src[j] === "\\" ? 2 : 1;
+      if (j >= src.length) throw new Error("niezamknięty cudzysłów");
+      const v = unquote(src.slice(i, j + 1));
+      i = j + 1;
+      return {op: "lit", v};
+    }
+    const num = /^-?\d+(\.\d+)?/.exec(src.slice(i));
+    if (num) { i += num[0].length; return {op: "lit", v: Number(num[0])}; }
+    if (kw("true")) return {op: "lit", v: true};
+    if (kw("false")) return {op: "lit", v: false};
+    const start = i;
+    let depth = 0;
+    while (i < src.length) {
+      const ch = src[i];
+      if (ch === '"' || ch === "'") { i++; while (i < src.length && src[i] !== ch) i += src[i] === "\\" ? 2 : 1; i++; continue; }
+      if (ch === "[") depth++;
+      else if (ch === "]") depth--;
+      else if (depth === 0 && (/\s/.test(ch) || ch === ")")) break;
+      i++;
+    }
+    const raw = src.slice(start, i);
+    if (!raw) throw new Error(`nieoczekiwany znak na pozycji ${i}`);
+    return {op: "path", raw, ref: parsePath(raw)};
+  };
+  const ast = orExpr();
+  ws();
+  if (i < src.length) throw new Error(`nadmiarowy tekst na pozycji ${i}`);
+  return ast;
+}
+
+// Cached parse of a query: {ast} or {err}.
+function cond(query) {
+  if (!conds.has(query)) {
+    try { conds.set(query, {ast: parseQuery(query)}); } catch (e) { conds.set(query, {err: e.message}); }
+  }
+  return conds.get(query);
+}
+
+const truthy = v => Array.isArray(v) ? v.length > 0 : (v != null && v !== false && v !== "" && !(typeof v === "string" && !v.trim()));
+const eq = (a, b) => {
+  if (Array.isArray(a)) return a.some(x => eq(x, b));
+  if (Array.isArray(b)) return b.some(x => eq(a, x));
+  return a == null || b == null ? a === b : String(a) === String(b);
+};
+
+// Current answer behind a path; repeating sections give the row's value or all rows' values flattened.
+function readPath(ref, row) {
+  const sec = answers[ref.tab] && answers[ref.tab][ref.section];
+  if (Array.isArray(sec)) {
+    if (ref.row && row != null) return sec[row] ? sec[row][ref.field] : undefined;
+    return sec.flatMap(r => r[ref.field] === undefined ? [] : [r[ref.field]]).flat();
+  }
+  return sec ? sec[ref.field] : undefined;
+}
+
+function evalNode(n, row) {
+  switch (n.op) {
+    case "or": return truthy(evalNode(n.l, row)) || truthy(evalNode(n.r, row));
+    case "and": return truthy(evalNode(n.l, row)) && truthy(evalNode(n.r, row));
+    case "not": return !truthy(evalNode(n.e, row));
+    case "lit": return n.v;
+    case "path": return readPath(n.ref, row);
+    case "=": return eq(evalNode(n.l, row), evalNode(n.r, row));
+    case "!=": return !eq(evalNode(n.l, row), evalNode(n.r, row));
+    case "in": {
+      const a = evalNode(n.l, row), b = evalNode(n.r, row);
+      if (b == null) return false;
+      if (Array.isArray(b)) return Array.isArray(a) ? a.some(x => b.includes(x)) : b.includes(a);
+      return eq(a, b);
+    }
+  }
+  return false;
+}
+
+// {show, ro} of a field or section for a repeating-section row (row = null outside rows).
+function stateOf(f, row) {
+  let show = true, ro = !!f.readOnly;
+  for (const s of f.states || []) {
+    const c = cond(s.query);
+    if (!c.ast) continue;
+    const v = truthy(evalNode(c.ast, row));
+    if (s.type === "SHOW") show = show && v;
+    else if (s.type === "READ_ONLY") ro = ro || v;
+  }
+  return {show, ro};
+}
+
+// Readable form of a condition for tech mode.
+function fmtCond(n, parentOp) {
+  switch (n.op) {
+    case "lit": return typeof n.v === "string" ? `"${n.v}"` : String(n.v);
+    case "path": return `${n.ref.section}.${n.ref.field}${n.ref.row ? "[ten wiersz]" : ""}`;
+    case "not": return `NIE (${fmtCond(n.e)})`;
+    case "in": return n.l.op === "lit" && n.r.op === "path" ? `${fmtCond(n.r)} ∋ ${fmtCond(n.l)}` : `${fmtCond(n.l)} ∈ ${fmtCond(n.r)}`;
+    case "=": return `${fmtCond(n.l)} = ${fmtCond(n.r)}`;
+    case "!=": return `${fmtCond(n.l)} ≠ ${fmtCond(n.r)}`;
+    default: {
+      const s = fmtCond(n.l, n.op) + (n.op === "and" ? " I " : " LUB ") + fmtCond(n.r, n.op);
+      return parentOp && parentOp !== n.op ? `(${s})` : s;
+    }
+  }
+}
+
+// Finds the field a path points at, or returns an error string.
+function findRef(ref) {
+  const tab = cfg.tabs.find(t => t.title === ref.tab);
+  if (!tab) return `brak strony „${ref.tab}”`;
+  const sec = tab.questions.map(q => q.field).find(f => f.techName === ref.section);
+  if (!sec) return `brak sekcji ${ref.section} na stronie „${ref.tab}”`;
+  const f = (sec.repeatingSectionGrid || []).map(c => c.field).find(x => x.techName === ref.field);
+  if (!f) return `brak pola ${ref.section}.${ref.field}`;
+  return {sec, f};
+}
+
+// Checks that every path in a condition exists and that compared literals are real options.
+function checkRefs(n, where, parent) {
+  if (!n || typeof n !== "object") return;
+  if (n.op === "path") {
+    const r = findRef(n.ref);
+    if (typeof r === "string") issue(`${where}: warunek wskazuje na nieistniejący element (${r})`);
+    else if (n.ref.row && (!parent || parent.techName !== n.ref.section))
+      issue(`${where}: warunek używa [$repeatingSectionIndex] poza sekcją powtarzalną ${n.ref.section}`);
+    else if (n.ref.shape === "rows" && r.sec.type !== "REPEATING_SECTION")
+      issue(`${where}: ścieżka __userAnswer[...].answers wskazuje na zwykłą sekcję ${n.ref.section}`);
+    return;
+  }
+  if (["in", "=", "!="].includes(n.op)) {
+    const lit = [n.l, n.r].find(x => x.op === "lit" && typeof x.v === "string");
+    const path = [n.l, n.r].find(x => x.op === "path");
+    if (lit && path) {
+      const r = findRef(path.ref);
+      if (typeof r === "object") {
+        const opts = optionsOf(r.f);
+        if (opts.length && !opts.includes(lit.v)) issue(`${where}: warunek porównuje z „${lit.v}”, a pole ${path.ref.field} nie ma takiej opcji`);
+      }
+    }
+  }
+  for (const k of ["l", "r", "e"]) checkRefs(n[k], where, parent);
+}
+
+/* ---------- loading and checks ---------- */
+// Visits every field: cb(field, tab, parentSection|null).
+function eachField(cb) {
+  for (const tab of cfg.tabs) for (const q of tab.questions) {
+    cb(q.field, tab, null);
+    for (const c of q.field.repeatingSectionGrid || []) cb(c.field, tab, q.field);
+  }
+}
+
+// Drops malformed entries so the renderer can trust the shape; records what was dropped.
+function normalize(obj) {
+  obj.tabs = obj.tabs.filter((t, i) => {
+    const ok = t && typeof t === "object";
+    if (!ok) issue(`tabs[${i}] nie jest obiektem – pominięto`);
+    return ok;
+  });
+  obj.tabs.forEach((t, i) => {
+    if (!t.title) { t.title = `Strona ${i + 1}`; issue(`tabs[${i}] bez tytułu`); }
+    t.questions = (Array.isArray(t.questions) ? t.questions : []).filter(q => q && q.field && typeof q.field === "object");
+    for (const q of t.questions) {
+      const f = q.field;
+      if (!f.techName) f.techName = f.id || uid();
+      if (f.type === "SECTION" || f.type === "REPEATING_SECTION")
+        f.repeatingSectionGrid = (Array.isArray(f.repeatingSectionGrid) ? f.repeatingSectionGrid : []).filter(c => c && c.field && typeof c.field === "object");
+      for (const c of f.repeatingSectionGrid || []) if (!c.field.techName) c.field.techName = c.field.id || uid();
+    }
+  });
+}
+
+// Pages in flow.links order when the links form one chain over all tabs, else array order.
+function orderPages() {
+  const tabs = cfg.tabs, links = (cfg.flow && Array.isArray(cfg.flow.links)) ? cfg.flow.links : [];
+  const byId = new Map(tabs.map(t => [t.id, t]));
+  const next = new Map(links.map(l => [l.source, l.target]));
+  const targets = new Set(links.map(l => l.target));
+  const starts = tabs.filter(t => !targets.has(t.id));
+  if (starts.length === 1) {
+    const chain = [], seen = new Set();
+    for (let t = starts[0]; t && !seen.has(t.id); t = byId.get(next.get(t.id))) { chain.push(t); seen.add(t.id); }
+    if (chain.length === tabs.length) return chain;
+  }
+  issue("flow.links nie tworzy jednego łańcucha przez wszystkie strony – użyto kolejności z tablicy tabs");
+  return tabs.slice();
+}
+
+// One pass over the whole config before rendering: types, validators, dictionaries, conditions, duplicates.
+function precheck() {
+  const titles = new Set();
+  for (const t of cfg.tabs) {
+    if (titles.has(t.title)) issue(`Dwie strony mają ten sam tytuł „${t.title}” – warunki i odpowiedzi mogą się mieszać`);
+    titles.add(t.title);
+    const secs = new Set();
+    for (const q of t.questions) {
+      if (secs.has(q.field.techName)) issue(`${t.title}: powtórzony techName sekcji ${q.field.techName}`);
+      secs.add(q.field.techName);
+      const kids = new Set();
+      for (const c of q.field.repeatingSectionGrid || []) {
+        if (kids.has(c.field.techName)) issue(`${t.title} › ${q.field.techName}: powtórzony techName pola ${c.field.techName}`);
+        kids.add(c.field.techName);
+      }
+    }
+  }
+  if (!cfg.tabs.some(t => t.type === "FINISH")) issue("Brak strony typu FINISH");
+  const knownV = ["REQUIRED","PESEL","NIP","REGON","ZIP_CODE","EMAIL","EPUAP","ADE","SERIAL_NUMBER_ID_CARD"];
+  eachField((f, tab, parent) => {
+    const where = `${tab.title} › ${parent ? parent.techName + "." : ""}${f.techName}`;
+    if (!parent && f.type !== "SECTION" && f.type !== "REPEATING_SECTION") issue(`${where}: pole ${f.type} poza sekcją`);
+    if (parent && (f.type === "SECTION" || f.type === "REPEATING_SECTION")) issue(`${where}: zagnieżdżona sekcja (nieobsługiwane)`);
+    if (!KNOWN_TYPES.includes(f.type)) issue(`${where}: nieznany typ „${f.type}” – pokazano jako pole tekstowe`);
+    if (f.validation != null && !Array.isArray(f.validation)) issue(`${where}: validation jest obiektem zamiast tablicy`);
+    for (const v of validators(f)) if (!knownV.includes(v)) issue(`${where}: nieznany walidator ${v}`);
+    if (f.dictionaryName && !dictFor(f.dictionaryName)) issue(`${where}: nieznany słownik „${f.dictionaryName}” – użyto opcji pola`);
+    if ((f.type === "RADIO" || f.type === "SELECT") && !optionsOf(f).length) issue(`${where}: ${f.type} bez opcji`);
+    if (f.type === "CONSENT_SECTION" && !consentsOf(f).length) issue(`${where}: sekcja zgód bez zgód`);
+    for (const s of f.states || []) {
+      if (s.type !== "SHOW" && s.type !== "READ_ONLY") issue(`${where}: nieznany typ stanu ${s.type}`);
+      const c = cond(s.query);
+      if (c.err) issue(`${where}: warunek nie do odczytania (${c.err}) – element zawsze widoczny`);
+      else checkRefs(c.ast, where, parent);
+    }
+  });
+}
+
+function showLoadError(msg) { $("#loadError").textContent = msg; }
+
+// Parses and starts a config; saves it to localStorage for the next visit.
+function loadText(text, save = true) {
+  let obj;
+  try { obj = JSON.parse(text); } catch (e) { return showLoadError("To nie jest poprawny JSON: " + e.message); }
+  if (!obj || typeof obj !== "object" || !Array.isArray(obj.tabs) || !obj.tabs.length)
+    return showLoadError("W pliku brak niepustej tablicy „tabs” – to nie wygląda na konfigurację e-usługi COI.");
+  if (save) { try { localStorage.setItem(STORE_KEY, text); } catch (e) { /* quota or private mode: preview still works */ } }
+  showLoadError("");
+  start(obj);
+}
+
+function start(obj) {
+  cfg = obj; issues = []; conds.clear();
+  normalize(cfg);
+  pages = orderPages();
+  precheck();
+  resetAnswers();
+  renderIssues();
+  visited = new Set();
+  $("#empty").hidden = true;
+  $("#app").hidden = false;
+  $("#formTitle").textContent = cfg.title || "Formularz bez tytułu";
+  document.title = (cfg.title || "Formularz") + " – podgląd COI";
+  go(0, false);
+}
+
+/* ---------- rendering ---------- */
+// Lays out cells in a CSS grid: columns = max(x+cols); only grid-column is set (rows follow the y,x order).
+function layoutGrid(cells, render) {
+  const sorted = sortCells(cells);
+  const n = Math.max(1, ...sorted.map(c => (+c.x || 0) + Math.max(1, +c.cols || 1)));
+  const grid = h("div", {class: "grid"});
+  grid.style.gridTemplateColumns = `repeat(${n}, minmax(0, 1fr))`;
+  for (const c of sorted) {
+    const el = render(c);
+    el.style.gridColumn = `${(+c.x || 0) + 1} / span ${Math.max(1, +c.cols || 1)}`;
+    grid.append(el);
+  }
+  return grid;
+}
+
+// Small monospace lines for tech mode: identity, layout, and conditions.
+function techLines(f, cell) {
+  const parts = [f.techName, f.type];
+  const v = validators(f);
+  if (v.length) parts.push(v.join(","));
+  if (f.dictionaryName) parts.push("słownik: " + f.dictionaryName + (dictFor(f.dictionaryName) === VOIVODESHIPS ? " (podgląd: tylko poziom województw)" : ""));
+  if (f.defaultValue != null && f.defaultValue !== "" && !(Array.isArray(f.defaultValue) && !f.defaultValue.length))
+    parts.push("domyślnie: " + JSON.stringify(f.defaultValue) + (f.defaultValueType ? ` (${f.defaultValueType})` : ""));
+  if (f.readOnly) parts.push("readOnly");
+  if (cell) parts.push(`x,y,rows,cols: ${cell.x},${cell.y},${cell.rows},${cell.cols}` + (cell.minItemRows ? ` min:${cell.minItemRows}` : ""));
+  const lines = [h("p", {class: "tech"}, parts.join(" · "))];
+  for (const s of f.states || []) {
+    const c = cond(s.query);
+    const label = s.type === "SHOW" ? "pokaż gdy: " : s.type === "READ_ONLY" ? "tylko do odczytu gdy: " : s.type + " gdy: ";
+    lines.push(h("p", {class: "tech", title: String(s.query)}, label + (c.ast ? fmtCond(c.ast) : "warunek nieczytelny: " + c.err)));
+  }
+  return lines;
+}
+
+function renderQuestion(tab, q) {
+  const f = q.field;
+  if (f.type === "SECTION") return renderSection(tab, q);
+  if (f.type === "REPEATING_SECTION") return renderRepeating(tab, q);
+  return renderField(q, {store: answers[tab.title].__root, row: null});
+}
+
+// A white card with a heading and its child fields.
+function renderSection(tab, q) {
+  const f = q.field, hid = uid(), hint = hintEl(f.description);
+  const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true},
+    h("h3", {id: hid}, f.title || f.techName), hint, techLines(f, q),
+    layoutGrid(f.repeatingSectionGrid, c => renderField(c, {store: answers[tab.title][f.techName], row: null})));
+  card._entry = {field: f, row: null, controls: []};
+  return card;
+}
+
+// A card with N row sub-cards ("Pozycja N"), "Usuń" beyond the minimum and "Dodaj kolejny".
+function renderRepeating(tab, q) {
+  const f = q.field, hid = uid(), hint = hintEl(f.description), min = minRows(q);
+  const rows = answers[tab.title][f.techName];
+  const list = h("div", {class: "rows"});
+  const addBtn = h("button", {type: "button", class: "btn-outline", onclick: () => {
+    rows.push(rowDefaults(f)); drawRows(); refreshStates();
+    $("h4", list.lastElementChild).focus();
+  }}, "Dodaj kolejny");
+  function drawRows() {
+    list.replaceChildren(...rows.map((r, i) => {
+      const rh = uid();
+      return h("div", {class: "row-card", role: "group", "aria-labelledby": rh},
+        h("div", {class: "row-head"}, h("h4", {id: rh, tabindex: "-1"}, `Pozycja ${i + 1}`),
+          i >= min && h("button", {type: "button", class: "btn-link danger", "aria-label": `Usuń pozycję ${i + 1}`,
+            onclick: () => { rows.splice(i, 1); drawRows(); refreshStates(); addBtn.focus(); }}, "Usuń")),
+        layoutGrid(f.repeatingSectionGrid, c => renderField(c, {store: r, row: i})));
+    }));
+  }
+  drawRows();
+  const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true},
+    h("h3", {id: hid}, f.title || f.techName), hint, techLines(f, q), list, addBtn);
+  card._entry = {field: f, row: null, controls: []};
+  return card;
+}
+
+// One field cell: label, hint, control, registry caption, help, tech lines, error slot.
+function renderField(cell, ctx) {
+  const f = cell.field, id = uid(), t = f.type, tn = f.techName, st = ctx.store;
+  const req = isRequired(f), opt = req ? "" : " (opcjonalnie)", title = labelOf(f);
+  const wrap = h("div", {class: "cell", "data-bound": true, "data-type": t});
+  const entry = wrap._entry = {field: f, row: ctx.row, store: st, controls: [], id};
+  const errId = id + "-err";
+  const hint = STATIC_TYPES.includes(t) ? null : hintEl(f.description);
+  let caption = null;
+  if (f.defaultValueType === "EXTERNAL_SYSTEM" && f.defaultValue) {
+    const src = String(Array.isArray(f.defaultValue) ? f.defaultValue[0] : f.defaultValue).split(".")[0] || "rejestr";
+    caption = h("p", {class: "caption", id: uid()}, f.readOnly ? `Dane z rejestru (${src})` : `Uzupełnione z rejestru (${src}), możesz zmienić`);
+  }
+  const described = [hint && hint.id, caption && caption.id, errId].filter(Boolean).join(" ");
+  const set = v => { st[tn] = v; clearErr(wrap); refreshStates(); };
+  const reqAttrs = {required: req, "aria-required": req ? "true" : null, "aria-describedby": described};
+  const opts = optionsOf(f);
+  const val = st[tn];
+
+  // Radio/checkbox group in a fieldset; value is one name (radio) or a list of names (checkbox).
+  const group = (type) => {
+    const fs = h("fieldset", {class: "group", "aria-describedby": described}, h("legend", {}, title + opt), hint);
+    opts.forEach((o, k) => {
+      const cid = k ? uid() : id;
+      const inp = h("input", {type, id: cid, name: id, value: o, "aria-required": req && type === "radio" ? "true" : null});
+      inp.checked = type === "radio" ? val === o : Array.isArray(val) && val.includes(o);
+      inp.addEventListener("change", () => set(type === "radio" ? o : [...fs.querySelectorAll("input:checked")].map(x => x.value)));
+      entry.controls.push(inp);
+      fs.append(h("div", {class: "choice"}, inp, h("label", {for: cid}, o)));
+    });
+    return fs;
+  };
+
+  switch (t) {
+    case "TEXT_BLOCK": wrap.append(h("div", {class: "textblock"}, sanitize(f.description))); break;
+    case "INFO_SECTION": wrap.append(h("div", {class: "info", role: "note"}, sanitize(f.description || f.title))); break;
+    case "RADIO": wrap.append(group("radio")); break;
+    case "CHECKBOX":
+      if (opts.length) wrap.append(group("checkbox"));
+      else {
+        const cb = h("input", {type: "checkbox", id, ...reqAttrs});
+        cb.checked = val === true;
+        cb.addEventListener("change", () => set(cb.checked));
+        entry.controls.push(cb);
+        wrap.append(hint || "", h("div", {class: "choice"}, cb, h("label", {for: id}, title + opt)));
+      }
+      break;
+    case "SELECT": {
+      const sel = h("select", {id, ...reqAttrs}, h("option", {value: ""}, "Wybierz"), opts.map(o => h("option", {value: o}, o)));
+      if (val && !opts.includes(val)) sel.append(h("option", {value: val}, val));
+      sel.value = val || "";
+      sel.addEventListener("change", () => set(sel.value));
+      entry.controls.push(sel);
+      wrap.append(h("label", {for: id}, title + opt), hint || "", sel);
+      break;
+    }
+    case "FILE_UPLOADER": {
+      const input = h("input", {type: "file", multiple: true, hidden: true});
+      const btn = h("button", {type: "button", id, class: "btn-outline", "aria-describedby": described, onclick: () => input.click()}, "Dodaj lub przeciągnij plik");
+      const list = h("ul", {class: "files"});
+      const show = () => list.replaceChildren(...(st[tn] || []).map((n, k) => h("li", {}, n, " ",
+        h("button", {type: "button", class: "btn-link", "aria-label": `Usuń plik ${n}`, onclick: () => {
+          const a = [...st[tn]]; a.splice(k, 1); set(a); show(); btn.focus();
+        }}, "Usuń"))));
+      const add = files => { set([...(st[tn] || []), ...[...files].map(x => x.name)]); show(); };
+      input.addEventListener("change", () => { add(input.files); input.value = ""; });
+      const box = h("div", {class: "filebox"}, btn, list,
+        h("table", {}, h("tbody", {},
+          h("tr", {}, h("td", {}, "Dopuszczalny format pliku:"), h("td", {}, ".jpg, .pdf, .png, .jpeg")),
+          h("tr", {}, h("td", {}, "Maksymalny rozmiar pliku:"), h("td", {}, "10 MB")),
+          h("tr", {}, h("td", {}, "Maksymalna liczba plików:"), h("td", {}, "3")))));
+      box.addEventListener("dragover", e => { e.preventDefault(); e.stopPropagation(); box.classList.add("over"); });
+      box.addEventListener("dragleave", () => box.classList.remove("over"));
+      box.addEventListener("drop", e => { e.preventDefault(); e.stopPropagation(); box.classList.remove("over"); add(e.dataTransfer.files); });
+      entry.controls.push(btn);
+      show();
+      wrap.append(h("fieldset", {class: "group"}, h("legend", {}, title + opt), hint, box));
+      break;
+    }
+    case "CONSENT_SECTION": {
+      const cs = consentsOf(f);
+      const fs = h("fieldset", {class: "group", "aria-describedby": described}, h("legend", {}, f.title || "Zgody"), hint);
+      cs.forEach((c, k) => {
+        const cid = k ? uid() : id, creq = consentRequired(f, c);
+        const cb = h("input", {type: "checkbox", id: cid, required: creq, "aria-required": creq ? "true" : null});
+        cb.checked = !!(val || [])[k];
+        cb.addEventListener("change", () => { const a = [...(st[tn] || cs.map(() => false))]; a[k] = cb.checked; set(a); });
+        entry.controls.push(cb);
+        fs.append(h("div", {class: "choice"}, cb, h("label", {for: cid}, sanitize(c && c.description), creq ? "" : " (opcjonalnie)")));
+      });
+      wrap.append(fs);
+      break;
+    }
+    default: {
+      const inp = t === "TEXTAREA" ? h("textarea", {id, rows: "4", ...reqAttrs})
+        : h("input", {id, type: t === "DATEPICKER" ? "date" : "text", inputmode: t === "NUMBER" ? "decimal" : null, autocomplete: "off", ...reqAttrs});
+      inp.value = typeof val === "string" ? val : "";
+      inp.addEventListener("input", () => set(inp.value));
+      entry.controls.push(inp);
+      wrap.append(h("label", {for: id}, title + opt), hint || "", inp);
+    }
+  }
+  if (caption) wrap.append(caption);
+  if (f.tooltipMessage) wrap.append(h("details", {class: "tip"}, h("summary", {}, "Pomoc"), sanitize(f.tooltipMessage)));
+  wrap.append(...techLines(f, cell), h("p", {class: "err", id: errId, hidden: true}));
+  return wrap;
+}
+
+// Re-applies SHOW / READ_ONLY to every element on the current page without re-rendering it.
+function refreshStates() {
+  for (const el of $("#page").querySelectorAll("[data-bound]")) {
+    const {field, row, controls} = el._entry;
+    const st = stateOf(field, row);
+    el.classList.toggle("cond-hidden", !st.show);
+    for (const c of controls) {
+      if ((c.tagName === "INPUT" && (c.type === "text" || c.type === "date")) || c.tagName === "TEXTAREA") {
+        c.readOnly = st.ro;
+        c.classList.toggle("ro", st.ro);
+      } else c.disabled = st.ro;
+    }
+  }
+}
+
+function renderStepper() {
+  $("#stepNav").replaceChildren(h("ol", {class: "stepper"}, pages.map((p, i) => {
+    const cur = i === pageIdx, can = !cur && (visited.has(i) || isTech());
+    const kids = [h("span", {class: "num", "aria-hidden": "true"}, i + 1), h("span", {class: "sr-only"}, `Krok ${i + 1}: `), p.title];
+    const inner = can ? h("button", {type: "button", onclick: () => go(i)}, kids) : h("span", {}, kids);
+    if (cur) inner.setAttribute("aria-current", "step");
+    return h("li", {}, inner);
+  })));
+}
+
+// Shows page i: renders it, scrolls to top, moves focus to its heading and announces the step.
+function go(i, focus = true) {
+  pageIdx = Math.max(0, Math.min(i, pages.length - 1));
+  visited.add(pageIdx);
+  renderPage();
+  window.scrollTo(0, 0);
+  if (focus) $("#pageHeading").focus({preventScroll: true});
+  $("#live").textContent = `Krok ${pageIdx + 1} z ${pages.length}: ${pages[pageIdx].title}`;
+}
+
+function renderPage() {
+  const tab = pages[pageIdx], last = pageIdx === pages.length - 1;
+  const status = h("p", {class: "status", role: "status"});
+  const page = $("#page");
+  page.replaceChildren(
+    h("h2", {id: "pageHeading", tabindex: "-1"}, tab.title),
+    h("div", {id: "errsum"}),
+    layoutGrid(tab.questions, q => renderQuestion(tab, q)));
+  if (tab.type === "FINISH") page.append(renderSummary());
+  page.append(h("div", {class: "nav"},
+    h("button", {type: "button", class: "btn-link", onclick: () => { status.textContent = "To jest podgląd – przerwanie wypełniania nic tu nie robi."; }}, "Przerwij wypełnianie"),
+    h("span", {class: "spacer"}),
+    pageIdx > 0 && h("button", {type: "button", class: "btn-outline", onclick: () => go(pageIdx - 1)}, "Wstecz"),
+    last ? h("button", {type: "button", class: "btn", onclick: () => { if (validatePage()) status.textContent = "To jest podgląd, wniosek nie został wysłany."; }}, "Wyślij wniosek")
+         : h("button", {type: "button", class: "btn", onclick: () => { if (validatePage()) go(pageIdx + 1); }}, "Dalej")),
+    status);
+  renderStepper();
+  refreshStates();
+}
+
+// Text of an answer for the summary ("" = skip).
+function fmtVal(f, v) {
+  if (f.type === "CONSENT_SECTION") { const n = (v || []).filter(Boolean).length; return n ? `Zaznaczono ${n} z ${(v || []).length}` : ""; }
+  if (typeof v === "boolean") return v ? "Tak" : "";
+  if (Array.isArray(v)) return v.join(", ");
+  return v == null ? "" : String(v).trim();
+}
+
+// "Podsumowanie" card: visible answered fields per MAIN page and section.
+function renderSummary() {
+  const card = h("section", {class: "card summary", "aria-labelledby": "sumH"}, h("h3", {id: "sumH"}, "Podsumowanie"));
+  for (const tab of pages) {
+    if (tab.type === "FINISH") continue;
+    const blocks = [];
+    for (const q of tab.questions) {
+      const sec = q.field, rs = sec.type === "REPEATING_SECTION";
+      if (!(sec.type === "SECTION" || rs) || !stateOf(sec, null).show) continue;
+      const data = answers[tab.title][sec.techName];
+      (rs ? data : [data]).forEach((r, i) => {
+        const items = [];
+        for (const c of sortCells(sec.repeatingSectionGrid)) {
+          const f = c.field;
+          if (STATIC_TYPES.includes(f.type) || !stateOf(f, rs ? i : null).show) continue;
+          const txt = fmtVal(f, r[f.techName]);
+          if (txt) items.push(h("dt", {}, labelOf(f)), h("dd", {}, txt));
+        }
+        if (items.length) blocks.push(h("h5", {}, (sec.title || sec.techName) + (rs ? ` – pozycja ${i + 1}` : "")), h("dl", {}, items));
+      });
+    }
+    if (blocks.length) card.append(h("h4", {}, tab.title), ...blocks);
+  }
+  if (card.children.length === 1) card.append(h("p", {}, "Brak wypełnionych pól."));
+  return card;
+}
+
+/* ---------- validation ---------- */
+const digits = s => s.replace(/[\s-]/g, "");
+const weighted = (d, w) => w.reduce((sum, x, k) => sum + x * +d[k], 0);
+function validPesel(s) {
+  if (!/^\d{11}$/.test(s)) return false;
+  return (10 - weighted(s, [1,3,7,9,1,3,7,9,1,3]) % 10) % 10 === +s[10];
+}
+function validNip(s) {
+  const d = digits(s);
+  if (!/^\d{10}$/.test(d)) return false;
+  const c = weighted(d, [6,5,7,2,3,4,5,6,7]) % 11;
+  return c !== 10 && c === +d[9];
+}
+function validRegon(s) {
+  const d = digits(s);
+  if (/^\d{9}$/.test(d)) return weighted(d, [8,9,2,3,4,5,6,7]) % 11 % 10 === +d[8];
+  if (/^\d{14}$/.test(d)) return weighted(d, [2,4,8,5,0,9,7,3,6,1,2,4,8]) % 11 % 10 === +d[13];
+  return false;
+}
+const FORMATS = {
+  PESEL: [validPesel, "Wpisz poprawny numer PESEL (11 cyfr)."],
+  NIP: [validNip, "Wpisz poprawny NIP (10 cyfr)."],
+  REGON: [validRegon, "Wpisz poprawny REGON (9 lub 14 cyfr)."],
+  ZIP_CODE: [s => /^\d{2}-\d{3}$/.test(s), "Wpisz kod pocztowy w formacie 00-000."],
+  EMAIL: [s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s), "Wpisz poprawny adres e-mail."],
+  EPUAP: [s => /^\/[^\/\s]+\/[^\/\s]+$/.test(s), "Wpisz adres skrytki ePUAP w formacie /nazwa/skrytka."],
+  ADE: [s => /^AE:PL-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{2}$/i.test(s.replace(/\s/g, "")), "Wpisz adres do e-Doręczeń w formacie AE:PL-00000-00000-AAAAA-00."],
+  SERIAL_NUMBER_ID_CARD: [s => /^[A-Z]{3}\d{6}$/i.test(s.replace(/\s/g, "")), "Wpisz serię i numer dowodu osobistego (3 litery i 6 cyfr)."],
+};
+
+const isEmpty = v => v == null || v === false || (Array.isArray(v) ? v.length === 0 : String(v).trim() === "");
+
+// Error message for one field entry, or null when valid.
+function checkField({field: f, store}) {
+  const v = store[f.techName], vs = validators(f);
+  if (STATIC_TYPES.includes(f.type)) return null;
+  if (f.type === "CONSENT_SECTION")
+    return consentsOf(f).some((c, k) => consentRequired(f, c) && !(v || [])[k]) ? "Zaznacz wymagane zgody." : null;
+  if (isEmpty(v)) return vs.includes("REQUIRED") ? "Pole jest wymagane." : null;
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  if (f.type === "NUMBER" && !/^-?\d+([.,]\d+)?$/.test(s.replace(/\s/g, ""))) return "Wpisz liczbę.";
+  for (const name of vs) if (FORMATS[name] && !FORMATS[name][0](s)) return FORMATS[name][1];
+  return null;
+}
+
+function clearErr(wrap) {
+  const err = $(".err", wrap);
+  if (err.hidden) return;
+  err.hidden = true; err.textContent = "";
+  for (const c of wrap._entry.controls) c.removeAttribute("aria-invalid");
+}
+
+function focusField(wrap) {
+  const c = wrap._entry.controls.find(x => !x.disabled) || $("h2", $("#page"));
+  c.scrollIntoView({block: "center"});
+  c.focus({preventScroll: true});
+}
+
+// Validates visible fields of the current page; shows the error summary and focuses the first invalid field.
+function validatePage() {
+  const errs = [];
+  for (const wrap of $("#page").querySelectorAll(".cell[data-bound]")) {
+    clearErr(wrap);
+    if (wrap.closest(".cond-hidden")) continue;
+    const msg = checkField(wrap._entry);
+    if (!msg) continue;
+    const err = $(".err", wrap);
+    err.hidden = false;
+    err.replaceChildren(h("span", {"aria-hidden": "true"}, "⚠ "), msg);
+    for (const c of wrap._entry.controls) c.setAttribute("aria-invalid", "true");
+    errs.push({wrap, msg});
+  }
+  const box = $("#errsum");
+  box.className = ""; box.removeAttribute("role"); box.replaceChildren();
+  if (!errs.length) return true;
+  box.className = "errsum";
+  box.setAttribute("role", "alert");
+  box.append(h("h3", {}, `Popraw błędy w formularzu (${errs.length})`),
+    h("ul", {}, errs.map(e => h("li", {}, h("a", {href: "#" + e.wrap._entry.id, onclick: ev => { ev.preventDefault(); focusField(e.wrap); }},
+      `${labelOf(e.wrap._entry.field)}${e.wrap._entry.row != null ? ` (pozycja ${e.wrap._entry.row + 1})` : ""}: ${e.msg}`)))));
+  focusField(errs[0].wrap);
+  return false;
+}
+
+/* ---------- tool bar, drag and drop, startup ---------- */
+const readFile = file => file && file.text().then(t => loadText(t), e => showLoadError("Nie udało się odczytać pliku: " + e.message));
+const fileInput = $("#fileInput");
+$("#tbOpen").addEventListener("click", () => fileInput.click());
+$("#emptyOpen").addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => { readFile(fileInput.files[0]); fileInput.value = ""; });
+$("#emptyLoad").addEventListener("click", () => loadText($("#emptyText").value));
+$("#tbPaste").addEventListener("click", () => { $("#pasteText").value = ""; $("#pasteDlg").showModal(); });
+$("#pasteDlg").addEventListener("close", () => { if ($("#pasteDlg").returnValue === "ok") loadText($("#pasteText").value); });
+$("#techToggle").addEventListener("change", e => { document.body.classList.toggle("techmode", e.target.checked); if (cfg) renderStepper(); });
+$("#tbReset").addEventListener("click", () => { if (!cfg) return; resetAnswers(); visited = new Set(); go(0); });
+window.addEventListener("dragover", e => { e.preventDefault(); document.body.classList.add("dragging"); });
+window.addEventListener("dragleave", e => { if (!e.relatedTarget) document.body.classList.remove("dragging"); });
+window.addEventListener("drop", e => {
+  e.preventDefault();
+  document.body.classList.remove("dragging");
+  readFile(e.dataTransfer.files[0]);
+});
+
+renderIssues();
+const saved = (() => { try { return localStorage.getItem(STORE_KEY); } catch (e) { return null; } })();
+if (saved) loadText(saved, false);
+</script>
+</body>
+</html>

@@ -27,6 +27,8 @@ Ollama powinna mieć okno kontekstu co najmniej 32k tokenów (najdłuższy formu
 
 Strona: http://localhost:8000, dokumentacja OpenAPI: http://localhost:8000/docs. Testy: `uv run pytest`.
 
+Podgląd e-usługi: http://localhost:8000/preview pokazuje JSON COI tak, jak zobaczy go obywatel (strony, sekcje, zależności na żywo, walidatory, przełącznik „pokaż techniczne”). JSON wrzucasz plikiem, wklejasz albo otwierasz przyciskiem „Podgląd” na stronie uploadu.
+
 ## Docker
 
 Obraz: oficjalny `python:3.14.10-alpine3.24` (wszystkie zależności mają gotowe koła dla musl), budowa dwuetapowa z `uv.lock`, Tesseract z danymi dla polskiego, proces jako nieuprzywilejowany użytkownik `app`, tylko port 8000, sekrety wyłącznie przy uruchomieniu, `HEALTHCHECK` na `/health`.

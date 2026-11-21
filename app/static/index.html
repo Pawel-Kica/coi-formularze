@@ -106,6 +106,7 @@
         <button type="button" id="collapse">Zwiń</button>
         <button type="button" id="copy">Kopiuj</button>
         <button type="button" id="download" class="primary">Pobierz JSON</button>
+        <button type="button" id="preview">Podgląd</button>
       </div>
       <div id="tree" role="tree" aria-label="Struktura JSON"></div>
     </div>
@@ -313,6 +314,12 @@ $("#download").addEventListener("click", () => {
   link.download = state.selected.file.name.replace(/\.[^.]+$/, "") + ".json";
   link.click();
   URL.revokeObjectURL(link.href);
+});
+
+// Preview: hand the JSON to /preview through localStorage (survives the new tab, unlike sessionStorage with noopener).
+$("#preview").addEventListener("click", () => {
+  localStorage.setItem("coi-preview", selectedJson());
+  window.open("/preview", "_blank");
 });
 
 $("#copy").addEventListener("click", async () => {

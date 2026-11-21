@@ -19,6 +19,7 @@ from app.security import authenticate, current_user, issue_token, local_login_en
 from app.upload import read_single_file, validate_upload
 
 INDEX_HTML = Path(__file__).parent / "static" / "index.html"
+PREVIEW_HTML = Path(__file__).parent / "static" / "preview.html"
 
 app = FastAPI(
     title="COI Cyfryzacja Formularzy",
@@ -103,6 +104,12 @@ async def health() -> dict:
 @app.get("/", include_in_schema=False)
 async def index() -> FileResponse:
     return FileResponse(INDEX_HTML)
+
+
+@app.get("/preview", include_in_schema=False)
+async def preview() -> FileResponse:
+    """E-service preview: renders a COI JSON the way a citizen sees it (bonus V)."""
+    return FileResponse(PREVIEW_HTML)
 
 
 @app.exception_handler(Exception)
