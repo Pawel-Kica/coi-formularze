@@ -55,7 +55,7 @@ Obraz API (`Dockerfile`):
 - Tesseract z danymi `pol` (tekst) i `osd` (wykrywanie obróconych skanów);
 - proces jako użytkownik bez uprawnień (UID 10001), tylko port 8000, `HEALTHCHECK` na `/health`, sekrety wyłącznie przy uruchomieniu (z `.env`, nigdy w obrazie).
 
-`docker-compose.yml` (Docker Compose 2.24+) dokłada: system plików kontenera tylko do odczytu, `cap_drop: ALL`, `no-new-privileges`. Jedyne miejsce zapisu to `/tmp` w pamięci (tmpfs, 1 GB): pliki tymczasowe OCR i historia strony (`HISTORY_DB=/tmp/history.sqlite3`), która znika przy restarcie kontenera.
+`docker-compose.yml` (Docker Compose 2.24+) dokłada: system plików kontenera tylko do odczytu, `cap_drop: ALL`, `no-new-privileges`. Jedyne miejsce zapisu w kontenerze API to `/tmp` w pamięci (tmpfs, 1 GB): pliki tymczasowe OCR i historia strony (`HISTORY_DB=/tmp/history.sqlite3`), która znika przy restarcie kontenera.
 
 ```bash
 cp .env.example .env          # opcjonalnie; z AUTH_ENABLED=1 uzupełnij JWT_SECRET i AUTH_PASSWORD
@@ -160,7 +160,7 @@ Błędy zawsze jako JSON `{"detail": "..."}`:
 | 413 | plik większy niż `MAX_FILE_SIZE_MB` |
 | 415 | nieobsługiwane rozszerzenie albo zawartość niezgodna z rozszerzeniem |
 | 422 | nie udało się odczytać formularza |
-| 502 / 503 | model językowy zwrócił błąd / jest niedostępny |
+| 502 / 503 / 504 | model językowy zwrócił błąd / jest niedostępny / nie odpowiedział na czas |
 
 ## Walidacja i limity
 
@@ -208,10 +208,10 @@ Liczby z naszych pomiarów na 9 formularzach COI z zadania (każdy w kilku forma
 | Formularz 8, PDF | 0,587 | 0,845 |
 | Formularz 9, PDF | 0,578 | 0,858 |
 
-qwen na formularzu 9 to wcześniejszy przebieg, stąd inna liczba niż w tabeli bazowej. Na formularzu 7 Opus ma ten sam wynik na skanie i na PDF, więc tam OCR nie jest wąskim gardłem. Wąskim gardłem jest model: pipeline jest gotowy na mocniejszy model z otwartymi wagami, wystarczy zmienić `LLM_MODEL` (lokalnie albo przez `LLM_BACKEND=openai`). Uwaga: wzorcowe plany pisał Claude, więc Opus dzieli ich konwencje, a to jedna próba na przypadek.
+qwen na formularzu 9 to wcześniejszy przebieg, stąd inna liczba niż w tabeli bazowej. Na formularzu 7 PDF wysokie 0,939 qwena ukrywa odzysk pól 0,59 (F1 pól 0,70 wobec 0,96 u Opusa), a na formularzu 8 drugi przebieg qwena uciął limit długości odpowiedzi, więc nie ma żadnych warunków. Na formularzu 7 Opus ma ten sam wynik na skanie i na PDF, więc tam OCR nie jest wąskim gardłem. Wąskim gardłem jest model: pipeline jest gotowy na mocniejszy model z otwartymi wagami, wystarczy zmienić `LLM_MODEL` (lokalnie albo przez `LLM_BACKEND=openai`). Uwaga: wzorcowe plany pisał Claude, więc Opus dzieli ich konwencje, a to jedna próba na przypadek.
 
 **Dlaczego `qwen3:30b-a3b-instruct-2507`:** model MoE z ok. 3 mld aktywnych parametrów, mieści się na laptopie i jest szybki. Na formularzu 4 prawie 3 razy szybszy od `qwen3:14b` (79 s wobec 229 s) przy lepszym planie (0,60 wobec 0,41). Model wizyjny `qwen3-vl:30b-a3b-instruct` przegrał sito na formularzach 1, 4, 5, 7 (PDF i skan): średnio `gold=` 0,77 z obrazami stron i 0,65 na samym tekście, wobec 0,84 obecnego modelu. Wymyślał pola i zamieniał wybór na pytania tak/nie, więc tekst z naszej ekstrakcji zostaje domyślnym wejściem. Na Edenie (9 formularzy, PDF i skany, koszt 0,43 $) najlepszy był `deepinfra/google/gemma-4-31B-it` (0,81, F1 warunków 0,75), zapasowy `deepinfra/Qwen/Qwen3.8-27B` dwa razy szybszy, ale 0,79 i słabszy na skanach. To inny zestaw plików i wcześniejsza wersja kodu, więc tych liczb nie porównujemy wprost z wynikiem bazowym.
 
 ## Licencje
 
-Wyłącznie open source bez copyleft: zależności Pythona na licencjach MIT, BSD, Apache-2.0, PSF i MIT-CMU (Pillow); `certifi` (zależność `httpx`) ma MPL-2.0, które obejmuje tylko jego własne pliki i nie wymaga publikacji naszego kodu. Tesseract: Apache-2.0, Ollama: MIT, modele Qwen3: Apache-2.0. Domyślnie model działa lokalnie (Ollama) i rozwiązanie nie korzysta z zewnętrznych API ani usług SaaS. Klient modelu mówi protokołem zgodnym z OpenAI, więc ten sam kod może użyć innego modelu o otwartych wagach na serwerze GPU albo u dostawcy (`LLM_BACKEND=openai`).
+Wyłącznie open source bez copyleft: zależności Pythona na licencjach MIT, BSD, Apache-2.0, PSF i MIT-CMU (Pillow); `certifi` (zależność `httpx`) ma MPL-2.0, które obejmuje tylko jego własne pliki i nie wymaga publikacji naszego kodu. Tesseract: Apache-2.0, Ollama: MIT, modele Qwen3: Apache-2.0; modele proponowane przez Eden AI (Gemma 4, Qwen3.8) też Apache-2.0. Domyślnie model działa lokalnie (Ollama) i rozwiązanie nie korzysta z zewnętrznych API ani usług SaaS. Klient modelu mówi protokołem zgodnym z OpenAI, więc ten sam kod może użyć innego modelu o otwartych wagach na serwerze GPU albo u dostawcy (`LLM_BACKEND=openai`).
