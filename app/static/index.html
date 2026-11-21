@@ -6,9 +6,10 @@
 <title>Cyfryzacja formularzy | generator e-usług COI</title>
 <!-- One self-contained page served by the API at "/": log in, drop forms, check each result against its original.
      Left column = one file at a time, or many with "Wgraj wiele plików naraz" (sent one by one), plus history (on the server,
-     /api/history) with a ZIP of all results. Main area = original document | e-service, one of four views: "Podgląd" (the form
-     with the paper quote under every field), "Edytuj" (the click editor, /preview in edit mode via /editor.js; edits
-     are saved in history and checked with the COI rules), "JSON" (tree) and "Słowniki" (bonus II proposals).
+     /api/history) with a ZIP of all results. Main area = original document | e-service, one of three views: "Podgląd" (the form
+     with the paper quote under every field and, to its right, the collapsible "Edycja" sidebar of /editor.js: "Edytuj"
+     next to an element opens it there; edits are saved in history and checked with the COI rules), "JSON" (tree) and
+     "Słowniki" (bonus II proposals).
      No build step and no CDN, so it works offline. -->
 <style>
   :root {
@@ -110,12 +111,14 @@
   .k { color: var(--navy-dark); } .meta { color: var(--muted); }
   .v.string { color: #0a6b2f; } .v.number { color: #9a4d00; } .v.boolean, .v.null { color: #7b2fa6; }
   .hit { background: var(--hit); } .current { outline: 2px solid #ffb800; }
-  /* "Edytuj": history hidden, the result pane gets room for the form and the editor panel */
+  /* the "Edycja" sidebar is open: the history column makes room for the form and the sidebar; collapsed, it is back */
   main.editing { grid-template-columns: 1fr; }
   main.editing #upload { display: none; }
   main.editing .panes { grid-template-columns: 2fr 3fr; }
-  #edit-status { font-size: .85rem; }
-  #edit-status.bad { color: var(--err); font-weight: 600; }
+  /* why "Pobierz JSON" is off; a click opens the "Edycja" sidebar, which has the details */
+  #edit-status { font-size: .85rem; border: 0; background: none; padding: 4px 6px; text-decoration: underline; color: var(--muted); }
+  #edit-status:hover { background: #eef3f9; color: var(--text); }
+  #edit-status.bad, #edit-status.bad:hover { color: var(--err); font-weight: 600; }
   @media (max-width: 1000px) { /* narrow screens: everything stacks and the page scrolls */
     body { height: auto; display: block; }
     main { grid-template-columns: 1fr; }
@@ -191,11 +194,10 @@
           <h3 id="output-title" hidden>E-usługa</h3>
           <div class="switch" role="group" aria-label="Widok e-usługi">
             <button type="button" class="small" data-view="preview" aria-pressed="true">Podgląd</button>
-            <button type="button" class="small" data-view="edit" aria-pressed="false">Edytuj</button>
             <button type="button" class="small" data-view="json" aria-pressed="false">JSON</button>
             <button type="button" class="small" data-view="dicts" aria-pressed="false" id="dicts-tab" hidden>Słowniki</button>
           </div>
-          <span id="edit-status" class="muted" role="status"></span>
+          <button type="button" id="edit-status" class="muted" hidden></button>
           <button type="button" class="small primary" id="download">Pobierz JSON</button>
         </div>
         <div class="pane-body">
@@ -249,7 +251,8 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   token: sessionStorage.getItem("token"), items: [], selected: null, busy: false, hits: [], hit: -1,
-  view: "preview", // e-service view: preview | edit | json | dicts; a new file always opens in the preview
+  view: "preview", // e-service view: preview | json | dicts; a new file always opens in the preview
+  sidebar: false,  // the "Edycja" sidebar of the preview is open (it says so: message "coi-sidebar")
   originalUrl: null, previewReady: false,
   doc: 0, docItem: null, // editor: which document the iframe shows (and whose edits it sends)
 };
@@ -268,7 +271,7 @@ function el(tag, className, text) {
 // added by a script (bench/history_add.py) show up here too: {id, file, created, status, result, error, evidence,
 // problems}, newest first on screen. result = the COI JSON (with the clerk's edits), evidence = where each element
 // came from, problems = COI rules problems after the last edit (non-empty blocks the download), checking = the last
-// edit was saved before its rules check came back (after a reload: no download until "Edytuj" checks it) ---
+// edit was saved before its rules check came back (after a reload: no download until the check that runs when the file is opened comes back) ---
 
 // One history request: store("put", record) creates a record without id (multipart with the file) or updates one
 // (JSON, file unchanged) and resolves with its id; store("getAll"), store("delete", id), store("clear").
@@ -412,7 +415,7 @@ async function addFiles(files) {
     added.push(item);
     await persist(item);
   }
-  state.view = "preview"; // also when the last file was left in "Edytuj" or "JSON"
+  state.view = "preview"; // also when the last file was left in "JSON" or "Słowniki"
   select(added[0]); // the original shows at once, the e-service pane counts the seconds
   processQueue();
 }
@@ -648,41 +651,37 @@ function showView() {
   for (const button of document.querySelectorAll(".switch button")) button.setAttribute("aria-pressed", String(button.dataset.view === state.view));
   $(".switch").hidden = $("#download").hidden = !done; // nothing to preview, edit or download yet: just the pane title
   $("#output-title").hidden = done;
-  const frame = state.view === "preview" || state.view === "edit"; // the same iframe previews and edits
-  $("#preview-frame").hidden = !done || !frame;
+  $("#preview-frame").hidden = !done || state.view !== "preview";
   $("#json-view").hidden = !done || state.view !== "json";
   $("#dicts-view").hidden = state.view !== "dicts";
-  $("#main").classList.toggle("editing", done && state.view === "edit");
+  $("#main").classList.toggle("editing", done && state.sidebar); // room for the open sidebar, in every view of this file
 }
 
 for (const button of document.querySelectorAll(".switch button")) {
   button.addEventListener("click", () => {
-    const was = state.view;
     state.view = button.dataset.view;
     if (state.selected) renderNote(state.selected);
     showView();
     updateActions();
     if (state.view === "json" && state.selected?.status === "done") renderTree(); // shows the edits too
-    if ((was === "edit") !== (state.view === "edit")) sendPreview(); // the iframe switches edit mode on or off
   });
 }
 
 // The embedded /preview?embed=1 rebuilds its whole form on every message, so switching items never shows a stale form.
-// The message carries the evidence (the paper quotes drawn under the fields) and, in "Edytuj", edit: true; each
-// message starts a new document (doc), and edits or checks of an older document are ignored. `select` = the
-// element the editor opens on ("Edytuj" next to it in the preview).
-function sendPreview(select) {
+// The message carries the evidence (the paper quotes drawn under the fields); the frame's "Edycja" sidebar edits this
+// document from then on. Each message starts a new document (doc), and edits or checks of an older document are
+// ignored. The rules check runs right away, so a result whose last edit was never checked gets its answer.
+function sendPreview() {
   const item = state.selected;
   if (!state.previewReady || item?.status !== "done") return;
-  const edit = state.view === "edit";
   state.doc += 1;
   state.docItem = item;
   $("#preview-frame").contentWindow.postMessage(
-    { type: "coi-preview", json: selectedJson(), edit, evidence: item.evidence || {}, doc: state.doc, key: item.id, select }, location.origin);
-  if (edit) checkRules(item, 0);
+    { type: "coi-preview", json: selectedJson(), evidence: item.evidence || {}, doc: state.doc, key: item.id }, location.origin);
+  checkRules(item, 0);
 }
 
-// --- editor ("Edytuj"): the iframe sends every change, we save it and check it with the real COI rules ---
+// --- editor (the "Edycja" sidebar inside the preview frame): it sends every change, we save it and check it with the real COI rules ---
 
 // Ready to download: finished, the newest edit checked (item.checking; item.lastCheck = the check asked for last,
 // item.checkFailed = it did not get through), and no rules problems.
@@ -694,11 +693,12 @@ function updateActions() {
   $("#download").disabled = $("#copy").disabled = !done || !exportable(item);
   const status = $("#edit-status");
   status.className = bad || item?.checkFailed ? "bad" : "muted";
-  // why "Pobierz JSON" is off; inside "Edytuj" the editor panel already says it and lists the problems
-  status.textContent = !done || state.view === "edit" ? ""
-    : item.checkFailed ? "Nie udało się sprawdzić zmian. Otwórz „Edytuj”, aby sprawdzić ponownie."
+  // why "Pobierz JSON" is off; with the sidebar open, the sidebar already says it and lists the problems
+  status.textContent = !done || (state.sidebar && state.view === "preview") ? ""
+    : item.checkFailed ? "Nie udało się sprawdzić zmian"
     : item.checking ? "Sprawdzam zmiany…"
-    : bad ? `Do poprawy: ${item.problems.length}. Otwórz „Edytuj”.` : "";
+    : bad ? `Do poprawy: ${item.problems.length}` : "";
+  status.hidden = !status.textContent;
   renderFiles();
 }
 
@@ -707,10 +707,10 @@ window.addEventListener("message", (event) => {
   if (event.origin !== location.origin || event.source !== $("#preview-frame").contentWindow) return;
   const data = event.data || {};
   if (data.type === "coi-drop") return void addFiles([...data.files]); // a form dropped on the preview
-  if (data.type === "coi-edit-request" && state.selected?.status === "done") { // "Edytuj" next to an element of the preview
-    state.view = "edit";
+  if (data.type === "coi-sidebar") { // the "Edycja" sidebar was opened or collapsed: make room or give it back
+    state.sidebar = Boolean(data.open);
     showView();
-    return sendPreview(data.id);
+    return updateActions();
   }
   const item = state.docItem;
   if (data.doc !== state.doc || !item || item.deleted) return; // an edit of a document no longer shown
@@ -737,7 +737,7 @@ async function checkRules(item, version, doc = state.doc) {
     problems = (await response.json()).problems;
   } catch {
     if (item.lastCheck.doc !== doc || item.lastCheck.version !== version) return; // a newer check has the say
-    item.checkFailed = true; // "Pobierz JSON" stays off; the editor panel (or the pane head outside "Edytuj") says why
+    item.checkFailed = true; // "Pobierz JSON" stays off; the sidebar (or the pane head while it is collapsed) says why
     if (doc === state.doc) $("#preview-frame").contentWindow.postMessage({ type: "coi-problems", failed: true, version, doc }, location.origin);
     if (item === state.selected) updateActions();
     return;
@@ -749,10 +749,17 @@ async function checkRules(item, version, doc = state.doc) {
   if (item === state.selected) updateActions();
 }
 
+// "Do poprawy: N" (or a check that failed): the sidebar opens on the list of problems, in the preview.
+$("#edit-status").addEventListener("click", () => {
+  state.view = "preview";
+  showView();
+  $("#preview-frame").contentWindow.postMessage({ type: "coi-open", doc: state.doc }, location.origin);
+});
+
 // Ctrl+Z / Ctrl+Shift+Z while focus is outside the iframe still undo and redo in the editor.
 document.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
-  if (state.view !== "edit" || !(event.metaKey || event.ctrlKey) || (key !== "z" && key !== "y") || event.target.closest("input, textarea")) return;
+  if (state.view !== "preview" || state.selected?.status !== "done" || !(event.metaKey || event.ctrlKey) || (key !== "z" && key !== "y") || event.target.closest("input, textarea")) return;
   event.preventDefault();
   $("#preview-frame").contentWindow.postMessage({ type: key === "y" || event.shiftKey ? "coi-redo" : "coi-undo", doc: state.doc }, location.origin);
 });

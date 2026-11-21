@@ -1,14 +1,19 @@
 "use strict";
-/* Click editor: the edit mode of /preview?embed=1, driven by the upload page (index.html).
-   The clerk clicks an element of the e-service and fixes it in the side panel; every change is
-   checked by the server with the real COI rules (POST /api/forms/check, called by the parent).
+/* Click editor: the "Edycja" sidebar of /preview?embed=1, driven by the upload page (index.html).
+   One view, no edit mode: the preview stays what it is (steps, answers, conditions) and the sidebar sits to its
+   right. "Edytuj" next to an element (preview.html's fixLink: every field, section, page heading, the title and the
+   dashed line of a hidden element) opens the sidebar on that element; one click collapses it to a slim strip and the
+   state is remembered. Every change is checked by the server with the real COI rules (POST /api/forms/check,
+   called by the parent).
 
    Protocol (same-origin postMessage):
-   - here -> parent {type: "coi-edit-request", id}: "Edytuj" was clicked next to an element of the read-only preview
-     (preview.html sends it); the parent switches to "Edytuj" and answers with coi-preview {edit: true, select: id}.
-   - parent -> here {type: "coi-preview", json, edit: true, evidence, doc, key, select?}: preview.html loads the JSON and its
-     evidence as always, then this file switches to edit mode. Without `edit` the preview stays read-only. `doc`
-     numbers the document; every message back carries it, so the parent ignores edits of a document it no longer shows.
+   - parent -> here {type: "coi-preview", json, evidence, doc, key}: preview.html loads the JSON and its evidence,
+     then edStart makes this document editable. `doc` numbers the document; every message back carries it, so the
+     parent ignores edits of a document it no longer shows. `key` names the file: the same file again keeps undo,
+     redo and the selection.
+   - here -> parent {type: "coi-sidebar", open, doc}: the sidebar was opened or collapsed; the parent makes room
+     for it (hides the history column) or gives the room back.
+   - parent -> here {type: "coi-open"}: open the sidebar on the list of problems (a click on "Do poprawy: N").
    - here -> parent {type: "coi-edit", json, evidence, version} after every change, undo and redo;
      the parent saves it in the history entry and sends back
      {type: "coi-problems", problems: [{id, message, detail}], version, doc}, or {..., failed: true} when the
@@ -36,7 +41,8 @@ const ED_DICT_EXTRA = {
 };
 const ED_EMPTY_HTML = "<html><head></head><body></body></html>";
 
-const ed = {on: false, failed: false, doc: 0, key: undefined, sel: null, version: 0, checked: -1, problems: [], undo: [], redo: [],
+const ED_OPEN_KEY = "coi-sidebar";  // localStorage: "1" = the sidebar was left open
+const ed = {on: false, open: false, failed: false, doc: 0, key: undefined, sel: null, version: 0, checked: -1, problems: [], undo: [], redo: [],
   pending: null, timer: 0, note: "", focusLabel: false};
 
 /* ---------- where things are ---------- */
@@ -69,7 +75,7 @@ function edRemoveBlock(loc) {
   const left = loc.tab.questions.reduce((n, q) => n + count(q), 0) - (loc.kind === "field" ? 1 : count(loc.tab.questions.find(q => q.field === loc.el)));
   if (left > 0) return "";
   return edFinish(loc) ? "Strona końcowa musi mieć choć jeden tekst, a to ostatni."
-    : "Na tej stronie nie zostałoby żadne pole, a taka strona nie przejdzie importu do COI. Usuń całą stronę albo najpierw dodaj inne pole.";
+    : "Na tej stronie nie zostałoby żadne pole, a taka strona nie przejdzie importu do COI. Usuń całą stronę („Edytuj” przy jej tytule) albo najpierw dodaj inne pole.";
 }
 
 // Every element whose SHOW condition reads one of `fields`.
@@ -239,14 +245,16 @@ function edPost() {
   ed.failed = false;  // a new check is on its way
   parent.postMessage({type: "coi-edit", json: JSON.stringify(cfg, null, 2), evidence: evidence, version: ed.version, doc: ed.doc}, location.origin);
 }
-// Re-reads the whole config after a change (answers are keyed by titles and techNames) and redraws the page.
+// Re-reads the whole config after a change and redraws the page in place (same step, same scroll).
 function edRerender() {
   issues = [];
   conds.clear();
   normalize(cfg);
   pages = orderPages();
   precheck();
+  const given = answers;
   resetAnswers();
+  keepAnswers(given);  // the clerk's answers in the preview (a revealed section stays revealed)
   renderIssues();
   renderLegend();
   $("#formTitle").textContent = cfg.title || "Formularz bez tytułu";
@@ -304,6 +312,7 @@ function edAddField(secId, afterId) {
     ed.sel = f.id;
     ed.focusLabel = true;
   }, "Dodano pole. Wpisz jego etykietę.");
+  edShow(ed.sel);
 }
 // Adds a new section (with one field) to tab `tabId`, after section `afterId` (or at the end).
 function edAddSection(tabId, afterId) {
@@ -319,6 +328,7 @@ function edAddSection(tabId, afterId) {
     ed.sel = sec.id;
     ed.focusLabel = true;
   }, "Dodano sekcję z jednym polem. Wpisz jej tytuł.");
+  edShow(ed.sel);
 }
 function edMove(id, dir) {
   edChange(() => {
@@ -334,29 +344,37 @@ function edMove(id, dir) {
   });
 }
 // Removes a field, a section with its fields, or a whole page with everything on it (one undo step).
+// The only field of a section takes the emptied section with it: an empty titled section is of no use.
 function edRemove(id) {
-  const loc = edFind(id);
+  let loc = edFind(id);
   if (!loc || loc.kind === "title" || edRemoveBlock(loc)) return;
+  const name = `„${edShort(loc.kind === "tab" ? loc.tab.title : labelOf(loc.el))}”`;
+  const lone = loc.kind === "field" && loc.section.repeatingSectionGrid.length === 1;
+  if (lone) loc = edFind(loc.section.id);
   const inside = s => [s, ...(s.repeatingSectionGrid || []).map(c => c.field)];
   const gone = loc.kind === "tab" ? loc.tab.questions.flatMap(q => inside(q.field)) : loc.kind === "section" ? inside(loc.el) : [loc.el];
   const broken = edDependents(gone).filter(f => !gone.includes(f)), deps = broken.length;  // their conditions read what goes away
-  const what = {tab: `stronę „${loc.tab.title}” razem z jej polami`, section: "sekcję", field: "pole"}[loc.kind];
+  const what = lone ? `pole ${name}` : {tab: `stronę ${name} razem z jej polami`, section: `sekcję ${name}`, field: `pole ${name}`}[loc.kind];
+  const back = loc.kind === "tab" || lone ? "Przywrócisz to" : loc.kind === "section" ? "Przywrócisz ją" : "Przywrócisz je";
   edChange(() => {
     if (loc.kind === "tab") edRemoveTab(loc.tab);
     else if (loc.kind === "field") {
-      loc.section.repeatingSectionGrid = loc.section.repeatingSectionGrid.filter(c => c.field.id !== id);
+      loc.section.repeatingSectionGrid = loc.section.repeatingSectionGrid.filter(c => c.field.id !== loc.el.id);
       edLayoutSection(loc.section);
-    } else loc.tab.questions = loc.tab.questions.filter(q => q.field.id !== id);
+    } else loc.tab.questions = loc.tab.questions.filter(q => q.field.id !== loc.el.id);
     if (loc.kind !== "tab") edLayoutTab(loc.tab);
     ed.sel = deps ? broken[0].id : loc.kind === "field" ? loc.section.id : null;
-  }, `Usunięto ${what}. ` + (deps
-    ? `${deps === 1 ? "Zależał od niego 1 element" : `Zależały od niego ${deps} ${plural(deps, ["element", "elementy", "elementów"])}`}: ` +
-      `popraw warunek poniżej albo cofnij (Ctrl+Z).`
-    : "Cofniesz to przez Ctrl+Z."));
-  if (!deps) return;
-  const at = edFind(broken[0].id);  // show the element that now needs a fix, on whatever step it is
+  }, `Usunięto ${what}` + (deps === 1 ? ", od którego zależał ten element" : deps ? `, od którego zależały ${deps} elementy (ten i pozostałe na czerwono)` : "") +
+     (lone ? `${deps ? "," : ""} razem z jego pustą sekcją` : "") + `. ${back} przyciskiem „Cofnij”.`);
+  if (deps) edShow(broken[0].id, "start");  // the element that now needs a fix, on whatever step it is: its heading and the red line under it
+}
+const edShort = text => (text.length > 60 ? text.slice(0, 57) + "…" : text);
+// Brings an element into view, on its own step.
+function edShow(id, block = "nearest") {
+  const at = edFind(id);
+  if (!at) return;
   if (at.tab && pages.indexOf(at.tab) !== pageIdx) go(pages.indexOf(at.tab), false);
-  document.querySelector(`[data-fid="${CSS.escape(broken[0].id)}"]`)?.scrollIntoView({block: "start"});  // its heading and the red line under it
+  document.querySelector(`[data-fid="${CSS.escape(id)}"]`)?.scrollIntoView({block});
 }
 
 // Type change: keeps label, description and REQUIRED; drops what the new type cannot have.
@@ -467,17 +485,15 @@ function edRemoveTab(tab) {
 /* ---------- the form in edit mode ---------- */
 const edProblemsOf = id => ed.problems.filter(p => p.id === id);
 
-// After every render in edit mode: clickable elements, problems, "add" buttons. The paper quotes and
-// conditions under each element are drawn by preview.html itself (notesOf), the same as in the preview.
+// After every render: the selected element and the problems are marked on the form. Nothing else changes in it:
+// the preview stays a preview (the paper quotes, conditions and "Edytuj" links are drawn by preview.html).
 function edDecorate() {
-  const tab = pages[pageIdx], text = tab.type === "FINISH", page = $("#page");
+  const tab = pages[pageIdx], page = $("#page");
   const head = $("#pageHeading"), title = $("#formTitle");
   head.dataset.fid = tab.id;
   title.dataset.fid = "__title";
   for (const el of [title, ...page.querySelectorAll("[data-fid]")]) {
     const id = el.dataset.fid;
-    el.classList.add("ed-item");
-    el.tabIndex = 0;
     el.classList.toggle("ed-sel", id === ed.sel);
     el.classList.toggle("ed-bad", edProblemsOf(id).length > 0);
     const probs = edProblemsOf(id).map(p => h("p", {class: "ed-prob"}, "⚠ " + p.message));
@@ -486,9 +502,6 @@ function edDecorate() {
     else if (el.matches("section.card")) ($(":scope > h3", el) || el.firstChild).after(...probs);
     else el.append(...probs);
   }
-  for (const card of page.querySelectorAll("section.card[data-fid]"))
-    card.append(h("button", {type: "button", class: "ed-add", onclick: () => edAddField(card.dataset.fid, null)}, text ? "+ Dodaj tekst w tej sekcji" : "+ Dodaj pole w tej sekcji"));
-  $("#page > .grid")?.after(h("button", {type: "button", class: "ed-add ed-add-section", onclick: () => edAddSection(tab.id, null)}, "+ Dodaj sekcję na tej stronie"));
   // stepper: a red mark on pages that hold problems
   const bad = new Set(ed.problems.map(p => p.id && edFind(p.id)?.tab).filter(Boolean));
   $("#stepNav").querySelectorAll(".stepper li").forEach((li, i) => {
@@ -501,12 +514,43 @@ function edEnsurePanel() {
   if ($("#edPanel")) return;
   document.head.append(h("style", {}, ED_CSS));
   document.body.append(h("aside", {id: "edPanel", "aria-label": "Edycja formularza"},
+    // collapsed: one slim strip, a click opens the sidebar
+    h("button", {type: "button", id: "edStrip", title: "Rozwiń panel edycji", onclick: () => edSetOpen(true)},
+      h("span", {"aria-hidden": "true"}, "‹"), h("span", {class: "ed-strip-label"}, "Edycja"), h("span", {class: "ed-dot", id: "edStripBad", hidden: true}, "●")),
     h("div", {class: "ed-top"},
       h("div", {class: "ed-head"}, h("h2", {}, "Edycja"),
-        h("button", {type: "button", class: "ed-btn", id: "edUndo", title: "Cofnij (Ctrl+Z)", onclick: edUndo}, "Cofnij"),
-        h("button", {type: "button", class: "ed-btn", id: "edRedo", title: "Ponów (Ctrl+Shift+Z)", onclick: edRedo}, "Ponów")),
+        h("button", {type: "button", class: "ed-btn", id: "edUndo", title: "Cofnij ostatnią zmianę", onclick: edUndo}, "Cofnij"),
+        h("button", {type: "button", class: "ed-btn", id: "edRedo", title: "Ponów cofniętą zmianę", onclick: edRedo}, "Ponów"),
+        h("button", {type: "button", class: "ed-btn", id: "edClose", title: "Zwiń panel edycji", "aria-label": "Zwiń panel edycji", onclick: () => edSetOpen(false)}, "›")),
       h("div", {id: "edStatus", role: "status"})),
     h("div", {id: "edBody"})));
+}
+
+// Opens or collapses the sidebar (remembered). `pin` = the element that must stay where it is on screen while
+// the layout changes around it (the parent makes room, the form gets narrower or wider); default: the first one in view.
+function edSetOpen(open, pin) {
+  if (ed.open === open) return;
+  const el = pin || [...$("#page").querySelectorAll("[data-fid]")].find(x => x.getClientRects().length && x.getBoundingClientRect().top >= 0) || $("#pageHeading");
+  const top = el.getBoundingClientRect().top;
+  ed.open = open;
+  try { localStorage.setItem(ED_OPEN_KEY, open ? "1" : ""); } catch (e) { /* private mode: the state just is not remembered */ }
+  document.body.classList.toggle("sidebar", open);
+  if (open && !$("#notesToggle").checked) { $("#notesToggle").checked = true; applyModes(); }  // editing works on the annotated form
+  parent.postMessage({type: "coi-sidebar", open, doc: ed.doc}, location.origin);
+  const keep = () => { if (el.isConnected) window.scrollBy(0, el.getBoundingClientRect().top - top); };
+  keep();
+  const watch = new ResizeObserver(keep);  // the parent resizes this frame a moment later
+  watch.observe(document.documentElement);
+  setTimeout(() => watch.disconnect(), 600);
+  if (open) edPanel(); else edFlush();
+}
+
+// "Edytuj" next to an element (preview.html): the sidebar opens on it, its label ready to type in; the element stays in place.
+function edOpen(id) {
+  if (!ed.on) return;
+  edSetOpen(true, document.querySelector(`[data-fid="${CSS.escape(id)}"]`));
+  edSelect(id);
+  edFocusLabel();
 }
 
 // Status line, undo/redo buttons and the problem lists; never touches the inputs (focus stays).
@@ -521,6 +565,7 @@ function edStatus() {
     : "Zmiany zapisują się same. Zgodne z regułami COI, możesz pobrać JSON.",
     ed.failed ? h("button", {type: "button", class: "ed-link", onclick: () => { edPost(); edStatus(); }}, "Sprawdź ponownie")
     : !waiting && n && ed.sel ? h("button", {type: "button", class: "ed-link", onclick: () => edSelect(null)}, "Pokaż listę") : "");
+  $("#edStripBad").hidden = !n && !ed.failed;  // the collapsed strip shows that something waits
   $("#edUndo").disabled = !ed.undo.length && !ed.pending;
   $("#edRedo").disabled = !ed.redo.length;
   const mine = $("#edMine");
@@ -538,21 +583,22 @@ function edStatus() {
   }
 }
 
-// Shows an element: its page, selection, scroll.
+// Shows an element (a link in the list of problems): its step, selection, scroll.
 function edReveal(id) {
-  const loc = edFind(id);
-  if (!loc) return;
-  if (loc.tab && pages.indexOf(loc.tab) !== pageIdx) go(pages.indexOf(loc.tab), false);
+  if (!edFind(id)) return;
   edSelect(id);
-  document.querySelector(`[data-fid="${CSS.escape(id)}"]`)?.scrollIntoView({block: "center"});
+  edShow(id, "center");
+  edMarkSelected();  // after a step change the page was redrawn
 }
 function edSelect(id) {
   edFlush();
   ed.sel = id;
   ed.note = "";
-  for (const el of document.querySelectorAll(".ed-sel")) el.classList.remove("ed-sel");
-  if (id) document.querySelector(`[data-fid="${CSS.escape(id)}"]`)?.classList.add("ed-sel");
+  edMarkSelected();
   edPanel();
+}
+function edMarkSelected() {
+  for (const el of document.querySelectorAll("[data-fid]")) el.classList.toggle("ed-sel", el.dataset.fid === ed.sel);
 }
 
 // Small form controls for the panel. `key` lets focus come back to the same control after a redraw.
@@ -604,17 +650,16 @@ function edPanel() {
 
 function edHelpPanel() {
   return [
-    h("p", {class: "ed-lead"}, "Kliknij dowolny element formularza, aby go poprawić."),
+    h("p", {class: "ed-lead"}, "Kliknij „Edytuj” obok elementu formularza, aby go poprawić albo usunąć."),
     h("ul", {class: "ed-tips"},
-      h("li", {}, "Przy każdym polu widać cytat z papieru, z którego powstało."),
-      h("li", {}, "Ctrl+Z cofa ostatnią zmianę."),
-      h("li", {}, "Po każdej zmianie sprawdzamy formularz regułami COI. Problemy są zaznaczone na czerwono.")),
+      h("li", {}, "Pod każdym polem widać cytat z papieru, z którego powstało."),
+      h("li", {}, "Każdą zmianę sprawdzamy regułami COI. Problemy są zaznaczone na czerwono.")),
     h("div", {id: "edAllWrap", hidden: true}, h("h3", {class: "ed-h3"}, "Do poprawy"), h("ol", {class: "ed-probs", id: "edAll"})),
   ];
 }
 
 function edEvidenceBox(loc) {
-  if (loc.kind === "title") return null;
+  if (loc.kind === "title" || (loc.kind === "tab" && isStandard(loc.tab))) return null;  // a standard page says so in its own line on the form
   const ev = evidence[loc.el.id], box = h("div", {class: "ed-evidence"});
   const quote = (label, text) => h("p", {}, h("strong", {}, label + ": "), `„${text}”`);
   if (!ev) box.append(h("p", {}, "Brak informacji o pochodzeniu (wynik bez cytatów: starszy albo wczytany z pliku)."));
@@ -682,7 +727,10 @@ function edConsentControls(f) {
     return h("li", {}, h("span", {class: "ed-label"}, `${i + 1}. ${q === null ? "Klauzula RODO (standard COI)" : "Oświadczenie"}`), ta,
       q ? h("p", {class: "ed-hint"}, h("strong", {}, "Z papieru: "), `„${q}”`) : q === false ? h("p", {class: "ed-hint"}, "Dodane przez Ciebie, bez cytatu.") : "",
       h("div", {class: "ed-consent-row"}, h("span", {class: "ed-check"}, cb, h("label", {for: cb.id}, "Wymagane")),
-        edBtn("Usuń", `consentdel${i}`, () => edChange(() => { list.splice(i, 1); quotes()?.splice(i, 1); }), {danger: true, label: `Usuń oświadczenie ${i + 1}`})));
+        edBtn("Usuń", `consentdel${i}`, () => edChange(() => { list.splice(i, 1); quotes()?.splice(i, 1); }),
+          {danger: true, disabled: list.length === 1, label: `Usuń oświadczenie ${i + 1}`})),
+      // the rules refuse a consent section without consents: the last one goes only with the whole field
+      list.length === 1 ? h("p", {class: "ed-hint"}, "To ostatnie oświadczenie. Całe pole usuniesz przyciskiem „Usuń pole” u góry.") : "");
   });
   const add = edBtn("+ Dodaj oświadczenie", "consentadd", () => edChange(() => {
     list.push({description: edHtml("Oświadczam, że ", ""), required: true});
@@ -727,8 +775,9 @@ function edFieldControls(loc) {
     edBtn("↑ W górę", "up", () => edMove(f.id, -1), {disabled: i <= 0, label: "Przesuń pole w górę"}),
     edBtn("↓ W dół", "down", () => edMove(f.id, 1), {disabled: i >= list.length - 1, label: "Przesuń pole w dół"}),
     edBtn(finish ? "+ Tekst poniżej" : "+ Pole poniżej", "addfield", () => edAddField(loc.section.id, f.id)));
-  const label = edRow(t === "TEXT_BLOCK" ? "Nagłówek (opcjonalny)" : t === "CONSENT_SECTION" ? "Tytuł" : "Etykieta",
-    edInput(f.title || "", "label", v => { f.title = v; edRetech(f); }));
+  const labelInput = edInput(f.title || "", "label", v => { f.title = v; edRetech(f); });
+  if (t === "CONSENT_SECTION") labelInput.placeholder = "Zgody";  // what the form shows while the title is empty
+  const label = edRow(t === "TEXT_BLOCK" ? "Nagłówek (opcjonalny)" : t === "CONSENT_SECTION" ? "Tytuł" : "Etykieta", labelInput);
   // consents are a list of their own: no type, format or options to choose
   if (t === "CONSENT_SECTION" && Array.isArray(f.consentSectionConfig?.consents)) return [label, edConsentControls(f), edConditionControls(loc), move];
   const out = [
@@ -823,31 +872,28 @@ function edConditionControls(loc) {
   return box;
 }
 
-/* ---------- entering and leaving edit mode ---------- */
-// `select` = the element to open right away ("Edytuj" next to it in the preview): shown, selected, its label ready
-// to type in. `key` names the file: coming back to the same file (a look at "Podgląd" in between) keeps undo and redo.
-function edEnter(doc, select, key) {
-  if (!cfg || $("#app").hidden) return;  // the JSON did not load: preview shows the error
-  if (key === undefined || key !== ed.key) Object.assign(ed, {undo: [], redo: []});
-  Object.assign(ed, {on: true, failed: false, doc, key, sel: null, version: 0, checked: -1, problems: [], pending: null, note: ""});
+/* ---------- start, messages, keys ---------- */
+// A document arrived (preview.html has loaded it): it becomes editable. `key` names the file: the same file
+// again keeps undo, redo and the selection. The sidebar comes back the way it was left (open or collapsed).
+function edStart(doc, key) {
+  ed.on = Boolean(cfg) && !$("#app").hidden;  // a JSON that did not load: preview shows the error, nothing to edit
+  document.body.classList.toggle("ed-on", ed.on);
+  if (!ed.on) return;
+  if (key === undefined || key !== ed.key) Object.assign(ed, {undo: [], redo: [], sel: null});
+  Object.assign(ed, {failed: false, doc, key, version: 0, checked: -1, problems: [], pending: null, note: ""});
+  if (ed.sel && !edFind(ed.sel)) ed.sel = null;
   edEnsurePanel();
-  document.body.classList.add("editmode");
-  applyModes();
-  edRerender();
+  let open = false;
+  try { open = localStorage.getItem(ED_OPEN_KEY) === "1"; } catch (e) { /* private mode */ }
+  ed.open = !open;  // so that edSetOpen applies the state and tells the parent, also for a new document
+  edSetOpen(open);
+  renderPage();
   edPanel();
-  if (select && edFind(select)) { edReveal(select); edFocusLabel(); }
 }
 const edFocusLabel = () => $("[data-k=label]", $("#edBody"))?.focus({preventScroll: true});
-function edLeave() {
-  edFlush();
-  ed.on = false;
-  document.body.classList.remove("editmode");
-  applyModes();
-  if (cfg && !$("#app").hidden) renderPage();
-}
 
 {
-  // Wrap the preview's render instead of editing it: decorations after each render.
+  // Wrap the preview's render instead of editing it: marks after each render.
   const baseRender = renderPage;
   renderPage = () => { baseRender(); if (ed.on) edDecorate(); };
 }
@@ -855,8 +901,9 @@ function edLeave() {
 window.addEventListener("message", e => {
   if (e.origin !== location.origin) return;
   const d = e.data || {};
-  if (d.type === "coi-preview") { if (d.edit) edEnter(d.doc, d.select, d.key); else if (ed.on) edLeave(); }
+  if (d.type === "coi-preview") edStart(d.doc, d.key);
   if (!ed.on) return;
+  if (d.type === "coi-open") { edSetOpen(true); edSelect(null); }
   if (d.type === "coi-problems" && d.doc === ed.doc && d.version === ed.version && d.failed) { ed.failed = true; edStatus(); }
   else if (d.type === "coi-problems" && d.doc === ed.doc && d.version === ed.version) {
     ed.failed = false;
@@ -870,18 +917,9 @@ window.addEventListener("message", e => {
   if (d.type === "coi-redo") edRedo();
 });
 
-// Focus leaving the editor (a click on "Podgląd", "JSON" or "Pobierz JSON" in the upload page): what was being typed goes out first.
+// Focus leaving the frame (a click on "JSON" or "Pobierz JSON" in the upload page): what was being typed goes out first.
 window.addEventListener("blur", () => { if (ed.on) edFlush(); });
 
-// Click (or Enter on a focused element) selects it; clicks never reach the form's own controls.
-document.addEventListener("click", e => {
-  if (!ed.on || e.target.closest(".ed-add, .nav, #stepNav, #edPanel")) return;
-  const el = e.target.closest("[data-fid]");
-  if (!el || !$("#app").contains(el)) return;
-  e.preventDefault();
-  edSelect(el.dataset.fid);
-  edFocusLabel(); // click and type: the label is the most common fix
-}, true);
 document.addEventListener("keydown", e => {
   if (!ed.on) return;
   const inText = e.target.closest?.("input, textarea, select");
@@ -889,16 +927,21 @@ document.addEventListener("keydown", e => {
   if ((e.metaKey || e.ctrlKey) && !inText && (key === "z" || key === "y")) {
     e.preventDefault();
     if (key === "y" || e.shiftKey) edRedo(); else edUndo();
-  } else if ((e.key === "Enter" || e.key === " ") && e.target.classList?.contains("ed-item")) {
-    e.preventDefault();
-    edSelect(e.target.dataset.fid);
   } else if (e.key === "Escape" && !inText && ed.sel) edSelect(null);
 });
 
 const ED_CSS = `
-body.editmode{padding-right:340px}
-#edPanel{display:none;position:fixed;top:0;right:0;bottom:0;width:340px;background:#fff;border-left:1px solid #c5ccd6;box-shadow:-4px 0 16px rgba(16,24,40,.06);overflow:auto;font-size:15px;z-index:20}
-body.editmode #edPanel{display:block}
+body.ed-on{padding-right:40px}
+body.ed-on .issues{display:none}  /* the sidebar lists what the COI rules found; the preview's own notes would say it twice */
+body.ed-on.sidebar{padding-right:340px}
+#edPanel{position:fixed;top:0;right:0;bottom:0;width:40px;background:#fff;border-left:1px solid #c5ccd6;box-shadow:-4px 0 16px rgba(16,24,40,.06);overflow:auto;font-size:15px;z-index:20}
+body:not(.ed-on) #edPanel{display:none}
+body.sidebar #edPanel{width:340px}
+body:not(.sidebar) #edPanel>:not(#edStrip),body.sidebar #edStrip{display:none}
+#edStrip{display:flex;flex-direction:column;align-items:center;gap:.6rem;width:100%;height:100%;padding:.8rem 0;background:#f8fafc;border:0;color:#003a80;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
+#edStrip:hover{background:#e8f0fb}
+.ed-strip-label{writing-mode:vertical-rl}
+#edClose{min-width:34px;font-size:18px;line-height:1;padding:.2rem .5rem}
 .ed-top{position:sticky;top:0;z-index:1;background:#fff}
 .ed-head{display:flex;align-items:center;gap:.5rem;padding:.6rem 1rem;border-bottom:1px solid #e3e7ec}
 .ed-head h2{font-size:1.05rem;margin:0 auto 0 0}
@@ -947,23 +990,15 @@ body.editmode #edPanel{display:block}
 .ed-cond-box{border-top:1px solid #e3e7ec;padding-top:.8rem}
 .ed-cond-line{display:grid;grid-template-columns:1fr;gap:.2rem;margin-top:.5rem;font-size:14px}
 .ed-actions{display:flex;flex-wrap:wrap;gap:.4rem;border-top:1px solid #e3e7ec;padding-top:.9rem;margin-top:.4rem}
-body.editmode .cond-hidden{display:block!important}
-body.editmode #page .grid :is(input,select,textarea,label,button:not(.ed-add)){pointer-events:none}
-body.editmode .send{display:none}
-body.editmode .tech{display:none}
-.ed-item{cursor:pointer;border-radius:6px;outline:2px solid transparent;outline-offset:4px;scroll-margin-top:16px}
-.ed-item:hover{outline-color:#9cb8dc}
-.ed-item.ed-bad{outline:2px solid #b3261e}
-.ed-item.ed-sel{outline:3px solid #0052a5}
+[data-fid]{scroll-margin-top:64px}
+.ed-bad{outline:2px solid #b3261e;outline-offset:4px;border-radius:6px}
+.ed-sel{outline:3px solid #0052a5;outline-offset:4px;border-radius:6px}
 .ed-prob{color:#b3261e;font-weight:600;font-size:13px;margin:.3rem 0 0}
 .card>.ed-prob{margin:-.6rem 0 1rem}
-.ed-add{display:block;width:100%;margin-top:.75rem;background:none;border:1px dashed #8a94a6;border-radius:6px;color:#0052a5;font:inherit;font-size:14px;font-weight:600;padding:.45rem .9rem;cursor:pointer}
-.ed-add:hover{border-color:#0052a5;background:#f3f7fc}
-.ed-add-section{margin-top:1rem;background:#fff}
 .ed-dot{color:#b3261e;font-size:12px;margin-left:.15rem}
-body.editmode .stepper li{display:flex;align-items:center}
-@media (max-width:760px){
-  body.editmode{padding-right:0;padding-bottom:55vh}
-  #edPanel{top:auto;left:0;width:auto;height:55vh;border-left:0;border-top:1px solid #c5ccd6}
+body.ed-on .stepper li{display:flex;align-items:center}
+@media (max-width:560px){  /* a phone-wide frame: the open sidebar becomes a sheet at the bottom */
+  body.ed-on.sidebar{padding-right:0;padding-bottom:55vh}
+  body.sidebar #edPanel{top:auto;left:0;width:auto;height:55vh;border-left:0;border-top:1px solid #c5ccd6}
 }
 `;

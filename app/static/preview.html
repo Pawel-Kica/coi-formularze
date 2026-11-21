@@ -36,7 +36,6 @@ a{color:#0052a5}
 .embed .toolbar label{color:#1b1f24;font-weight:600}
 .embed .toolbar :focus-visible{outline-color:#0052a5}
 .embed .issues summary{border-color:#b7791f;color:#6b2c00}
-body.editmode .toolbar{display:none}
 
 /* empty state */
 .empty{max-width:720px;margin:2rem auto;padding:0 1rem}
@@ -111,21 +110,23 @@ body.notes .src{display:block}
 .card>.src+.src{margin-top:-.7rem}
 #pageHeading~.src,.legend{margin:0 0 1rem}
 .legend{border-left-color:#1e7b34}
-/* "Edytuj" next to every element of the embedded preview (annotations on): one click from reading a field to fixing it */
+/* "Edytuj" next to every element of the embedded preview (annotations on): one click opens the "Edycja" sidebar on it */
 .fix{display:none}
 .embed .cell{display:flow-root}
-body.embed.notes:not(.editmode) .fix{display:block;float:right;margin:.3rem 0 0 .75rem;background:none;color:#0052a5;border:1px solid transparent;border-radius:4px;padding:.05rem .45rem;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
-body.embed.notes:not(.editmode) .card>.fix{margin-top:.1rem}
+body.embed.notes .fix{display:block;float:right;margin:.3rem 0 0 .75rem;background:none;color:#0052a5;border:1px solid transparent;border-radius:4px;padding:.05rem .45rem;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+body.embed.notes .card>.fix{margin-top:.1rem}
+body.embed.notes .wrap>.fix{margin-top:.15rem}
+body.embed.notes #page>.fix{margin-top:.2rem}
 /* on a field it sits at the top right, on the label's line, the same place for every kind of field */
 .embed .cell{position:relative}
-body.embed.notes:not(.editmode) .cell>.fix{position:absolute;top:-.15rem;right:0;float:none;margin:0}
-body.embed.notes:not(.editmode) :is(.cell>label,.cell>.choice,.cell .group>legend,.cell>.textblock,.cell>.info){padding-right:4.2rem}
+body.embed.notes .cell>.fix{position:absolute;top:-.15rem;right:0;float:none;margin:0}
+body.embed.notes :is(.cell>label,.cell>.choice,.cell .group>legend,.cell>.textblock,.cell>.info){padding-right:4.2rem}
 .embed [data-bound]:hover:not(:has([data-bound]:hover))>.fix,.embed .fix:hover,.embed .fix:focus-visible{border-color:#0052a5;background:#e8f0fb}
 .ghost{display:none}
 /* a hidden element in annotation mode: one dashed line saying what would show it */
 body.ghosts .cond-hidden:has(>.ghost){display:block!important}
 body.ghosts .cond-hidden>:not(.ghost){display:none!important}
-body.embed.notes:not(.editmode) .ghost>.fix{margin-top:0}
+body.embed.notes .ghost>.fix{margin-top:0}
 body.ghosts .cond-hidden>.ghost{display:block;margin:0;padding:.45rem .75rem;border:1px dashed #8a94a6;border-radius:6px;background:#f8fafc;color:#4b5563;font-size:13px;line-height:1.4}
 body.ghosts section.card.cond-hidden{padding:0;background:none;box-shadow:none}
 @keyframes flash{from{background:#fff3b0;box-shadow:0 0 0 6px #fff3b0}to{background:transparent;box-shadow:0 0 0 6px transparent}}
@@ -172,6 +173,7 @@ body.techmode .tech{display:block}
 </div>
 
 <main class="wrap" id="app" hidden>
+  <button type="button" class="fix" id="titleFix" aria-label="Edytuj tytuł e-usługi">Edytuj</button>
   <h1 id="formTitle"></h1>
   <p class="src legend" id="legend"></p>
   <nav aria-label="Kroki wniosku" id="stepNav"></nav>
@@ -599,7 +601,7 @@ function notesOf(f, kind, standard) {
     if (ev?.condition_quote && !triggersOf(f).some(t => evidence[t.id]?.quote === ev.condition_quote)) out.push(quoteLine("Warunek z papieru", ev.condition_quote));
     else if (ct && ev?.condition_source === "clerk") out.push(h("p", {class: "src"}, "Warunek ustawiony w edytorze."));
   }
-  (ev?.consent_quotes || []).forEach((q, i) => { if (q) out.push(quoteLine(`Oświadczenie ${i + 1} z papieru`, q)); });
+  for (const q of ev?.consent_quotes || []) if (q) out.push(quoteLine("Z papieru", q));  // one per statement from the paper, in their order
   if (kind === "field" && !codeField) { // a question from the paper that shows or hides other elements: say which
     const deps = dependentsOf(f).map(d => `„${labelOf(d)}”`);
     if (deps.length) out.push(h("p", {class: "src cond"}, h("strong", {}, "Od tej odpowiedzi zależy: "), deps.join(", ")));
@@ -621,14 +623,10 @@ function dependentsOf(f) {
   return out;
 }
 
-// "Edytuj" next to an element: asks the upload page to open the click editor on it (embedded preview only).
-// Every element of every page has one, the standard pages and the address blocks too: nothing is locked.
-function fixButton(f, kind) {
-  // a section that only wraps one field and has no condition of its own: the field's "Edytuj" is enough
-  if (kind === "section" && (f.repeatingSectionGrid || []).length === 1 && !condText(f)) return false;
-  return EMBED && h("button", {type: "button", class: "fix", "aria-label": `Edytuj: ${labelOf(f)}`,
-    onclick: () => parent.postMessage({type: "coi-edit-request", id: f.id}, location.origin)}, "Edytuj");
-}
+// "Edytuj" next to an element: opens the "Edycja" sidebar (editor.js, embedded preview only) on it, in place.
+// Every element of every page has one (the form title and the page heading too): nothing is locked.
+const fixLink = (id, name) => EMBED && h("button", {type: "button", class: "fix", "aria-label": `Edytuj: ${name}`, onclick: () => edOpen(id)}, "Edytuj");
+const fixButton = f => fixLink(f.id, labelOf(f));
 
 // One dashed line that stands in for a hidden element in annotation mode (with its own "Edytuj": the condition is
 // fixed from where it is read), or null when the element is always visible. Code-made fields (the two address
@@ -637,7 +635,7 @@ function ghostOf(f, kind) {
   const ct = condText(f);
   if (!ct || (kind === "field" && evidence[f.id]?.source === "code")) return null;
   const what = kind === "section" ? "Ukryta sekcja" : STATIC_TYPES.includes(f.type) ? "Ukryty tekst" : "Ukryte pole";
-  return h("p", {class: "ghost"}, fixButton(f, kind), h("strong", {}, `${what} „${labelOf(f)}”. `), `Pokaże się, gdy ${ct}.`);
+  return h("p", {class: "ghost"}, fixButton(f), h("strong", {}, `${what} „${labelOf(f)}”. `), `Pokaże się, gdy ${ct}.`);
 }
 
 // The one line under the heading of a standard page: code built it, and what on it (if anything) is from the paper.
@@ -660,12 +658,12 @@ function renderLegend() {
 // Polish plural: plural(3, ["pole", "pola", "pól"]) -> "pola".
 const plural = (n, [one, few, many]) => n === 1 ? one : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? few : many;
 
-// Body classes: "notes" = annotations visible (always while editing), "ghosts" = hidden elements shown as one line.
+// Body classes: "notes" = annotations and "Edytuj" links visible, "ghosts" = hidden elements shown as one line.
 function applyModes() {
-  const b = document.body.classList, edit = b.contains("editmode");
-  b.toggle("techmode", $("#techToggle").checked && !edit);
-  b.toggle("notes", $("#notesToggle").checked || edit);
-  b.toggle("ghosts", b.contains("notes") && !b.contains("techmode") && !edit);
+  const b = document.body.classList;
+  b.toggle("techmode", $("#techToggle").checked);
+  b.toggle("notes", $("#notesToggle").checked);
+  b.toggle("ghosts", b.contains("notes") && !b.contains("techmode"));
 }
 
 // Checks that every path in a condition exists and that compared literals are real options.
@@ -852,7 +850,7 @@ function renderQuestion(tab, q) {
 function renderSection(tab, q) {
   const f = q.field, hid = uid(), hint = hintEl(f.description);
   const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
-    ghostOf(f, "section"), fixButton(f, "section"), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q),
+    ghostOf(f, "section"), fixButton(f), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q),
     layoutGrid(f.repeatingSectionGrid, c => renderField(c, {store: answers[tab.title][f.techName], row: null, standard: isStandard(tab)})));
   card._entry = {field: f, row: null, controls: []};
   return card;
@@ -879,7 +877,7 @@ function renderRepeating(tab, q) {
   }
   drawRows();
   const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
-    ghostOf(f, "section"), fixButton(f, "section"), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q), list, addBtn);
+    ghostOf(f, "section"), fixButton(f), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q), list, addBtn);
   card._entry = {field: f, row: null, controls: []};
   return card;
 }
@@ -988,7 +986,7 @@ function renderField(cell, ctx) {
   }
   if (caption) wrap.append(caption);
   if (f.tooltipMessage) wrap.append(h("details", {class: "tip"}, h("summary", {}, "Pomoc"), sanitize(f.tooltipMessage)));
-  wrap.prepend(fixButton(f, "field") || "");
+  wrap.prepend(fixButton(f) || "");
   wrap.append(h("p", {class: "err", id: errId, hidden: true}), ...notesOf(f, "field", ctx.standard), ...techLines(f, cell));
   // a wrong format (PESEL, kod pocztowy...) shows as soon as the field is left; an empty required field never blocks the preview
   wrap.addEventListener("change", () => showErr(wrap, isEmpty(st[tn]) ? null : checkField(entry)));
@@ -1047,6 +1045,7 @@ function renderPage() {
   const page = $("#page");
   const standard = isStandard(tab) && hasEvidence() && h("p", {class: "src"}, standardNote(tab));
   page.replaceChildren(
+    fixLink(tab.id, `strona ${tab.title}`) || "",
     h("h2", {id: "pageHeading", tabindex: "-1"}, tab.title),
     ...[standard, ...notesOf(tab, "tab", isStandard(tab))].filter(Boolean),
     h("div", {id: "errsum"}),
@@ -1221,6 +1220,7 @@ $("#pasteDlg").addEventListener("close", () => { if ($("#pasteDlg").returnValue 
 $("#techToggle").addEventListener("change", applyModes);
 $("#notesToggle").addEventListener("change", applyModes);
 $("#tbReset").addEventListener("click", () => { if (!cfg) return; resetAnswers(); go(0); });
+$("#titleFix").addEventListener("click", () => edOpen("__title"));
 window.addEventListener("dragover", e => { e.preventDefault(); document.body.classList.add("dragging"); });
 window.addEventListener("dragleave", e => { if (!e.relatedTarget) document.body.classList.remove("dragging"); });
 window.addEventListener("drop", e => {
@@ -1232,38 +1232,31 @@ window.addEventListener("drop", e => {
 });
 
 renderIssues();
-// Embed mode: the same-origin parent (upload page) posts {type: "coi-preview", json, evidence, key} for the selected file.
-// Each message replaces the whole form, and nothing is saved, so the standalone preview keeps its own JSON.
-// The same `key` again (the same file: a switch between "Podgląd" and "Edytuj") keeps the open step, the scroll
-// position and the answers given in the preview, so a revealed section is still there after an edit.
-// With {edit: true} editor.js then switches the form to edit mode (upload page "Edytuj").
+// Embed mode: the same-origin parent (upload page) posts {type: "coi-preview", json, evidence, key, doc} for the
+// selected file. Each message replaces the whole form, and nothing is saved, so the standalone preview keeps its own
+// JSON. The same `key` again (the same file sent once more) keeps the open step, the place on screen and the answers.
+// editor.js then starts the "Edycja" sidebar for this document.
 applyModes();
 if (EMBED) {
   document.body.classList.add("embed");
   $("#empty").hidden = true;
-  let shownKey, kept = null; // kept = the answers of the last read-only view of this file (the editor resets them)
+  let shownKey;
   window.addEventListener("message", e => {
     if (e.origin !== location.origin || e.data?.type !== "coi-preview") return;
     const same = cfg && e.data.key !== undefined && e.data.key === shownKey;
-    const step = same ? pageIdx : 0;
-    const edited = same && $(".ed-sel")?.dataset.fid; // back from the editor: the element that was being fixed
-    // otherwise the element at the top of the screen keeps its place (the two layouts differ, raw scroll would not)
-    const top = same && !edited && [...$("#page").querySelectorAll("[data-fid]")].find(x => x.getClientRects().length && x.getBoundingClientRect().top >= 0);
+    const step = same ? pageIdx : 0, kept = same ? answers : null;
+    // the element at the top of the screen keeps its place
+    const top = same && [...$("#page").querySelectorAll("[data-fid]")].find(x => x.getClientRects().length && x.getBoundingClientRect().top >= 0);
     const anchor = top && scrollY > 0 ? {id: top.dataset.fid, at: top.getBoundingClientRect().top} : null;
-    if (!same) kept = null;
-    else if (!document.body.classList.contains("editmode")) kept = answers;
     shownKey = e.data.key;
     $("#app").hidden = true; // a JSON that fails to load must not leave the previous form on screen
     loadText(e.data.json, false, e.data.evidence);
     if ($("#app").hidden) return;
     if (kept) keepAnswers(kept);
     if (same) go(step, false);
-    // after editor.js has left or entered edit mode (its listener runs next and changes the layout)
-    setTimeout(() => {
-      const find = id => id && $(`#page [data-fid="${CSS.escape(id)}"]`);
-      const back = find(edited), kept = find(anchor?.id);
-      if (back) back.scrollIntoView({block: "center"});
-      else if (kept && !e.data.select) window.scrollBy(0, kept.getBoundingClientRect().top - anchor.at);
+    setTimeout(() => {  // after editor.js has drawn its marks (its listener runs next)
+      const el = anchor && $(`#page [data-fid="${CSS.escape(anchor.id)}"]`);
+      if (el) window.scrollBy(0, el.getBoundingClientRect().top - anchor.at);
     });
   });
 } else {
