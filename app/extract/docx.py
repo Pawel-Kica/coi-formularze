@@ -1,4 +1,5 @@
-"""DOCX -> raw text: paragraphs, tables, text boxes, list numbers, footnotes, in document order.
+"""DOCX -> raw text: paragraphs, tables, text boxes, list numbers, footnotes, page headers and
+footers, in document order.
 
 Reads the OOXML parts straight from the zip with the stdlib, no python-docx: we need
 things python-docx hides (text boxes, `mc:AlternateContent`, auto-numbering, checkbox fields).
@@ -21,9 +22,11 @@ SYM_BOX = {"F06F": "☐", "F0A8": "☐", "F071": "☐", "F0FE": "☒", "F078": "
 
 
 def read_docx(zf: zipfile.ZipFile) -> str:
-    """Whole document as text lines: body, then footnotes (where a PDF prints them, at the bottom)."""
+    """Whole document as text lines, in the order a PDF prints them: page headers, body,
+    footnotes, page footers (form 7 has its stamp duty and bank account in the footer)."""
     doc = _Doc(zf)
-    lines = doc.blocks(doc.part("word/document.xml").find(W + "body"))
+    lines = doc.margins("header")
+    lines += doc.blocks(doc.part("word/document.xml").find(W + "body"))
     for name in ("word/footnotes.xml", "word/endnotes.xml"):
         root = doc.part(name)
         if root is None:
@@ -33,7 +36,7 @@ def read_docx(zf: zipfile.ZipFile) -> str:
             if note.get(W + "type") in (None, "normal"):
                 doc.note_no += 1
                 lines += doc.blocks(note)
-    return "\n".join(lines)
+    return "\n".join(lines + doc.margins("footer"))
 
 
 class _Doc:
@@ -47,6 +50,13 @@ class _Doc:
             return ET.fromstring(self.zf.read(name))
         except KeyError:
             return None
+
+    def margins(self, kind: str) -> list[str]:
+        """Lines of every `kind` ("header" | "footer") part, each line once (the first-page, even
+        and default variants usually repeat the same text)."""
+        names = sorted(n for n in self.zf.namelist() if re.fullmatch(f"word/{kind}\\d*\\.xml", n))
+        lines = [line for n in names for line in self.blocks(self.part(n)) if line.strip()]
+        return list(dict.fromkeys(lines))
 
     def blocks(self, parent) -> list[str]:
         """Block-level children (paragraphs, tables, content controls) -> lines."""

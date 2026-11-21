@@ -7,11 +7,11 @@ proxy), score vs the gold plan, for forms 1 and 5 score vs the COI reference (3)
 plus `walid=` (validator F1 vs gold/coi/formN.json, the reference with hand-added
 validation), and per form the consistency of plans across formats vs the PDF plan (4).
 
-    uv run python bench/run_all.py                       # 9 COI forms, all formats
-    uv run python bench/run_all.py --forms 1,5 --formats pdf
-    uv run python bench/run_all.py --bip                 # gmina BIP black-box set
-    uv run python bench/run_all.py --out bench/runs/e2e  # reuse: files already done are skipped
-    uv run python bench/run_all.py --out bench/runs/e2e --rebuild  # cached plans, fresh build (no LLM)
+    uv run python -m bench.run_all                       # 9 COI forms, all formats
+    uv run python -m bench.run_all --forms 1,5 --formats pdf
+    uv run python -m bench.run_all --bip                 # gmina BIP black-box set
+    uv run python -m bench.run_all --out bench/runs/e2e  # reuse: files already done are skipped
+    uv run python -m bench.run_all --out bench/runs/e2e --rebuild  # cached plans, fresh build (no LLM)
 """
 
 import argparse

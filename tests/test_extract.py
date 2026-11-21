@@ -71,8 +71,9 @@ def test_pdf_text_layer(form, pdf_texts):
 
 @needs_data
 def test_legacy_doc_equals_docx():
-    """The own .doc parser gives exactly what the DOCX of the same form gives (text boxes, tables, lists)."""
-    for form in ("1", "2", "8", "9"):
+    """The own .doc parser gives exactly what the DOCX of the same form gives (text boxes, tables,
+    lists, form 4's page footer)."""
+    for form in ("1", "2", "4", "8", "9"):
         doc = extract(FILES[form]["doc"].read_bytes(), FILES[form]["doc"].name)
         docx = extract(FILES[form]["docx"].read_bytes(), FILES[form]["docx"].name)
         assert doc.method == "doc"
@@ -83,6 +84,15 @@ def test_legacy_doc_equals_docx():
 def test_docx_named_doc_is_sniffed():
     path = FILES["5"]["doc"]  # a DOCX saved with a .DOC extension
     assert extract(path.read_bytes(), path.name).method == "docx"
+
+
+@needs_data
+def test_docx_footer_is_read():
+    """Form 7: the stamp duty and bank account sit in the page footer, which the PDF prints too."""
+    path = FILES["7"]["doc"]  # a DOCX saved with a .DOC extension
+    text = extract(path.read_bytes(), path.name).text
+    assert "Opłata skarbowa - 82 zł." in text  # en dash normalized
+    assert "Numer konta: 12 1223 1232 1233 2312 2342 2342" in text
 
 
 @needs_data

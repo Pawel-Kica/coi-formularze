@@ -7,6 +7,8 @@ Przejdź po kolei przez każde pole wyboru z planu i zapytaj: czy jakieś pole l
 - dane potrzebne tylko przy jednej odpowiedzi (np. adres do wysyłki tylko przy odbiorze pocztą, dane innej osoby tylko przy „Inna osoba”, plik i informacja o opłacie tylko przy „Tak”);
 - papier mówi wprost: „wypełnić tylko w przypadku…”, „jeśli wybierzesz…”, „w przypadku zaznaczenia…”, „dotyczy tylko…”, „jeżeli…”, „(jeśli dotyczy)”.
 
+Potem przejdź po tekście formularza i znajdź każde zdanie warunkowe („wypełnić tylko…”, „jeżeli…”, „w przypadku…”, „dotyczy wyłącznie…”, także w nagłówkach sekcji). Przy każdym polu planu podany jest napis z papieru (`← papier:`), z którego pochodzi: po nim poznasz, które pola i sekcje to zdanie obejmuje. Każde takie zdanie daje zależność (od istniejącego pola wyboru albo od nowego pytania, patrz niżej).
+
 Nie wymyślaj zależności, których papier nie uzasadnia. Gdy formularz nie ma żadnego pola wyboru ani takich sformułowań, zwróć pustą listę.
 
 # Format zależności

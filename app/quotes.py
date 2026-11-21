@@ -31,9 +31,9 @@ CHOICE_TYPES = {FieldType.RADIO, FieldType.CHECKBOX, FieldType.SELECT}
 # Built by code from the Standards ("Dane", contact + consent, finish page), never in `pages`.
 _STANDARD_SECTION = re.compile(
     r"^(dane )?wnioskodawc|^twoje dane|pełnomocni|^dane kontaktowe|^kontakt|^podpis|adresat|do którego"
-    r"|^dane identyfikacyjne|^adres (zamieszkania|siedziby)( lub [\w ]+)?( wnioskodawcy)?$"
+    r"|^dane identyfikacyjne( wnioskodawcy| składającego( deklarację)?)?$|^adres (zamieszkania|siedziby)( lub [\w ]+)?( wnioskodawcy)?$"
 )
-_STANDARD_LABEL = re.compile(r"pieczę|klauzul|\brodo\b|pełnomocnict|wnioskodaw|^podpis$|^podpis wnioskodawcy")
+_STANDARD_LABEL = re.compile(r"pieczę|klauzul|\brodo\b|pełnomocni|wnioskodaw|^podpis$|^podpis wnioskodawcy")
 _STANDARD_QUOTE = re.compile(r"podpis wnioskodawcy|czytelny podpis|^\W*podpis\W*$|pieczę|klauzula informacyjna")
 _FILL_DATE = re.compile(r"^\(?data\)?$|miejscowość i data|data i podpis|^\w+, dnia$|^dnia$")
 
@@ -50,9 +50,9 @@ _QUOTES = str.maketrans({"\u201e": '"', "\u201d": '"', "\u201c": '"', "\u2019": 
 
 
 def normalize(s: str) -> str:
-    """NFC, lowercase, no fill-in placeholders, footnote marks, item numbering or punctuation,
+    """NFKC (m² = m2, ligatures split), lowercase, no fill-in placeholders, footnote marks, item numbering or punctuation,
     whitespace collapsed. Applied to both the quote and the paper text."""
-    s = unicodedata.normalize("NFC", s).lower().translate(_QUOTES)
+    s = unicodedata.normalize("NFKC", s).lower().translate(_QUOTES)
     s = _PLACEHOLDER.sub(" ", s)
     s = _FOOTNOTE.sub(" ", s)
     s = _NUMBERING.sub(" ", s)

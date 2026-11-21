@@ -19,6 +19,7 @@ def remote(monkeypatch):
     monkeypatch.setattr(settings, "llm_backend", "openai")
     monkeypatch.setattr(settings, "llm_base_url", "https://llm.example/v3/")
     monkeypatch.setattr(settings, "edenai_api_key", SecretStr(KEY))
+    monkeypatch.setattr(client.time, "sleep", lambda s: None)  # retries wait for nothing
 
 
 def fake_post(monkeypatch, status=200, content='{"a": {"b": "x"}}', seen=None):
@@ -102,3 +103,51 @@ def test_health_remote_does_not_call(monkeypatch, remote):
     assert asyncio.run(client.health()) == "ok"
     monkeypatch.setattr(settings, "edenai_api_key", None)
     assert asyncio.run(client.health()) == "no_api_key"
+
+
+@pytest.mark.parametrize("model,seed,reasoning", [
+    ("deepinfra/google/gemma-4-31B-it", False, None),
+    ("deepinfra/Qwen/Qwen3.8-27B", False, "none"),
+    ("mistral/mistral-small-2603", True, "none"),
+])
+def test_openai_backend_per_model_params(monkeypatch, remote, model, seed, reasoning):
+    """Eden routes: `seed` only for Mistral, `reasoning_effort: none` only for Qwen and Mistral."""
+    seen = {}
+    fake_post(monkeypatch, seen=seen)
+    client.chat_json("sys", "user", SCHEMA, model=model)
+    assert ("seed" in seen["body"]) is seed
+    assert seen["body"].get("reasoning_effort") == reasoning
+
+
+def test_ollama_backend_keeps_seed_no_reasoning(monkeypatch):
+    monkeypatch.setattr(settings, "llm_backend", "ollama")
+    seen = {}
+    fake_post(monkeypatch, seen=seen)
+    client.chat_json("sys", "user", SCHEMA, model="qwen3:30b-a3b-instruct-2507-q4_K_M")
+    assert seen["body"]["seed"] == 42 and "reasoning_effort" not in seen["body"]
+
+
+def test_retries_rate_limit_then_succeeds(monkeypatch, remote):
+    statuses = [429, 503, 200]
+
+    def post(url, json=None, headers=None, timeout=None):
+        status = statuses.pop(0)
+        body = {"choices": [{"message": {"content": '{"a": {"b": "x"}}'}, "finish_reason": "stop"}]}
+        return httpx.Response(status, json=body, headers={"retry-after": "1"}, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(client.httpx, "post", post)
+    assert client.chat_json("sys", "user", SCHEMA).data == {"a": {"b": "x"}}
+    assert not statuses
+
+
+def test_bad_request_is_not_retried(monkeypatch, remote):
+    calls = []
+
+    def post(url, json=None, headers=None, timeout=None):
+        calls.append(1)
+        return httpx.Response(400, json={"error": "bad"}, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(client.httpx, "post", post)
+    with pytest.raises(httpx.HTTPStatusError):
+        client.chat_json("sys", "user", SCHEMA)
+    assert len(calls) == 1

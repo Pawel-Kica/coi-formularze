@@ -3,7 +3,12 @@
 import json
 
 from app.llm import planner
-from app.llm.planner import apply_conditions, conditions_schema, draft_to_plan, prepare_text
+from app.llm.planner import (
+    apply_conditions,
+    conditions_schema,
+    draft_to_plan,
+    prepare_text,
+)
 from app.plan import FieldType
 
 EXAMPLE = json.loads((planner.PROMPTS / "example_plan.json").read_text(encoding="utf-8"))
@@ -99,3 +104,69 @@ def test_make_plan_retries_pass1_and_survives_pass2_failure(monkeypatch):
     assert calls[1] == 0.3
     assert len(calls) == 3
     assert all(f.show_if is None for pg in p.pages for s in pg.sections for f in s.fields)
+
+
+def _enums(node, path="$"):
+    """Every enum in a schema with its node, for the 'typed enum' rule."""
+    if isinstance(node, dict):
+        if "enum" in node:
+            yield path, node
+        for k, v in node.items():
+            yield from _enums(v, f"{path}.{k}")
+    elif isinstance(node, list):
+        for i, v in enumerate(node):
+            yield from _enums(v, f"{path}[{i}]")
+
+
+def test_every_enum_has_a_type():
+    """Some providers turn a typeless {"enum": [...]} into {} under strict json_schema."""
+    plan = draft_to_plan(EXAMPLE)
+    for schema in (planner.STRUCTURE_SCHEMA, conditions_schema(plan)):
+        untyped = [p for p, n in _enums(schema) if n.get("type") != "string"]
+        assert not untyped, untyped[:3]
+
+
+def test_draft_to_plan_survives_garbage():
+    """Provider garbage (dicts where strings belong, nulls, wrong containers) is repaired or dropped."""
+    d = {"title": {}, "addressee": None, "addressee_quote": [], "applicant": {"person": {}, "entity_ids": [{}, "NIP"]},
+         "pages": [
+             {"title": "P", "sections": [{"title": "S", "description": None, "address": "yes", "repeating": None,
+                                          "fields": [
+                 {"quote": "a b c", "label": "Dobre", "type": {}, "required": True, "options": [{}], "description": {}},
+                 {"quote": "d e f", "label": {}, "type": "TEXT_FIELD"},
+                 {"quote": None, "label": "Wybór", "type": "RADIO", "options": ["Tak", {}, None, "Nie"]},
+                 "not a field",
+             ]}, "not a section"]},
+             {"title": "Pusta", "sections": None},
+         ],
+         "statements": [{"quote": "x y z", "text": "Oświadczam", "required": "true"}, {"text": {}}, None]}
+    p = draft_to_plan(d)
+    fields = p.pages[0].sections[0].fields
+    assert [(f.label, f.type) for f in fields] == [("Dobre", FieldType.TEXT_FIELD), ("Wybór", FieldType.RADIO)]
+    assert fields[1].options == ["Tak", "Nie"] and fields[1].quote == ""
+    assert p.title == "Wniosek" and p.addressee == "" and p.applicant.entity_ids == ["NIP"]
+    assert [s.text for s in p.statements] == ["Oświadczam"]
+
+
+def test_apply_conditions_survives_garbage():
+    plan = draft_to_plan(EXAMPLE)
+    ans = {"new_questions": [{"id": {}, "label": "X"}, None, {"id": "q1", "label": {}}],
+           "conditions": [{"target_id": {}, "field": "f1", "options": ["a"]}, None,
+                          {"target_id": "f2", "field": "f1", "options": [{}]}, "x"]}
+    assert apply_conditions(plan, ans) == plan
+
+
+def test_address_flag_only_on_pure_address_sections():
+    """The builder swaps an address section's fields for the Standards block: a section that also
+    holds names or dates must not be flagged, or those fields would vanish."""
+    def section(labels, address=True):
+        return {"title": "S", "address": address, "fields": [
+            {"quote": f"q {i}", "label": lab, "type": "TEXT_FIELD"} for i, lab in enumerate(labels)]}
+
+    d = {"title": "Wniosek", "pages": [{"title": "P", "sections": [
+        section(["Imię kandydata", "Data urodzenia", "Adres zameldowania"]),
+        section(["Miejscowość", "Kod pocztowy", "Ulica", "Numer budynku", "Numer lokalu"]),
+        section(["Adres zamieszkania"]),
+        section(["Nr domu", "Poczta", "Gmina", "Kraj"]),
+    ]}]}
+    assert [s.address for s in draft_to_plan(d).pages[0].sections] == [False, True, True, True]

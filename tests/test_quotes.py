@@ -106,6 +106,25 @@ def test_fields_of_generated_pages_dropped():
     assert len(dropped) == 3 and all(d.startswith("standard:") for d in dropped)
 
 
+def test_proxy_question_dropped_even_as_choice_field():
+    """Proxy data is on the generated "Dane" page (applicant.proxy), also as a Yes/No question."""
+    p = plan([RADIO, f("f2", "Czy w sprawie występuje pełnomocnik?", "Kwotę nadpłaty proszę:", FieldType.RADIO,
+                       ["Tak", "Nie"])])
+    out, dropped = filter_plan(p, TEXT)
+    assert [x.id for s in out.pages[0].sections for x in s.fields] == ["f1"]
+    assert dropped[0].startswith("standard:")
+
+
+def test_other_person_section_kept():
+    """Spouse / other person data is case content even when titled like the applicant block."""
+    p = plan([RADIO])
+    other = f("f2", "Nazwisko", "Nazwisko i imię/Nazwa firmy")
+    p.pages[0].sections.append(Section(id="s2", title="Dane identyfikacyjne współmałżonka", fields=[other]))
+    p.pages[0].sections.append(Section(id="s3", title="Dane identyfikacyjne", fields=[other.model_copy(update={"id": "f3"})]))
+    out, _ = filter_plan(p, TEXT)
+    assert [x.id for s in out.pages[0].sections for x in s.fields] == ["f1", "f2"]
+
+
 @pytest.mark.parametrize(
     "quote,text",
     [
@@ -115,6 +134,8 @@ def test_fields_of_generated_pages_dropped():
         ("tel.", "tel ____"),  # extractor dropped the dot
         ("a/ jezdnia", "a) jezdnia (przy zajęciu do 20% szerokości)"),
         ("Rasa psa:", "Rasa\n❑ pies ❑ suka\npsa: ____"),  # label split across OCR columns
+        ("o powierzchni do 45 m²", "o powierzchni do 45 m2 X"),  # superscript vs plain digit
+        ("ﬁrma", "firma"),  # ligature in a PDF text layer
     ],
 )
 def test_quote_robust_across_formats(quote, text):

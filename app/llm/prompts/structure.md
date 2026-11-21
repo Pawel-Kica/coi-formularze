@@ -24,7 +24,7 @@ Te elementy kod dokłada sam ze Standardów COI (strona „Dane”, strona „Ko
 - miejscowość i data wypełnienia, podpis, pieczęć;
 - klauzula informacyjna RODO, podstawa prawna, instrukcja wypełniania, przypisy, pola „wypełnia urząd” (np. numer sprawy).
 
-Dane INNYCH osób niż wnioskodawca (np. opiekun, kierowca, współwłaściciel) oraz adresy rzeczy (nieruchomości, pojazdu, miejsca zdarzenia) to treść merytoryczna: TAK, umieść je w `pages`.
+Dane INNYCH osób niż wnioskodawca (np. opiekun, kierowca, współwłaściciel, współmałżonek) oraz adresy rzeczy (nieruchomości, pojazdu, miejsca zdarzenia) to treść merytoryczna: TAK, umieść je w `pages`. Także adres do korespondencji, gdy papier pyta o niego osobno („jeśli inny niż adres zamieszkania”): osobna sekcja adresowa w `pages`. Sekcja, którą papier każe wypełnić tylko w pewnym przypadku („wypełnić tylko w przypadku zaznaczenia…”), też trafia do planu w całości; warunek jej widoczności ustala osobny krok.
 
 # Pola
 
@@ -43,7 +43,9 @@ Zasady:
 - Jedno pole papieru zbierające kilka danych rozbij: „imię i nazwisko” → pola „Imię” i „Nazwisko”; „od ____ do ____” → dwie daty; nawias wyliczający kilka danych (np. „(marka, model, numer VIN)”) → osobne pole na każdą daną.
 - Adres (innej osoby, nieruchomości, miejsca) → osobna sekcja z `address`: true i polami „Miejscowość”, „Kod pocztowy”, „Ulica”, „Numer budynku”, „Numer lokalu”.
 - Puste miejsce przy opcji wyboru (np. „□ inne ____”, „□ numer seryjny ____”) → osobne pole tekstowe zaraz po polu wyboru („Opisz inne”, „Numer seryjny”).
-- Tabela z wierszami o tych samych kolumnach → jedna sekcja z `repeating`: true i jednym kompletem kolumn. Gdy wiersze różnią się rodzajem (np. „a/ … b/ … c/ …”), dodaj w niej pole wyboru „Rodzaj” z tymi rodzajami jako opcjami. Wiersz z sumą („razem”, „łącznie”) to osobne pole NUMBER poza powtarzaną sekcją.
+- Tabela z wierszami o tych samych kolumnach, wypełniana dla kolejnych rzeczy (pojazdów, osób, odcinków) → jedna sekcja z `repeating`: true i jednym kompletem kolumn. Gdy wiersze różnią się rodzajem (np. „a/ … b/ … c/ …”), dodaj w niej pole wyboru „Rodzaj” z tymi rodzajami jako opcjami. Wiersz z sumą („razem”, „łącznie”) to osobne pole NUMBER poza powtarzaną sekcją.
+- Tabela obliczeniowa, w której każdy wiersz to inna, z góry nazwana kategoria (np. „lokale do 45 m2”, „powyżej 45 do 60 m2”) → NIE powtarzana sekcja: każdy wiersz daje własne pola z kategorią w etykiecie (np. „Liczba gospodarstw domowych w lokalach do 45 m²”), żadnego wiersza nie pomijaj ani nie łącz. Wartości wydrukowane na papierze (stawka, cena) nie są polami: podaj je w `description` pola lub w `TEXT_BLOCK`. Pola wyników i sum to NUMBER.
+- Gdy papier każe dla kolejnej rzeczy lub osoby wypełnić kolejny egzemplarz tabeli albo załącznika (np. „w przypadku więcej niż jednego psa pobrać odpowiednią liczbę załączników”), ta część to sekcja z `repeating`: true.
 - Gdy papier mówi „w przypadku innej osoby niż wnioskodawca…”, dodaj pole wyboru z pytaniem (np. „Kto będzie …?”, opcje „Ja”, „Inna osoba”), a dane tej osoby daj w osobnej sekcji.
 - Opłata skarbowa za samą sprawę (nie za pełnomocnictwo) → sekcja „Opłata skarbowa”: `TEXT_BLOCK` „Jak zapłacić” (w `description` kwota i numer konta z papieru) oraz `FILE_UPLOADER` „Plik z potwierdzeniem zapłaty”. Gdy papier wspomina zwolnienia z opłaty, przed nimi pole RADIO „Czy … wymaga opłaty skarbowej?” z opcjami „Tak”, „Nie”.
 - `options` tylko dla RADIO/CHECKBOX/SELECT: opcje dokładnie jak na papierze, ale zwykłą pisownią i od wielkiej litery. Opcja „inne ____” → opcja „Inne” i osobne pole tekstowe „Opisz inne” zaraz po polu wyboru.
@@ -57,6 +59,6 @@ Zasady:
 
 # Cytaty (`quote`)
 
-Każde pole, oświadczenie i adresat ma `quote`: DOSŁOWNY fragment tekstu formularza (3-12 słów), z którego pochodzi, np. napis przy pustym miejscu. Cytat musi zawierać słowa z papieru, a nie tylko „____” z przyimkiem (źle: „od ____”; dobrze: „w terminie od ____ do”). Kopiuj znak w znak, z oryginalną pisownią i literami; nie poprawiaj, nie tłumacz, nie łącz fragmentów z różnych miejsc. Nie cytuj samego `____`. Pole bez napisu na papierze (np. adres do wysyłki przy opcji „pocztą”) cytuje zdanie, z którego wynika. Nie wymyślaj pól, których papier nie zbiera.
+Każde pole, oświadczenie i adresat ma `quote`: DOSŁOWNY fragment tekstu formularza (3-12 słów), z którego pochodzi, np. napis przy pustym miejscu. Cytat musi zawierać słowa z papieru, a nie tylko „____” z przyimkiem (źle: „od ____”; dobrze: „w terminie od ____ do”). Kopiuj znak w znak, z oryginalną pisownią, odmianą słów i literami; nie poprawiaj, nie tłumacz, nie łącz fragmentów z różnych miejsc. W tabeli cytuj napis jednej komórki (nagłówek wiersza lub kolumny), najlepiej jego pierwszą linię, a nie całą komórkę złożoną z kilku linii. Nie cytuj samego `____`. Pole bez napisu na papierze (np. adres do wysyłki przy opcji „pocztą”) cytuje zdanie, z którego wynika. Nie wymyślaj pól, których papier nie zbiera.
 
 Zwróć wyłącznie JSON zgodny ze schematem.

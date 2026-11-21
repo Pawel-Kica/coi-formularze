@@ -1,8 +1,8 @@
 """Legacy Word 97-2003 .doc -> raw text, parsed from the binary format ([MS-DOC]) with olefile.
 
 What we read:
-- the piece table (Clx in the table stream) to get the text of the main story, footnotes
-  and text boxes (8-bit cp1252 or UTF-16 pieces);
+- the piece table (Clx in the table stream) to get the text of the main story, footnotes,
+  page headers/footers and text boxes (8-bit cp1252 or UTF-16 pieces);
 - paragraph properties (PAPX FKPs) only to tell a table row end (fTtp) from a cell end,
   so tables come out as one line per row with cells joined by ' | ';
 - text box positions (PlcSpaMom FSPA records) to read text boxes in visual order;
@@ -186,13 +186,29 @@ class _Doc:
         return _clean_cells("".join(out))
 
     def text(self) -> str:
-        """Main story with text boxes after the paragraph they are anchored in, then footnotes."""
+        """Like DOCX: page headers, main story with text boxes after the paragraph they are
+        anchored in, footnotes, page footers."""
         cp = self.ccp_text + self.ccp_ftn + self.ccp_hdd + self.ccp_atn + self.ccp_edn
         inserts, loose = self._textboxes(cp) if self.ccp_txbx else ({}, [])
         main = self.story(0, self.ccp_text, inserts)
         cp = self.ccp_text
         footnotes = self.story(cp, cp + self.ccp_ftn) if self.ccp_ftn else ""
-        return "\n".join(x for x in [main, "\n".join(loose), footnotes] if x.strip())
+        headers, footers = self._margins()
+        return "\n".join(x for x in [headers, main, "\n".join(loose), footnotes, footers] if x.strip())
+
+    def _margins(self) -> tuple[str, str]:
+        """(headers, footers) from the header story, each line once. PlcfHdd splits the story:
+        6 note separators, then per section even/odd header, even/odd footer, first header, first footer."""
+        fc, lcb = _fclcb(self.wd, 11)  # fcPlcfHdd
+        if not self.ccp_hdd or lcb < 8:
+            return "", ""
+        cps, _ = _plc(self.table, fc, lcb, 0)
+        base = self.ccp_text + self.ccp_ftn
+        out: dict[bool, list[str]] = {False: [], True: []}
+        for i in range(6, len(cps) - 1):
+            text = self.story(base + cps[i], base + cps[i + 1])
+            out[(i - 6) % 6 in (2, 3, 5)] += [line for line in text.splitlines() if line.strip()]
+        return tuple("\n".join(dict.fromkeys(out[k])) for k in (False, True))
 
     def _textboxes(self, base_cp: int) -> tuple[dict[int, list[str]], list[str]]:
         """Text boxes as lines in visual order, keyed by the CP of the paragraph mark ending the

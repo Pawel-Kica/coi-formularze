@@ -9,6 +9,11 @@ Config (`app.config.settings`, from env or `.env`):
                 "openai" (any OpenAI-compatible API, e.g. Eden AI; Bearer EDENAI_API_KEY)
 - LLM_BASE_URL  e.g. http://localhost:11434/v1 or https://api.edenai.run/v3 (LLM_URL is an alias)
 - LLM_MODEL, LLM_TIMEOUT_S, EDENAI_API_KEY (SecretStr; read at call time, never logged)
+  Eden AI example: LLM_MODEL=deepinfra/google/gemma-4-31B-it (fallback deepinfra/Qwen/Qwen3.8-27B).
+
+Per-model request params (`model_params`): Eden routes reject or ignore some OpenAI params, so
+`seed` goes only to Ollama and Mistral, `reasoning_effort: "none"` (thinking off) only to remote
+Qwen and Mistral. Rate limits and provider hiccups (429, 5xx, timeouts) are retried.
 
 Ollama's context window is set on the server (OLLAMA_CONTEXT_LENGTH, 32768 is enough
 for the longest form), not per request.
@@ -40,6 +45,20 @@ class ChatResult:
 
 # Per-call log (model, seconds, tokens) the bench reads. Cleared by the caller.
 CALLS: list[dict] = []
+MAX_TRIES = 3  # per call, for 429 / 5xx / transport errors
+
+
+def model_params(model: str, seed: int) -> dict:
+    """Extra request params the model's route accepts (see module docstring)."""
+    name = model.lower()
+    if settings.llm_backend == "ollama":
+        return {"seed": seed}
+    out = {}
+    if "mistral" in name:
+        out["seed"] = seed
+    if "qwen" in name or "mistral" in name:
+        out["reasoning_effort"] = "none"
+    return out
 
 
 def base_url() -> str:
@@ -77,18 +96,32 @@ def strict_schema(schema: dict) -> dict:
     return schema
 
 
-def _post(url: str, body: dict) -> httpx.Response:
-    """POST without leaking the key: failures are re-raised outside the `except` block as fresh
-    exceptions (no chained original, whose request carries the Authorization header)."""
-    failure = None
+def _retry_wait(response: httpx.Response | None, attempt: int) -> float:
     try:
-        r = httpx.post(url, json=body, headers=_headers(), timeout=settings.llm_timeout_s)
-        r.raise_for_status()
-        return r
-    except httpx.HTTPStatusError as e:
-        failure = ("status", e.response)
-    except httpx.TransportError as e:
-        failure = ("transport", type(e))
+        wait = float(response.headers.get("retry-after", "")) if response is not None else 2.0**attempt
+    except ValueError:
+        wait = 2.0**attempt
+    return min(max(wait, 1.0), 60.0)
+
+
+def _post(url: str, body: dict) -> httpx.Response:
+    """POST with retries on 429/5xx/transport errors, without leaking the key: failures are
+    re-raised outside the `except` block as fresh exceptions (no chained original, whose
+    request carries the Authorization header)."""
+    for attempt in range(1, MAX_TRIES + 1):
+        failure = None
+        try:
+            r = httpx.post(url, json=body, headers=_headers(), timeout=settings.llm_timeout_s)
+            r.raise_for_status()
+            return r
+        except httpx.HTTPStatusError as e:
+            failure = ("status", e.response)
+        except httpx.TransportError as e:
+            failure = ("transport", type(e))
+        retryable = failure[0] == "transport" or failure[1].status_code == 429 or failure[1].status_code >= 500
+        if not retryable or attempt == MAX_TRIES:
+            break
+        time.sleep(_retry_wait(failure[1] if failure[0] == "status" else None, attempt))
     if failure[0] == "status":
         response = failure[1]
         raise httpx.HTTPStatusError(f"LLM API returned HTTP {response.status_code}",
@@ -106,7 +139,7 @@ def chat_json(
     frequency_penalty: float = 0.0,
     name: str = "answer",
 ) -> ChatResult:
-    """One deterministic call (temperature 0, fixed seed) constrained to `schema`.
+    """One deterministic call (temperature 0, fixed seed where the route takes one) constrained to `schema`.
 
     Raises LLMError when the answer is not valid JSON, httpx errors on HTTP failures.
     """
@@ -119,8 +152,8 @@ def chat_json(
             "json_schema": {"name": name, "schema": strict_schema(schema), "strict": True},
         },
         "temperature": 0,
-        "seed": seed,
         "max_tokens": max_tokens,
+        **model_params(model, seed),
     }
     if frequency_penalty:
         body["frequency_penalty"] = frequency_penalty

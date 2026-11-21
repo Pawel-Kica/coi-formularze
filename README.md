@@ -68,7 +68,7 @@ Zmienne środowiskowe albo plik `.env` (wzór: `.env.example`).
 | `JWT_JWKS_URL` | brak | Zewnętrzny serwer tożsamości (np. Keycloak): tokeny weryfikowane jego kluczami publicznymi, logowanie lokalne wyłączone |
 | `LLM_BACKEND` | `ollama` | `ollama` (lokalna Ollama, bez klucza) albo `openai` (dowolne API zgodne z OpenAI, np. Eden AI) |
 | `LLM_BASE_URL` | `http://localhost:11434/v1` | Adres API czatu (`/chat/completions`); dawna nazwa `LLM_URL` też działa. Dla Eden AI: `https://api.edenai.run/v3` |
-| `LLM_MODEL` | `qwen3:30b-a3b-instruct-2507-q4_K_M` | Model planujący formularz |
+| `LLM_MODEL` | `qwen3:30b-a3b-instruct-2507-q4_K_M` | Model planujący formularz. Dla Eden AI: `deepinfra/google/gemma-4-31B-it` (zapasowo `deepinfra/Qwen/Qwen3.8-27B`); tylko modele z otwartymi wagami |
 | `LLM_TIMEOUT_S` | `1200` | Limit czasu jednego wywołania modelu (s) |
 | `EDENAI_API_KEY` | brak | Klucz API dla `LLM_BACKEND=openai` (tylko w `.env`, nigdy w repo; nie trafia do logów) |
 | `OCR_ENGINE` | `tesseract` | `tesseract` albo `vlm` (model wizyjny w Ollamie) |
