@@ -8,9 +8,10 @@ what the model tends to get wrong and the paper text can settle:
   list would lose real answers);
 - the same choice question asked twice (same options, quotes on the same paper line, same wording)
   is kept once, conditions move to the kept one;
-- two identical fields (same label, type, options, hint and condition) in one section, or in two
-  sections in a row with the same title, are one field read twice (a line both pages of a cut JPG/PNG
-  hold, `app.extract.scan.split_pages`): the first stays, required if either was, conditions move to it;
+- a field read twice (a line both pages of a cut JPG/PNG hold, `app.extract.scan.split_pages`) is kept
+  once: an identical field (label, type, options, hint, condition) later in the same section, or opening
+  the next section when that one repeats the title and has fields of its own; the first stays, required
+  if either was, conditions move to it;
 - an applicant's "Adres do korespondencji" section without a condition: when the paper says it is
   filled only if it differs ("inny niż", "różni się") a Tak/Nie question is added before it and the
   section shows on "Tak" (none is added when the model already gates it with its own question);
@@ -109,27 +110,44 @@ def _dedupe_questions(plan: Plan, text: str, notes: list[str]) -> None:
         _drop_empty(plan)
 
 
-def _same_title(a: Section, b: Section) -> bool:
-    return normalize(a.title) == normalize(b.title) and a.show_if == b.show_if
+def _cond_key(c: Condition | None, gone: dict[str, str]) -> tuple | None:
+    """No quote (two reads of it may differ); a trigger read twice counts as the one that stays."""
+    return c and (gone.get(c.field, c.field), tuple(sorted(normalize(o) for o in c.options)), c.negate)
 
 
-def _field_key(f: PlanField) -> tuple:
-    return normalize(f.label), f.type, [normalize(o) for o in f.options], normalize(f.description), f.show_if
+def _field_key(f: PlanField, gone: dict[str, str]) -> tuple:
+    return normalize(f.label), f.type, tuple(normalize(o) for o in f.options), normalize(f.description), _cond_key(f.show_if, gone)
 
 
 def _dedupe_fields(plan: Plan, notes: list[str]) -> None:
-    """Identical fields the citizen could not tell apart (same section, or the same title twice in a row): keep the first."""
+    """A field read twice (a line both pages of a cut JPG/PNG hold) is one the citizen could not tell apart from an
+    earlier field of the same section, or one opening the next section when that section repeats the heading and goes
+    on with fields of its own (a block the paper prints twice, e.g. two co-owners, stays). The first stays."""
     gone: dict[str, str] = {}
+
+    def drop(a: PlanField, b: PlanField) -> None:
+        gone[b.id] = a.id
+        a.required = a.required or b.required
+        notes.append(f"duplicate: field {b.id} '{b.label}' repeats {a.id}, dropped")
+
     prev: Section | None = None
     for _, s in _sections(plan):
-        here = [*(prev.fields if prev and _same_title(prev, s) else []), *s.fields]
-        for i, b in enumerate(here):
-            a = next((a for a in here[:i] if a.id not in gone and _field_key(a) == _field_key(b)), None)
-            if a is None or b.id in gone or a.id == b.id:
-                continue
-            gone[b.id] = a.id
-            a.required = a.required or b.required
-            notes.append(f"duplicate: field {b.id} '{b.label}' repeats {a.id}, dropped")
+        if prev and normalize(prev.title) == normalize(s.title) and _cond_key(prev.show_if, gone) == _cond_key(s.show_if, gone):
+            before = {_field_key(f, gone): f for f in prev.fields if f.id not in gone}
+            trial, lead = dict(gone), []
+            for b in s.fields:
+                if (a := before.get(_field_key(b, trial))) is None:
+                    break
+                lead.append((a, b))
+                trial[b.id] = a.id
+            if len(lead) < len(s.fields):
+                for a, b in lead:
+                    drop(a, b)
+        first: dict[tuple, PlanField] = {}
+        for b in s.fields:
+            a = first.setdefault(_field_key(b, gone), b)
+            if b.id not in gone and a.id != b.id:
+                drop(a, b)
         prev = s
     if gone:
         for _, s in _sections(plan):

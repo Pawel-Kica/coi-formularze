@@ -31,9 +31,10 @@ class Rule:
 def split_pages(img: Image.Image) -> list[Image.Image]:
     """A tall image that is n A4 pages stacked (a common way to 'scan' a multi-page form into one
     file) -> n page images, cut at the whitest row near each expected page boundary. Each page
-    reaches OVERLAP past its cuts, so a line a cut runs through is whole on one side: pages that
-    are not quite A4 (cropped margins) shift the cuts into the text. A line read twice is fine,
-    `app.repair` keeps one of two identical fields."""
+    reaches OVERLAP past its cuts (its edge at the whitest row of the last half of that), so a line
+    a cut runs through is whole on one side: pages that are not quite A4 (cropped margins) shift the
+    cuts into the text. A line read twice may give the model a field twice; `app.repair` keeps one
+    when the citizen could not tell the two apart."""
     w, h = img.size
     n = round(h / (w * A4))
     if n < 2:
@@ -47,7 +48,9 @@ def split_pages(img: Image.Image) -> list[Image.Image]:
         cuts.append(max(range(lo, hi), key=lambda y: (rows[y], -abs(y - target))) if hi > lo else target)
     cuts.append(h)
     pad = int(page_h * OVERLAP)
-    return [img.crop((0, max(0, a - pad), w, min(h, b + pad))) for a, b in zip(cuts, cuts[1:])]
+    white = lambda lo, hi: max(range(max(0, lo), min(h, hi) + 1), key=lambda y: rows[min(y, h - 1)])  # whitest row
+    return [img.crop((0, white(a - pad, a - pad // 2) if a else 0, w, white(b + pad // 2, b + pad) if b < h else h))
+            for a, b in zip(cuts, cuts[1:])]
 
 
 def prepare(img: Image.Image, target_width: int, orient: bool, deskew: bool) -> Image.Image:

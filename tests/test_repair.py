@@ -161,6 +161,18 @@ def test_a_field_read_twice_at_a_page_cut_is_kept_once():
     assert sorted(got) == ["f1", "f10", "f3", "f8"]  # the choice question: the one the condition uses stays
     assert got["f1"].required and got["f10"].show_if.field == "f8"
     assert [s.id for s in out.pages[0].sections] == ["s1", "s2", "s3"]
+    # the trigger and the field it gates both read twice: the gated copy goes too
+    ask = lambda id: f(id, "Czy roboty wymagają objazdu?", "5. Czy roboty wymagają objazdu: tak / nie", FieldType.RADIO, ["Tak", "Nie"])
+    gated = lambda id, on: f(id, "Długość objazdu", "Długość objazdu", show_if=Condition(field=on, options=["Tak"], quote="Długość objazdu"))
+    p = plan(sec("s1", [name("f1"), ask("f7"), gated("f10", "f7")], title="Inwestycja"),
+             sec("s2", [ask("f8"), gated("f11", "f8"), f("f12", "Rodzaj robót", "3. Rodzaj robót")], title="Inwestycja"))
+    out, dropped = filter_plan(p, PAPER + "5. Czy roboty wymagają objazdu: tak / nie\nDługość objazdu ____\n")
+    assert sorted(fields_of(out)) == ["f1", "f10", "f12", "f7"]
+    # a block the paper prints twice is not a line read twice
+    owner = lambda n: sec(f"o{n}", [f(f"o{n}a", "Nazwa inwestycji", "4. Nazwa inwestycji"),
+                                    f(f"o{n}b", "Długość objazdu", "Długość objazdu")], title=f"{n}. Dane współwłaściciela")
+    out, dropped = filter_plan(plan(owner(1), owner(2)), PAPER)
+    assert len(fields_of(out)) == 4 and not dropped
 
 
 ADDRESS = "Adres do korespondencji\nUlica ____ Miejscowość ____\nNazwa inwestycji ____\n"
