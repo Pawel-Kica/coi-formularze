@@ -580,7 +580,7 @@ function edSetOpen(open, pin) {
   ed.open = open;
   try { localStorage.setItem(ED_OPEN_KEY, open ? "1" : ""); } catch (e) { /* private mode: the state just is not remembered */ }
   document.body.classList.toggle("sidebar", open);
-  if (open && !$("#notesToggle").checked) { $("#notesToggle").checked = true; applyModes(); }  // editing works on the annotated form
+  if (open && !($("#notesToggle").checked && $("#condsToggle").checked)) { $("#notesToggle").checked = $("#condsToggle").checked = true; applyModes(); }  // editing works on the annotated form
   parent.postMessage({type: "coi-sidebar", open, doc: ed.doc}, location.origin);
   const keep = () => { if (el.isConnected) window.scrollBy(0, el.getBoundingClientRect().top - top); };
   keep();
@@ -978,8 +978,9 @@ window.addEventListener("message", e => {
   if (d.type === "coi-redo") edRedo();
 });
 
-// The citizen's view (annotations off) has no pencils, so the sidebar steps aside; opening it turns them on again.
-$("#notesToggle").addEventListener("change", e => { if (ed.on && !e.target.checked) edSetOpen(false); });
+// The citizen's view (both annotation switches off) has no pencils, so the sidebar steps aside; opening it turns them on again.
+for (const id of ["#notesToggle", "#condsToggle"])
+  $(id).addEventListener("change", () => { if (ed.on && !$("#notesToggle").checked && !$("#condsToggle").checked) edSetOpen(false); });
 
 // Focus leaving the frame (a click on "JSON" or "Pobierz JSON" in the upload page): what was being typed goes out first.
 window.addEventListener("blur", () => { if (ed.on) edFlush(); });
