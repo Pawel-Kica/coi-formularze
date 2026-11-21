@@ -1,0 +1,32 @@
+[project]
+name = "coi-formularze"
+version = "0.1.0"
+description = "Paper form (PDF/DOC/DOCX/ODS/XLSX/JPG/PNG) -> COI e-service JSON, with a local LLM"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.165.0",
+    "httpx>=0.28.1",
+    "jsonschema>=4.26.0",
+    "olefile>=0.47",
+    "openpyxl>=3.1.5",
+    "pillow>=13.0.0",
+    "pydantic>=2.14.4",
+    "pydantic-settings>=2.16.3",
+    "pyjwt>=2.15.1",
+    "pypdf>=7.1.1",
+    "pypdfium2>=5.15.2",
+    "pytesseract>=0.3.13",
+    "python-docx>=1.2.0",
+    "python-multipart>=0.0.34",
+    "rapidfuzz>=3.14.6",
+    "uvicorn>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
