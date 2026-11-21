@@ -266,7 +266,8 @@ function el(tag, className, text) {
 
 // --- history: one IndexedDB record per file {id, file, created, status, result, error, evidence, problems},
 // newest first on screen. result = the COI JSON (with the clerk's edits), evidence = where each element came from,
-// problems = COI rules problems after the last edit (non-empty blocks the download) ---
+// problems = COI rules problems after the last edit (non-empty blocks the download), checking = the last edit was
+// saved before its rules check came back (after a reload: no download until "Edytuj" checks it) ---
 
 const db = new Promise((resolve, reject) => {
   const open = indexedDB.open("coi-formularze", 1);
@@ -287,8 +288,8 @@ async function store(method, ...args) {
 // Saves an item without its DOM row; the first save assigns item.id.
 async function persist(item) {
   if (item.deleted) return;
-  const { id, file, created, status, result, error, evidence, problems } = item;
-  const record = { file, created, status, result, error, evidence, problems };
+  const { id, file, created, status, result, error, evidence, problems, checking } = item;
+  const record = { file, created, status, result, error, evidence, problems, checking };
   if (id !== undefined) record.id = id;
   try {
     item.id = await store("put", record);
@@ -303,6 +304,7 @@ async function loadHistory() {
   records.sort((a, b) => b.created - a.created);
   for (const record of records) {
     const item = { ...record, started: 0 };
+    if (item.checking) Object.assign(item, { checking: false, checkFailed: true }); // closed before the rules saw the last edit
     if (item.status === "queued" || item.status === "working") { // page closed mid-run: mark it, never re-send
       Object.assign(item, { status: "interrupted", error: "Przetwarzanie przerwane (strona została zamknięta lub odświeżona)." });
       persist(item);
@@ -668,6 +670,7 @@ function updateActions() {
   // why "Pobierz JSON" is off; inside "Edytuj" the editor panel already says it and lists the problems
   status.textContent = !done || state.view === "edit" ? ""
     : item.checkFailed ? "Nie udało się sprawdzić zmian. Otwórz „Edytuj”, aby sprawdzić ponownie."
+    : item.checking ? "Sprawdzam zmiany…"
     : bad ? `Do poprawy: ${item.problems.length}. Otwórz „Edytuj”.` : "";
   renderFiles();
 }

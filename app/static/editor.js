@@ -330,8 +330,8 @@ function edRemove(id) {
     edLayoutTab(loc.tab);
     ed.sel = deps ? broken[0].id : loc.kind === "field" ? loc.section.id : null;
   }, `Usunięto ${what}. ` + (deps
-    ? `${deps === 1 ? "Zależał od niego 1 element" : `Zależały od niego ${deps} ${plural(deps, ["element", "elementy", "elementów"])}`}, ` +
-      `teraz na czerwono. Popraw warunek albo cofnij (Ctrl+Z).`
+    ? `${deps === 1 ? "Zależał od niego 1 element" : `Zależały od niego ${deps} ${plural(deps, ["element", "elementy", "elementów"])}`}: ` +
+      `popraw warunek poniżej albo cofnij (Ctrl+Z).`
     : "Cofniesz to przez Ctrl+Z."));
   if (!deps) return;
   const at = edFind(broken[0].id);  // show the element that now needs a fix, on whatever step it is
@@ -756,8 +756,9 @@ function edConditionControls(loc) {
   const box = h("div", {class: "ed-row ed-cond-box"}, h("span", {class: "ed-label"}, "Kiedy widoczne"));
   const shown = single && triggers.some(t => t.f === single.field);
   const other = Boolean(text) && !shown, broken = edBrokenCondition(target);  // other: not a plain „pole” = „opcja” the selects can show
-  if (other) box.append(h("p", {class: "ed-hint" + (broken ? " ed-err" : "")}, `Teraz: widoczne, gdy ${text}. ` +
-    (broken ? "Tego pola już nie ma: wybierz inne albo „nie zależy od innego pola”." : "Wybór poniżej zastąpi ten warunek.")));
+  if (other) box.append(h("p", {class: "ed-hint" + (broken ? " ed-err" : "")}, broken
+    ? "Pola, od którego zależał ten element, już nie ma: wybierz inne albo „nie zależy od innego pola”."
+    : `Teraz: widoczne, gdy ${text}. Wybór poniżej zastąpi ten warunek.`));
   const groups = new Map();
   for (const t of triggers) {
     if (!groups.has(t.tab)) groups.set(t.tab, []);
@@ -832,6 +833,9 @@ window.addEventListener("message", e => {
   if (d.type === "coi-undo") edUndo();
   if (d.type === "coi-redo") edRedo();
 });
+
+// Focus leaving the editor (a click on "Podgląd", "JSON" or "Pobierz JSON" in the upload page): what was being typed goes out first.
+window.addEventListener("blur", () => { if (ed.on) edFlush(); });
 
 // Click (or Enter on a focused element) selects it; clicks never reach the form's own controls.
 document.addEventListener("click", e => {
