@@ -24,7 +24,7 @@ from app.builder import build
 from app.extract import extract
 from app.llm.planner import make_plan
 from app.plan import Plan
-from app.quotes import filter_plan
+from app.quotes import THRESHOLD, THRESHOLD_OCR, filter_plan
 from app.rules import check
 from bench.score import score_coi, score_plan
 
@@ -79,7 +79,8 @@ def run_file(form: str, path: Path, out: Path, rebuild: bool = False) -> dict:
         t = time.time()
         try:
             doc = extract(path.read_bytes(), path.name)
-            plan, dropped = filter_plan(make_plan(doc.text), doc.text)
+            threshold = THRESHOLD_OCR if "ocr" in doc.method else THRESHOLD
+            plan, dropped = filter_plan(make_plan(doc.text), doc.text, threshold)
             coi = build(plan)
         except Exception as e:  # noqa: BLE001 - a benchmark records every failure
             return row | {"ok": False, "error": f"{type(e).__name__}: {e}"[:300], "s": round(time.time() - t)}

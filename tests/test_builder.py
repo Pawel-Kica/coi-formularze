@@ -157,6 +157,15 @@ def test_person_without_proxy_has_no_podmiot_section():
     assert "podmiot_wniosku" not in by_tech(coi) and "dane_innej_osoby" not in by_tech(coi)
 
 
+def test_no_addressee_leaves_name_empty_for_the_office():
+    p = _plan([PlanField(id="f1", label="Uwagi", type="TEXTAREA", quote="u")]).model_copy(update={"addressee": ""})
+    coi = build(p)
+    assert check(coi) == []
+    name = by_tech(coi)["nazwa_urzedu"]
+    assert name["readOnly"] and name["validation"] == ["REQUIRED"] and name["defaultValue"] == ""
+    assert by_tech(coi)["urzad_do_ktorego_jest_skladany_wniosek"]["title"] == "Urząd, do którego jest składany wniosek"
+
+
 def test_entity_ids_default_and_explicit():
     a = Applicant(person=True, entity=True, entity_ids=[EntityId.REGON])
     t = by_tech(build(_plan([PlanField(id="f1", label="Uwagi", type="TEXTAREA", quote="u")], applicant=a)))

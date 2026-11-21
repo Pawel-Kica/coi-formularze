@@ -22,7 +22,7 @@ def f(id, label, quote, type=FieldType.TEXT_FIELD, options=(), show_if=None):
 
 
 def plan(fields, statements=()):
-    return Plan(title="Wniosek", addressee="Urząd", pages=[Page(title="P", sections=[Section(id="s1", title="S", fields=fields)])],
+    return Plan(title="Wniosek", addressee="", pages=[Page(title="P", sections=[Section(id="s1", title="S", fields=fields)])],
                 statements=list(statements))
 
 
@@ -140,3 +140,12 @@ def test_other_person_section_kept():
 )
 def test_quote_robust_across_formats(quote, text):
     assert quote_found(quote, text)
+
+
+def test_addressee_kept_only_when_its_quote_is_on_paper():
+    p = plan([RADIO]).model_copy(update={"addressee": "Urząd Skarbowy", "addressee_quote": "Wnioskodawca:"})
+    kept, dropped = filter_plan(p, TEXT)
+    assert kept.addressee == "Urząd Skarbowy" and dropped == []
+    for quote in ("", "Do Wójta Gminy Testowo"):  # no quote, or a quote the paper lacks: guessed
+        cleared, dropped = filter_plan(p.model_copy(update={"addressee_quote": quote}), TEXT)
+        assert cleared.addressee == cleared.addressee_quote == "" and len(dropped) == 1

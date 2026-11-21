@@ -6,6 +6,7 @@
   put them in `pages`;
 - every field / section / statement whose `quote` is not found in the paper text
   is dropped (proxy for "the model made it up"); sections and pages left empty go too;
+- an addressee whose quote is not on paper is cleared (empty name, the office fills it in);
 - every condition (`show_if`) is checked: its quote is on paper, the trigger field
   exists, is a choice field (RADIO/CHECKBOX/SELECT), its options exist (fuzzy-fixed
   to the exact option text), the trigger comes before the target. A broken
@@ -150,9 +151,9 @@ def filter_plan(plan: Plan, text: str, threshold: float | None = None) -> tuple[
         else:
             dropped.append(f"statement '{st.text[:60]}': quote not in text: {st.quote!r}")
     plan.statements = statements
-    if plan.addressee_quote and not ok(plan.addressee_quote):
-        dropped.append(f"addressee quote not in text (addressee kept): {plan.addressee_quote!r}")
-        plan.addressee_quote = ""
+    if plan.addressee and not ok(plan.addressee_quote):
+        dropped.append(f"addressee {plan.addressee!r}: quote not in text: {plan.addressee_quote!r}")
+        plan.addressee = plan.addressee_quote = ""
     if not plan.pages:
         raise ValueError("no page of the plan is backed by the paper text")
 

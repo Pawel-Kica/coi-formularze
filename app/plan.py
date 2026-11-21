@@ -101,7 +101,7 @@ class Statement(BaseModel):
 
 class Plan(BaseModel):
     title: str  # e-service title, starts with Wniosek/Zgłoszenie/Deklaracja/Oświadczenie, no legal refs
-    addressee: str  # e.g. "Wójt Gminy Elbląg", "Urząd Gminy Ulan-Majorat" (no street address)
+    addressee: str  # e.g. "Wójt Gminy Elbląg", "Urząd Gminy Ulan-Majorat" (no street address); "" when the paper names none
     addressee_quote: str = ""
     applicant: Applicant = Applicant()
     pages: list[Page] = Field(min_length=1)
