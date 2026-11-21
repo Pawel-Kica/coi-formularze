@@ -17,6 +17,7 @@ from rapidfuzz import fuzz, process
 
 from app.builder.core import (
     Ctx,
+    all_of,
     answer_path,
     any_of,
     chosen,
@@ -27,8 +28,16 @@ from app.builder.core import (
     section,
     tab,
 )  # fmt: skip
+from app.builder.registry import address_source, pesel_attribute
 from app.builder.standard import (
-    CONTACT, DANE, FINISH, address_section, contact_page, dane_page, finish_page,
+    CONTACT,
+    DANE,
+    FINISH,
+    address_section,
+    contact_page,
+    dane_page,
+    finish_page,
+    own_filing,
 )
 from app.plan import Condition, FieldType, Plan, PlanField
 from app.text import ascii_fold, html_paragraphs
@@ -155,6 +164,11 @@ def _plan_pages(ctx: Ctx, plan: Plan, known: dict[str, dict]) -> list[dict]:
                 locs.setdefault(f.id, _Loc(title, st, ft, s.repeating, _coi_type(f, opts), opts))
 
     # Pass 2: fields with validators, options, dictionaries and states.
+    # Bonus I: a field plainly about the applicant is fed from the PESEL registers (`registry.py`).
+    # While the filer may also act for someone else, it shows only for "Swoim" and an
+    # editable twin covers the other answers (a read-only wrong value cannot be fixed).
+    own, own_q = own_filing(plan.applicant)
+    variants = [(True, own_q), (False, negate(own_q))] if own_q else [(True, None)]
     tabs = []
     for title, page in zip(titles, plan.pages):
         sections = []
@@ -162,21 +176,35 @@ def _plan_pages(ctx: Ctx, plan: Plan, known: dict[str, dict]) -> list[dict]:
             st = sec_tech[id(s)]
             desc = html_paragraphs(s.description) if s.description.strip() else ""
             if s.address and not s.repeating:
-                suffix = "_" + (st.removeprefix("adres_") or st)
-                built = address_section(ctx, s.title.strip(), st, suffix, registry=False,
-                                        query=_query(s.show_if, locs, st), tab_title=title,
-                                        description=desc, register=False)
+                source = address_source(s, title, plan.title) if own else None
                 # the Standards block replaced the paper's address lines: their quotes back the section
                 quote = " / ".join(dict.fromkeys(f.quote for f in s.fields))
-                known[built["id"]] = _ev("paper", quote, plan_id=s.id, cond=s.show_if if built["states"] else None)
-                sections.append(built)
+                show_q = _query(s.show_if, locs, st)
+                for i, (fed, extra_q) in enumerate(variants if source else [(False, None)]):
+                    tech = st if i == 0 else ctx.tech(f"{st}_inna_osoba")
+                    suffix = "_" + (tech.removeprefix("adres_") or tech)
+                    built = address_section(ctx, s.title.strip(), tech, suffix,
+                                            registry=source if fed else None,
+                                            query=all_of(show_q, extra_q),
+                                            tab_title=title, description=desc, register=False)
+                    if fed:  # as in `_field`: an empty registry value must not block sending
+                        for c in built["repeatingSectionGrid"]:
+                            if c["field"].get("defaultValueType") == "EXTERNAL_SYSTEM":
+                                c["field"]["validation"] = [v for v in c["field"]["validation"] if v != "REQUIRED"]
+                    known[built["id"]] = _ev("paper", quote, plan_id=s.id, cond=s.show_if if show_q else None)
+                    sections.append(built)
                 continue
             fields = []
             for f in s.fields:
-                built_field = _field(ctx, f, fld_tech[id(f)], st, locs)
-                known[built_field["id"]] = _ev("paper", f.quote, plan_id=f.id,
-                                               cond=f.show_if if built_field["states"] else None)
-                fields.append(built_field)
+                attr = pesel_attribute(f, s, title) if own else None
+                for i, (fed, extra_q) in enumerate(variants if attr else [(False, None)]):
+                    tech = fld_tech[id(f)] if i == 0 else ctx.tech(f"{fld_tech[id(f)]}_inna_osoba")
+                    built_field = _field(ctx, f, tech, st, locs, registry=attr if fed else None,
+                                         extra_query=extra_q)
+                    has_cond = _query(f.show_if, locs, st, tech) is not None
+                    known[built_field["id"]] = _ev("paper", f.quote, plan_id=f.id,
+                                                   cond=f.show_if if has_cond else None)
+                    fields.append(built_field)
             built = section(ctx, s.title.strip(), st, fields, description=desc,
                             query=_query(s.show_if, locs, st), repeating=s.repeating)
             known[built["id"]] = _ev("model", plan_id=s.id, cond=s.show_if if built["states"] else None)
@@ -187,8 +215,11 @@ def _plan_pages(ctx: Ctx, plan: Plan, known: dict[str, dict]) -> list[dict]:
     return tabs
 
 
-def _field(ctx: Ctx, f: PlanField, tech: str, section_tech: str, locs: dict[str, _Loc]) -> dict:
-    query = _query(f.show_if, locs, section_tech, tech)
+def _field(ctx: Ctx, f: PlanField, tech: str, section_tech: str, locs: dict[str, _Loc], *,
+           registry: str | None = None, extra_query: str | None = None) -> dict:
+    """One Plan field -> COI field; `registry` = an EXTERNAL_SYSTEM source ("PESEL.birthDate"),
+    which makes it read-only; `extra_query` is ANDed with its own SHOW condition."""
+    query = all_of(_query(f.show_if, locs, section_tech, tech), extra_query)
     if f.type == FieldType.TEXT_BLOCK:  # label = optional heading, description = the text
         heading, text = f.label.strip(), f.description.strip()
         if not text:
@@ -200,6 +231,11 @@ def _field(ctx: Ctx, f: PlanField, tech: str, section_tech: str, locs: dict[str,
     required = ["REQUIRED"] if f.required else []
     desc = html_paragraphs(f.description) if f.description.strip() else ""
     label = f.label.strip()
+    if registry:  # only TEXT_FIELD / DATEPICKER labels qualify (registry.pesel_attribute)
+        # no REQUIRED: the register may lack the value and the citizen cannot type it in
+        return field(ctx, type_, label, tech, description=desc, query=query, read_only=True,
+                     validation=detect_validators(label) if type_ == "TEXT_FIELD" else [],
+                     extra={"defaultValue": registry, "defaultValueType": "EXTERNAL_SYSTEM"})
     if type_ == "TEXT_FIELD":
         return field(ctx, type_, label, tech, description=desc, query=query,
                      validation=required + detect_validators(label))

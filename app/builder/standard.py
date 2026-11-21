@@ -27,6 +27,7 @@ FINISH = "Strona końcowa"
 SELF, OTHER, ENTITY = "Swoim", "Innej osoby", "Osoby prawnej lub jednostki organizacyjnej"
 PROXY, REPRESENTATIVE = "Pełnomocnik", "Reprezentant"
 YES, NO = "Tak", "Nie"
+WHO_TECH = "wybierz_w_czyim_imieniu_wnioskujesz"  # first use on "Dane", so ctx.tech keeps it as is
 
 # Addressee starting with an office holder (any case form) -> "organ", else "urząd".
 _ORGAN = re.compile(
@@ -67,35 +68,49 @@ def _text_block(ctx, tech, html_text, query=None):
     return field(ctx, "TEXT_BLOCK", "", ctx.tech(tech), description=html_text, query=query)
 
 
-def address_section(ctx: Ctx, title: str, section_tech: str, suffix: str, *, registry: bool,
-                    query: str | None, tab_title: str = DANE, description: str = "",
-                    register: bool = True) -> dict:
+MLPZ_ADDRESS = {k: f"MLPZ.{k}" for k in
+                ("country", "place", "postCode", "street", "voivodeship", "building", "apartment")}
+
+
+def address_section(ctx: Ctx, title: str, section_tech: str, suffix: str, *,
+                    registry: dict[str, str] | None, query: str | None, tab_title: str = DANE,
+                    description: str = "", register: bool = True) -> dict:
     """Address block per Standards: Kraj, then foreign or Polish fields by country.
 
-    `registry=True` (the applicant's own address): every field comes from MLPZ, one
-    attribute each, and is read-only, so the address cannot be half-edited. TERYT gets
-    only MLPZ.voivodeship, so a read-only Polish "Miejscowość" (MLPZ.place) is added.
+    `registry` (the applicant's own address) maps each Standards field to one registry
+    attribute (`MLPZ_ADDRESS`, or `registry.PERMANENT_ADDRESS` for "Dane zameldowania"); every
+    field is then read-only, so the address cannot be half-edited. TERYT gets only the
+    voivodeship, so a read-only Polish "Miejscowość" is added. A source without a country
+    (a registered address is always Polish) fixes Kraj to "Polska" and drops the foreign fields.
     `register=False` when the caller already reserved `section_tech` via ctx.tech."""
     if register:
         section_tech = ctx.tech(section_tech)
     kraj = ctx.tech(f"kraj{suffix}")
     poland = chosen("Polska", answer_path(tab_title, section_tech, kraj))
     abroad = negate(poland)
-    reg = (lambda attr: f"MLPZ.{attr}") if registry else (lambda attr: None)
-    ro = registry  # Dane inicjalne: fields fed from a registry are read-only
+    reg = (lambda attr: registry.get(attr)) if registry else (lambda attr: None)
+    ro = bool(registry)  # Dane inicjalne: fields fed from a registry are read-only
 
     def select_default(attr, plain):  # SELECT prefill: registry attribute or a plain default
-        return {"defaultValue": reg(attr), "defaultValueType": "EXTERNAL_SYSTEM"} if registry else {"defaultValue": plain}
+        if reg(attr):
+            return {"defaultValue": reg(attr), "defaultValueType": "EXTERNAL_SYSTEM"}
+        return {"defaultValue": plain}
 
     fields = [
         field(ctx, "SELECT", "Kraj", kraj, validation=["REQUIRED"], read_only=ro, extra={
             "dictionaryName": "Kraje", "multiLevelTree": False, "searchEnabled": True,
             **select_default("country", ["Polska"])}),
-        _text(ctx, "Miejscowość", f"miejscowosc{suffix}_zagranica", required=True,
-              registry=reg("place"), read_only=ro, query=abroad),
-        _text(ctx, "Kod pocztowy", f"kod_pocztowy{suffix}_zagranica", registry=reg("postCode"),
-              read_only=ro, query=abroad),
-        _text(ctx, "Ulica", f"ulica{suffix}_zagranica", registry=reg("street"), read_only=ro, query=abroad),
+    ]
+    if not registry or reg("country"):
+        fields += [
+            _text(ctx, "Miejscowość", f"miejscowosc{suffix}_zagranica", required=True,
+                  registry=reg("place"), read_only=ro, query=abroad),
+            _text(ctx, "Kod pocztowy", f"kod_pocztowy{suffix}_zagranica", registry=reg("postCode"),
+                  read_only=ro, query=abroad),
+            _text(ctx, "Ulica", f"ulica{suffix}_zagranica", registry=reg("street"), read_only=ro,
+                  query=abroad),
+        ]
+    fields += [
         field(ctx, "SELECT", "TERYT_4G_DOWODOWY", ctx.tech(f"wojewodztwo{suffix}"),
               validation=["REQUIRED"], read_only=ro, query=poland, extra={
                   "dictionaryName": "TERYT_4G_DOWODOWY", "multiLevelTree": True,
@@ -115,16 +130,35 @@ def address_section(ctx: Ctx, title: str, section_tech: str, suffix: str, *, reg
     return section(ctx, title, section_tech, fields, query=query, description=description)
 
 
-def dane_page(ctx: Ctx, plan: Plan) -> dict:
-    """Page 1: addressee, who files, own data, addresses, other person/entity, proxy, fees."""
-    a: Applicant = plan.applicant
+def _who_options(a: Applicant) -> list[str]:
+    """Options of "Wybierz, w czyim imieniu wnioskujesz" (one option = the radio is left out)."""
     person = a.person or not a.entity  # nobody allowed makes no sense: default to a person
     who_opts = ([SELF] + ([OTHER] if a.proxy else [])) if person else []
     if a.entity:
         who_opts.append(ENTITY)
+    return who_opts
+
+
+def own_filing(a: Applicant) -> tuple[bool, str | None]:
+    """Whether the logged-in person's registry data may feed a subject-page field about the
+    applicant: (False, None) never (only an entity files), (True, None) always (the person
+    always files in their own name), (True, query) only while "Wybierz, w czyim imieniu
+    wnioskujesz" is "Swoim" (`query` = that SHOW condition)."""
+    who_opts = _who_options(a)
+    if SELF not in who_opts:
+        return False, None
+    if len(who_opts) == 1:
+        return True, None
+    return True, chosen(SELF, answer_path(DANE, "podmiot_wniosku", WHO_TECH))
+
+
+def dane_page(ctx: Ctx, plan: Plan) -> dict:
+    """Page 1: addressee, who files, own data, addresses, other person/entity, proxy, fees."""
+    a: Applicant = plan.applicant
+    who_opts = _who_options(a)
     role_opts = (([PROXY] if a.proxy else []) + [REPRESENTATIVE]) if a.entity else []
 
-    who_tech, role_tech = "wybierz_w_czyim_imieniu_wnioskujesz", "wybierz_jako_kto_wnioskujesz"
+    who_tech, role_tech = WHO_TECH, "wybierz_jako_kto_wnioskujesz"
 
     def who(opt):  # None = always true (radio absent because it has one option)
         return chosen(opt, answer_path(DANE, "podmiot_wniosku", who_tech)) if len(who_opts) > 1 else None
@@ -159,8 +193,8 @@ def dane_page(ctx: Ctx, plan: Plan) -> dict:
               registry="MLPZ.pesel", read_only=True),
     ]
     sections.append(section(ctx, "Twoje dane", ctx.tech("twoje_dane"), own))
-    sections.append(address_section(ctx, "Adres zamieszkania", "adres_zamieszkania", "", registry=True,
-                             query=None))
+    sections.append(address_section(ctx, "Adres zamieszkania", "adres_zamieszkania", "",
+                                    registry=MLPZ_ADDRESS, query=None))
 
     if a.entity:
         on_entity = who(ENTITY)
@@ -173,7 +207,7 @@ def dane_page(ctx: Ctx, plan: Plan) -> dict:
         if EntityId.KRS in ids:
             ent.append(_text(ctx, "Numer KRS", "numer_krs"))
         sections.append(section(ctx, "Dane podmiotu", ctx.tech("dane_podmiotu"), ent, query=on_entity))
-        sections.append(address_section(ctx, "Adres siedziby", "adres_siedziby", "_siedziba", registry=False,
+        sections.append(address_section(ctx, "Adres siedziby", "adres_siedziby", "_siedziba", registry=None,
                                  query=on_entity))
         rep_title = "Odpis z KRS lub innego rejestru" if a.registry_extract else "Potwierdzenie, że jesteś reprezentantem"
         sections.append(section(
@@ -191,7 +225,7 @@ def dane_page(ctx: Ctx, plan: Plan) -> dict:
         ], query=on_other))  # fmt: skip
         sections.append(address_section(ctx, "Adres zamieszkania innej osoby",
                                  "adres_zamieszkania_osoby_ktorej_jestes_pelnomocnikiem", "_inna_osoba",
-                                 registry=False, query=on_other))
+                                 registry=None, query=on_other))
 
     if a.proxy:
         entity_proxy = all_of(who(ENTITY), role(PROXY)) if a.entity else None
