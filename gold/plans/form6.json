@@ -196,7 +196,7 @@
               "label": "Numer telefonu",
               "type": "TEXT_FIELD",
               "required": true,
-              "quote": "tel."
+              "quote": "osobą odpowiedzialną za wykonanie robót"
             }
           ]
         },
@@ -210,7 +210,7 @@
               "label": "Adres zamieszkania",
               "type": "TEXT_FIELD",
               "required": true,
-              "quote": "zam."
+              "quote": "decyzji będzie zam"
             }
           ]
         }

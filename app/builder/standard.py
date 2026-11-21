@@ -164,7 +164,7 @@ def dane_page(ctx: Ctx, plan: Plan) -> dict:
         sections.append(section(
             ctx, rep_title, ctx.tech("potwierdzenie_ze_jestes_reprezentantem"),
             [_file(ctx, "Plik z odpisem danych", "plik_z_odpisem_danych")],
-            description=texts.REPRESENTATIVE_DESC,
+            description=texts.REGISTRY_EXTRACT_DESC if a.registry_extract else texts.REPRESENTATIVE_DESC,
             query=on_entity if a.registry_extract else all_of(on_entity, role(REPRESENTATIVE))))
 
     if OTHER in who_opts:
