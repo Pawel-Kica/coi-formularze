@@ -54,6 +54,26 @@ def _text(ctx, title, tech, *, required=False, extra_validators=(), default=None
                  read_only=read_only, query=query, extra=extra)
 
 
+PHONE_PREFIX_DICT = "Numery kierunkowe"  # Słowniki doc; no reference uses it, name by analogy with "Kraje"
+
+
+def is_phone(f: dict) -> bool:
+    """A TEXT_FIELD asking for a phone number (gets the hint and the prefix SELECT)."""
+    return f["type"] == "TEXT_FIELD" and "telefon" in ascii_fold(f["title"]).lower()
+
+
+def phone_prefix(ctx: Ctx, phone: dict) -> dict:
+    """Bonus VI: SELECT "Numer kierunkowy" (COI dictionary "Numery kierunkowe"), placed right
+    before `phone` with its SHOW condition and its REQUIRED. No default: the dictionary's
+    item format is not documented, so a guessed "+48" could fail on import."""
+    out = field(ctx, "SELECT", "Numer kierunkowy", ctx.tech("numer_kierunkowy"),
+                validation=[v for v in phone["validation"] if v == "REQUIRED"], extra={
+                    "dictionaryName": PHONE_PREFIX_DICT, "multiLevelTree": False,
+                    "searchEnabled": True, "defaultValue": []})
+    out["states"] = [dict(st) for st in phone["states"]]
+    return out
+
+
 def _radio(ctx, title, tech, options, query=None):
     return field(ctx, "RADIO", title, ctx.tech(tech), options=options, validation=["REQUIRED"],
                  query=query)
@@ -256,9 +276,11 @@ def dane_page(ctx: Ctx, plan: Plan) -> dict:
 
 def contact_page(ctx: Ctx, statements: list[Statement]) -> dict:
     """Second to last page: contact data + consent section (RODO + the paper's statements)."""
+    phone = _text(ctx, "Numer telefonu", "numer_telefonu", registry="MLPZ.phoneNumber",
+                  description=html_paragraphs(texts.PHONE_HINT_TEXT))
     contact = section(ctx, "Dane do kontaktu", ctx.tech("dane_do_kontaktu"), [
-        _text(ctx, "Numer telefonu", "numer_telefonu", registry="MLPZ.phoneNumber",
-              description=html_paragraphs(texts.PHONE_HINT_TEXT)),
+        phone_prefix(ctx, phone),
+        phone,
         _text(ctx, "Adres e-mail", "adres_e_mail", extra_validators=["EMAIL"], registry="MLPZ.email"),
     ], description=texts.CONTACT_DESC)  # fmt: skip
     consents = [{"description": texts.RODO_CONSENT, "required": True}]

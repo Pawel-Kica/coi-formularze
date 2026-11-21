@@ -181,7 +181,7 @@ def test_helpers():
     assert detect_validators("Seria i numer dowodu osobistego") == ["SERIAL_NUMBER_ID_CARD"]
 
 
-PHONE_HINT = "Na przykład 600 700 800. Numer zagraniczny zacznij od kierunkowego, na przykład +49."
+PHONE_HINT = "Wpisz numer bez kierunkowego, na przykład 600 700 800. Numer kierunkowy wybierz w polu powyżej."
 
 
 def test_phone_hint_on_contact_and_phone_fields():  # bonus VI: COI has no phone validator
@@ -202,3 +202,45 @@ def test_phone_hint_on_contact_and_phone_fields():  # bonus VI: COI has no phone
     assert "Podaj komórkę." in t["telefon_kontaktowy"]["description"]  # the model's own hint stays
     assert PHONE_HINT not in t["telefon_kontaktowy"]["description"]
     assert t["numer_dzialki"]["description"] == "" and t["telefonia_liczba_linii"]["description"] == ""
+
+
+def _section_of(coi, tech):
+    for t in coi["tabs"]:
+        for q in t["questions"]:
+            grid = [c["field"] for c in q["field"]["repeatingSectionGrid"]]
+            if any(f["techName"] == tech for f in grid):
+                return grid
+    raise KeyError(tech)
+
+
+def test_phone_prefix_select_before_every_phone_field():  # Słowniki doc: "Numery kierunkowe"
+    fields = [
+        PlanField(id="f0", label="Czy podać telefon?", type="RADIO", options=["Tak", "Nie"], quote="q"),
+        PlanField(id="f1", label="Numer telefonu", type="TEXT_FIELD", required=True, quote="tel",
+                  show_if=Condition(field="f0", options=["Tak"], quote="q")),
+        PlanField(id="f3", label="Telefonia: liczba linii", type="NUMBER", quote="l"),
+    ]
+    coi = build(_plan(fields))
+    assert check(coi) == []
+    contact = _section_of(coi, "numer_telefonu")
+    assert [f["techName"] for f in contact[:2]] == ["numer_kierunkowy", "numer_telefonu"]
+    pre = contact[0]
+    assert pre["type"] == "SELECT" and pre["title"] == "Numer kierunkowy" and pre["options"] == []
+    assert pre["dictionaryName"] == "Numery kierunkowe" and pre["multiLevelTree"] is False
+    assert pre["searchEnabled"] is True and pre["validation"] == [] and pre["states"] == []
+    subject = _section_of(coi, "numer_telefonu_2")
+    i = [f["techName"] for f in subject].index("numer_telefonu_2")
+    pre, phone = subject[i - 1], subject[i]
+    assert pre["dictionaryName"] == "Numery kierunkowe" and pre["techName"] == "numer_kierunkowy_2"
+    assert pre["validation"] == ["REQUIRED"] == phone["validation"]
+    assert pre["states"] == phone["states"] != []
+    assert sum(f.get("dictionaryName") == "Numery kierunkowe" for f in subject) == 1  # not the NUMBER
+
+
+def test_no_phone_prefix_when_paper_has_one():
+    fields = [
+        PlanField(id="f1", label="Numer kierunkowy", type="TEXT_FIELD", quote="k"),
+        PlanField(id="f2", label="Numer telefonu", type="TEXT_FIELD", quote="tel"),
+    ]
+    coi = build(_plan(fields))
+    assert not any(f.get("dictionaryName") == "Numery kierunkowe" for f in _section_of(coi, "numer_telefonu_2"))
