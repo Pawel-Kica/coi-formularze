@@ -169,7 +169,7 @@ _NEAR = 6  # lines: how far on a line that is exactly the quote beats a longer l
 def place_quotes(items: list[tuple[str, str | None, bool]], text: str) -> dict[str, tuple[int, int]]:
     """Where each quote sits on the paper, read in form order: one place per key, as a span of
     `_paper_lines(text)`'s joined string (`span_lines` turns it into lines). The one walk behind both the paper
-    headings ("Na papierze: ...", `app.headings`) and the crops of the paper ("Źródło", `app.sources`), so the two
+    headings ("W dokumencie: ...", `app.headings`) and the crops of the paper ("Źródło", `app.sources`), so the two
     never disagree.
 
     `items` = (key, quote, moves) in form order. A label printed many times ("Miejscowość", "Numer lokalu") resolves

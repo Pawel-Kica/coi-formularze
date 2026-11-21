@@ -13,7 +13,7 @@ number, no full stop). The form title and the addressee are never a heading. No 
 the heading of its first section, if any.
 
 Evidence entries of sections and pages gain `heading` (the line, verbatim without Markdown marks) and
-`heading_page` (1-based paper page, or None). The upload page shows them under "Pokaż cytaty z papieru i warunki"
+`heading_page` (1-based paper page, or None). The upload page shows them under "Pokaż cytaty z dokumentu i warunki"
 and jumps the original to that place.
 """
 

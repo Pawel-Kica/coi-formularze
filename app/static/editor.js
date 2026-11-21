@@ -711,17 +711,17 @@ function edEvidenceBox(loc) {
   if (!ev) box.append(h("p", {}, "Brak informacji o pochodzeniu (wynik bez cytatów: starszy albo wczytany z pliku)."));
   else if (ev.source === "paper" && ev.quote) {
     box.classList.add("paper");
-    box.append(quote("Z papieru", ev.quote));
+    box.append(quote("Z dokumentu", ev.quote));
   } else if (ev.source === "code" && (ev.consent_quotes || []).some(Boolean)) {
-    box.append(h("p", {}, "Zgody ze Standardów COI. Oświadczenia z papieru mają cytat poniżej."));
+    box.append(h("p", {}, "Zgody ze Standardów COI. Oświadczenia z dokumentu mają cytat poniżej."));
   } else if (ev.source !== "model") {  // a page or section the model grouped has nothing to cite: no line (the legend says it once)
     box.append(h("p", {}, {
-      code: "Ze Standardów COI, nie z papieru.",
-      clerk: "Dodane przez Ciebie, bez cytatu z papieru.",
-      paper: "Z papieru, bez zapisanego cytatu.",
+      code: "Ze Standardów COI, nie z dokumentu.",
+      clerk: "Dodane przez Ciebie, bez cytatu z dokumentu.",
+      paper: "Z dokumentu, bez zapisanego cytatu.",
     }[ev.source] || "Brak informacji o pochodzeniu."));
   }
-  if (ev?.condition_quote) box.append(quote("Warunek z papieru", ev.condition_quote));
+  if (ev?.condition_quote) box.append(quote("Warunek z dokumentu", ev.condition_quote));
   if (ev?.condition_source === "clerk") box.append(h("p", {}, "Warunek ustawiony przez Ciebie."));
   return box.childElementCount ? box : null;  // the quote of each statement is next to it in edConsentControls
 }
@@ -767,7 +767,7 @@ function edConsentControls(f) {
     ta.setAttribute("aria-label", `Treść oświadczenia ${i + 1}`);
     const q = quotes()?.[i];
     return h("li", {}, h("span", {class: "ed-label"}, `${i + 1}. ${q === null ? "Klauzula RODO (standard COI)" : "Oświadczenie"}`), ta,
-      q ? h("p", {class: "ed-hint"}, h("strong", {}, "Z papieru: "), `„${q}”`) : q === false ? h("p", {class: "ed-hint"}, "Dodane przez Ciebie, bez cytatu.") : "",
+      q ? h("p", {class: "ed-hint"}, h("strong", {}, "Z dokumentu: "), `„${q}”`) : q === false ? h("p", {class: "ed-hint"}, "Dodane przez Ciebie, bez cytatu.") : "",
       h("div", {class: "ed-consent-row"}, h("span", {class: "ed-check"}, cb, h("label", {for: cb.id}, "Wymagane")),
         edBtn("Usuń", `consentdel${i}`, () => edChange(() => { list.splice(i, 1); quotes()?.splice(i, 1); }),
           {danger: true, disabled: list.length === 1, label: `Usuń oświadczenie ${i + 1}`})),

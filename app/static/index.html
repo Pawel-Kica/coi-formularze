@@ -153,7 +153,7 @@
 <body>
 <header>
   <div class="bar">
-    <h1>Cyfryzacja formularzy<small>Pusty formularz papierowy → konfiguracja e-usługi COI (JSON)</small></h1>
+    <h1>Cyfryzacja formularzy<small>Pusty formularz (plik) → konfiguracja e-usługi COI (JSON)</small></h1>
     <a href="/slowniki" class="nav">Słowniki</a>
     <span id="llm" class="pill">Model AI: sprawdzam…</span>
     <button id="logout" type="button" hidden>Wyloguj</button>
@@ -195,10 +195,10 @@
   <section class="card" id="result" aria-labelledby="result-title" hidden>
     <h2 id="result-title" class="sr-only">Wynik</h2>
     <div id="result-empty">
-      <h2>Z papieru do e-usługi w trzech krokach</h2>
+      <h2>Z dokumentu do e-usługi w trzech krokach</h2>
       <ol>
         <li><strong>Wgraj pusty formularz</strong> po lewej: PDF, Word, Excel albo skan.</li>
-        <li><strong>Sprawdź e-usługę obok oryginału.</strong> Pod każdym polem jest cytat z papieru, z którego powstało.</li>
+        <li><strong>Sprawdź e-usługę obok oryginału.</strong> Pod każdym polem jest cytat z dokumentu, z którego powstało.</li>
         <li><strong>Popraw, co trzeba, i pobierz JSON</strong> gotowy do importu w COI. „Edytuj” obok pola otwiera je do poprawy.</li>
       </ol>
     </div>
@@ -662,7 +662,7 @@ function showOriginal(item) {
   }
 }
 
-// "Na papierze: <heading>, str. N" clicked in the preview: the original shows that place. A PDF opens again at page N
+// "W dokumencie: <heading>, str. N" clicked in the preview: the original shows that place. A PDF opens again at page N
 // (a fresh frame: the viewer reads #page only on load); the text of a DOC/DOCX/ODS/XLSX/XLS gets the heading line
 // marked and scrolled into view; an image stays as it is. A collapsed original pane comes back first.
 function showPaper(heading, page) {

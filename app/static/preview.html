@@ -106,7 +106,7 @@ body:not(.notes) .dict-empty{display:none}  /* an admin hint: not in the citizen
 .summary h4{margin:1rem 0 .5rem}
 .summary h5{margin:.5rem 0;font-size:.95rem}
 
-/* annotations ("Cytaty z papieru i warunki", always on in the editor): where an element comes from and when it shows */
+/* annotations ("Cytaty z dokumentu i warunki", always on in the editor): where an element comes from and when it shows */
 .src{display:none;font-size:13px;line-height:1.4;margin:.4rem 0 0;padding:.05rem 0 .05rem .6rem;border-left:3px solid #c5ccd6;color:#4b5563;word-break:break-word}
 body.notes .src{display:block}
 .src.paper{border-left-color:#1e7b34;color:#14532d}
@@ -184,7 +184,7 @@ body.techmode .tech{display:block}
   <button type="button" class="tb-btn" id="tbOpen">Wczytaj plik JSON</button>
   <input type="file" id="fileInput" accept=".json,application/json" hidden>
   <button type="button" class="tb-btn" id="tbPaste">Wklej JSON</button>
-  <label><input type="checkbox" id="notesToggle" checked> Pokaż cytaty z papieru i warunki</label>
+  <label><input type="checkbox" id="notesToggle" checked> Pokaż cytaty z dokumentu i warunki</label>
   <label id="techLabel"><input type="checkbox" id="techToggle"> Nazwy techniczne</label>
   <details class="issues" id="issuesBox" hidden><summary>Uwagi (0)</summary><ol></ol></details>
   <button type="button" class="tb-btn" id="tbReset">Wyczyść odpowiedzi</button>
@@ -663,11 +663,11 @@ const hasEvidence = () => Object.keys(evidence).length > 0;
 const quoteLine = (label, quote) => h("p", {class: "src paper", title: quote.length > 240 ? quote : null},
   h("strong", {}, label + ": "), `„${quote.length > 240 ? quote.slice(0, 237) + "…" : quote}”`);
 
-// The paper heading a page or section came from ("Na papierze: C. OKOLICZNOŚCI ..., str. 2"); embedded, a click asks
+// The paper heading a page or section came from ("W dokumencie: C. OKOLICZNOŚCI ..., str. 2"); embedded, a click asks
 // the upload page to show that place in the original ({type: "coi-paper", heading, page}).
 function headingLine(ev) {
   const text = ev.heading + (ev.heading_page ? `, str. ${ev.heading_page}` : "");
-  return h("p", {class: "src paper"}, h("strong", {}, "Na papierze: "), EMBED
+  return h("p", {class: "src paper"}, h("strong", {}, "W dokumencie: "), EMBED
     ? h("button", {type: "button", class: "to-paper", title: "Pokaż to miejsce w oryginale",
         onclick: () => parent.postMessage({type: "coi-paper", heading: ev.heading, page: ev.heading_page || null}, location.origin)}, text)
     : text);
@@ -680,18 +680,18 @@ function notesOf(f, kind, standard) {
   const ev = evidence[f.id], out = [], codeField = kind === "field" && ev?.source === "code";
   if (kind !== "field" && ev?.heading) out.push(headingLine(ev));
   if (ev?.source === "paper" && ev.quote) {
-    out.push(quoteLine("Z papieru", ev.quote));
+    out.push(quoteLine("Z dokumentu", ev.quote));
     if (kind === "section" && (f.repeatingSectionGrid || []).some(c => evidence[c.field.id]?.source === "code"))
       out.push(h("p", {class: "src"}, "Pola adresu w tej sekcji są dodane automatycznie według Standardów COI."));
-  } else if (ev?.source === "clerk") out.push(h("p", {class: "src"}, "Dodane w edytorze, bez cytatu z papieru."));
+  } else if (ev?.source === "clerk") out.push(h("p", {class: "src"}, "Dodane w edytorze, bez cytatu z dokumentu."));
   if (kind !== "tab" && !codeField) {
     const ct = condText(f);
     if (ct) out.push(h("p", {class: "src cond"}, ...(condGone(f) ? [COND_GONE] : [h("strong", {}, "Widoczne, gdy: "), ct])));
     // the quote behind the condition, unless it only repeats the quote already shown under the question it reads
-    if (ev?.condition_quote && !triggersOf(f).some(t => evidence[t.id]?.quote === ev.condition_quote)) out.push(quoteLine("Warunek z papieru", ev.condition_quote));
+    if (ev?.condition_quote && !triggersOf(f).some(t => evidence[t.id]?.quote === ev.condition_quote)) out.push(quoteLine("Warunek z dokumentu", ev.condition_quote));
     else if (ct && ev?.condition_source === "clerk") out.push(h("p", {class: "src"}, "Warunek ustawiony w edytorze."));
   }
-  for (const q of ev?.consent_quotes || []) if (q) out.push(quoteLine("Z papieru", q));  // one per statement from the paper, in their order
+  for (const q of ev?.consent_quotes || []) if (q) out.push(quoteLine("Z dokumentu", q));  // one per statement from the paper, in their order
   if (kind === "field" && !codeField) { // a question from the paper that shows or hides other elements: say which
     const deps = dependentsOf(f).map(d => `„${nameOf(d)}”`);
     if (deps.length) out.push(h("p", {class: "src cond"}, h("strong", {}, "Od tej odpowiedzi zależy: "), deps.join(", ")));
@@ -727,7 +727,7 @@ let paper = null, docKey, docN;
 const openSrc = new Set();
 const hasQuote = f => EMBED && docKey !== undefined && !!evidence[f.id]?.quote;
 const srcButton = f => hasQuote(f) && h("button", {type: "button", class: "srcbtn", "aria-pressed": String(openSrc.has(f.id)),
-  "aria-label": `Źródło na papierze: ${nameOf(f)}`, title: "Pokaż to miejsce na papierze", onclick: e => toggleSrc(f, e.currentTarget)}, "Źródło");
+  "aria-label": `Źródło w dokumencie: ${nameOf(f)}`, title: "Pokaż to miejsce w dokumencie", onclick: e => toggleSrc(f, e.currentTarget)}, "Źródło");
 const srcBox = f => hasQuote(f) && fillSrc(h("div", {class: "srcbox", "data-src": f.id, hidden: !openSrc.has(f.id)}), f);
 
 function toggleSrc(f, btn) {
@@ -742,15 +742,15 @@ function toggleSrc(f, btn) {
 function fillSrc(box, f) {
   if (box.hidden) return box;  // drawn when opened
   const place = paper?.sources?.[f.id], note = text => box.replaceChildren(h("p", {class: "src"}, text));
-  if (paper?.failed) note("Nie udało się odczytać pliku, więc nie pokażę tego miejsca na papierze.");
-  else if (!paper || place === undefined) note("Szukam tego miejsca na papierze…");
-  else if (!place) note("Nie znalazłem tego na papierze.");
+  if (paper?.failed) note("Nie udało się odczytać pliku, więc nie pokażę tego miejsca w dokumencie.");
+  else if (!paper || place === undefined) note("Szukam tego miejsca w dokumencie…");
+  else if (!place) note("Nie znalazłem tego w dokumencie.");
   else {
     const show = () => parent.postMessage({type: "coi-source", id: f.id, label: nameOf(f)}, location.origin);
     box.replaceChildren(...placeView(place, show));
     // the condition's own quote, when the notes show it (it is not just the trigger question's quote)
     if (place.condition && !triggersOf(f).some(t => evidence[t.id]?.quote === evidence[f.id]?.condition_quote))
-      box.append(h("p", {class: "srclabel"}, "Warunek z papieru"), ...placeView(place.condition, show));
+      box.append(h("p", {class: "srclabel"}, "Warunek z dokumentu"), ...placeView(place.condition, show));
   }
   return box;
 }
@@ -794,7 +794,7 @@ function standardNote(tab) {
   const fields = tab.questions.flatMap(q => (q.field.repeatingSectionGrid || []).map(c => c.field));
   const paper = [fields.some(f => ADDRESSEE_FIELDS.includes(f.techName) && evidence[f.id]?.source === "paper") && "adresat wniosku",
     fields.some(f => (evidence[f.id]?.consent_quotes || []).some(Boolean)) && "oświadczenia"].filter(Boolean);
-  return "Strona standardowa COI, dodana automatycznie." + (paper.length ? ` Z papieru: ${paper.join(" i ")}.` : "");
+  return "Strona standardowa COI, dodana automatycznie." + (paper.length ? ` Z dokumentu: ${paper.join(" i ")}.` : "");
 }
 
 // The line under the form title: what the green quotes are, and how many elements have one.
@@ -803,8 +803,8 @@ function renderLegend() {
   const count = id => { const e = evidence[id]; if (e?.source === "paper" && e.quote) n++; };
   if (cfg) { cfg.tabs.forEach(t => count(t.id)); eachField(f => count(f.id)); }
   $("#legend").replaceChildren(...(!hasEvidence()
-    ? ["Ten plik nie ma cytatów z papieru (wczytany JSON albo starszy wynik). Wgraj formularz ponownie, aby je zobaczyć."]
-    : [`Z papieru: ${n} ${plural(n, ["element", "elementy", "elementów"])}, pod każdym jest dosłowny cytat z formularza. Strony i sekcje bez cytatu tylko grupują pola.`]));
+    ? ["Ten plik nie ma cytatów z dokumentu (wczytany JSON albo starszy wynik). Wgraj formularz ponownie, aby je zobaczyć."]
+    : [`Z dokumentu: ${n} ${plural(n, ["element", "elementy", "elementów"])}, pod każdym jest dosłowny cytat z formularza. Strony i sekcje bez cytatu tylko grupują pola.`]));
 }
 // Polish plural: plural(3, ["pole", "pola", "pól"]) -> "pola".
 const plural = (n, [one, few, many]) => n === 1 ? one : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? few : many;
