@@ -48,6 +48,8 @@
   .drop { display: block; margin: 0; border: 2px dashed #8aa6c8; border-radius: 6px; padding: 16px 12px;
           text-align: center; font-weight: 400; cursor: pointer; background: #f8fbff; position: relative; flex: none; }
   .drop.over { border-color: var(--navy); background: #e8f0fa; }
+  #announce { font-size: .9rem; color: var(--warn); margin: 8px 0 0; }
+  #announce:empty { display: none; }
   .drop:focus-within { outline: 3px solid #ffb800; outline-offset: 2px; }
   .drop strong { color: var(--navy); }
   .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
@@ -153,7 +155,7 @@
       <strong id="drop-title">Przeciągnij plik tutaj</strong> albo kliknij, aby wybrać z dysku
       <span class="muted" style="display:block">PDF, DOC, DOCX, ODS, XLSX, XLS, JPG, PNG.<span id="drop-batch" hidden> Pliki przetworzymy po kolei, jeden po drugim.</span></span>
     </label>
-    <label class="batch-toggle"><input type="checkbox" id="batch"> Wrzuć wiele plików naraz</label>
+    <label class="batch-toggle"><input type="checkbox" id="batch"> Wgraj wiele plików naraz</label>
     <div class="hist-head">
       <h3 id="history-title">Historia</h3>
       <button type="button" id="clear" class="small">Wyczyść historię</button>
@@ -161,7 +163,7 @@
     <button type="button" id="zip" class="small" title="Pobierz ZIP z JSON-ami wszystkich gotowych plików z historii" hidden>Pobierz wszystkie</button>
     <ul class="files" id="files" aria-labelledby="history-title"></ul>
     <p id="history-empty" class="muted">Brak przetworzonych plików.</p>
-    <p id="announce" class="muted" aria-live="polite"></p>
+    <p id="announce" aria-live="polite"></p>
     <p id="live" class="sr-only" aria-live="polite"></p>
   </section>
 
@@ -172,7 +174,7 @@
       <ol>
         <li><strong>Wgraj pusty formularz</strong> po lewej: PDF, Word, Excel albo skan.</li>
         <li><strong>Sprawdź e-usługę obok oryginału.</strong> Pod każdym polem jest cytat z papieru, z którego powstało.</li>
-        <li><strong>Popraw, co trzeba, i pobierz JSON</strong> gotowy do importu w COI.</li>
+        <li><strong>Popraw, co trzeba, i pobierz JSON</strong> gotowy do importu w COI. „Edytuj” obok pola otwiera je do poprawy.</li>
       </ol>
     </div>
     <p id="result-name" class="name" hidden></p>
@@ -361,9 +363,10 @@ $("#batch").addEventListener("change", (event) => setBatch(event.target.checked)
 
 async function addFiles(files) {
   if (!files.length) return;
+  $("#announce").textContent = "";
   if (!$("#batch").checked && files.length > 1) {
     files = files.slice(0, 1);
-    $("#announce").textContent = `Biorę tylko pierwszy plik (${files[0].name}). Aby wrzucić kilka naraz, zaznacz „Wrzuć wiele plików”.`;
+    $("#announce").textContent = `Biorę tylko pierwszy plik (${files[0].name}). Aby wgrać kilka naraz, zaznacz „Wgraj wiele plików naraz”.`;
   }
   const added = [];
   for (const file of files) {
@@ -411,6 +414,7 @@ async function convert(item) {
     Object.assign(item, { status: "error", error: "Brak połączenia z serwerem." });
   }
   clearInterval(ticker);
+  if (item.status === "error") checkModel();
   if (item.deleted) return;
   await persist(item);
   if (item.status !== "queued") {
@@ -427,7 +431,7 @@ async function removeItem(item) {
   if (item.id !== undefined) await store("delete", item.id).catch(() => {});
   if (item === state.selected) select(null);
   renderFiles();
-  $("#announce").textContent = `Usunięto z historii: ${item.file.name}`;
+  $("#live").textContent = `Usunięto z historii: ${item.file.name}`;
 }
 
 $("#clear").addEventListener("click", async () => {
@@ -437,7 +441,7 @@ $("#clear").addEventListener("click", async () => {
   await store("clear").catch(() => {});
   select(null);
   renderFiles();
-  $("#announce").textContent = "Historia wyczyszczona.";
+  $("#live").textContent = "Historia wyczyszczona.";
 });
 
 const when = (ms) => new Date(ms).toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -481,14 +485,16 @@ function renderFiles() {
   $("#zip").textContent = `Pobierz wszystkie JSON-y (${done})`;
 }
 
+// A file dropped anywhere on the page is an upload (the box lights up while one is dragged over the window);
+// one dropped on the embedded preview arrives as a "coi-drop" message.
 const drop = $("#drop");
 $("#file").addEventListener("change", (event) => { addFiles([...event.target.files]); event.target.value = ""; });
-drop.addEventListener("dragover", (event) => { event.preventDefault(); drop.classList.add("over"); });
-drop.addEventListener("dragleave", () => drop.classList.remove("over"));
-drop.addEventListener("drop", (event) => {
+window.addEventListener("dragover", (event) => { event.preventDefault(); drop.classList.add("over"); });
+window.addEventListener("dragleave", (event) => { if (!event.relatedTarget) drop.classList.remove("over"); });
+window.addEventListener("drop", (event) => {
   event.preventDefault();
   drop.classList.remove("over");
-  addFiles([...event.dataTransfer.files]);
+  if (state.token) addFiles([...event.dataTransfer.files]);
 });
 
 // --- result: original on the left, form preview or JSON tree on the right ---
@@ -515,7 +521,7 @@ function select(item) {
 // What the e-service pane says while there is no result: waiting (with seconds), queued, or the error with a way out.
 function renderNote(item) {
   const note = $("#output-note"), failed = item.status === "error" || item.status === "interrupted";
-  note.hidden = item.status === "done" || state.view === "dicts"; // "Słowniki" has its own status line
+  note.hidden = item.status === "done";
   if (note.hidden) return;
   if (failed) {
     if (note.dataset.for === `${item.id}-failed`) return; // keep the button (and focus) while nothing changed
@@ -556,7 +562,7 @@ function showOriginal(item) {
   const name = item.file.name;
   const ext = name.split(".").pop().toLowerCase();
   state.originalUrl = URL.createObjectURL(MIME[ext] ? new Blob([item.file], { type: MIME[ext] }) : item.file);
-  Object.assign($("#original-download"), { href: state.originalUrl, download: name });
+  Object.assign($("#original-download"), { href: state.originalUrl, download: name, hidden: Boolean(MIME[ext]) }); // PDF and images are on screen already
   if (ext === "pdf") {
     const frame = el("iframe");
     frame.title = `Oryginał: ${name}`;
@@ -599,7 +605,7 @@ function showView() {
   if (state.view === "dicts" && $("#dicts-tab").hidden) state.view = "preview"; // this file has no dictionary proposals
   for (const button of document.querySelectorAll(".switch button")) {
     button.setAttribute("aria-pressed", String(button.dataset.view === state.view));
-    button.disabled = !done && button.dataset.view !== "dicts"; // nothing to preview, edit or read yet
+    button.disabled = !done; // nothing to preview, edit or read yet
   }
   const frame = state.view === "preview" || state.view === "edit"; // the same iframe previews and edits
   $("#preview-frame").hidden = !done || !frame;
@@ -623,7 +629,7 @@ for (const button of document.querySelectorAll(".switch button")) {
 // The embedded /preview?embed=1 rebuilds its whole form on every message, so switching items never shows a stale form.
 // The message carries the evidence (the paper quotes drawn under the fields) and, in "Edytuj", edit: true; each
 // message starts a new document (doc), and edits or checks of an older document are ignored. `select` = the
-// element the editor opens on ("Popraw" in the preview).
+// element the editor opens on ("Edytuj" next to it in the preview).
 function sendPreview(select) {
   const item = state.selected;
   if (!state.previewReady || item?.status !== "done") return;
@@ -654,7 +660,8 @@ let checkTimer;
 window.addEventListener("message", (event) => {
   if (event.origin !== location.origin || event.source !== $("#preview-frame").contentWindow) return;
   const data = event.data || {};
-  if (data.type === "coi-edit-request" && state.selected?.status === "done") { // "Popraw" on an element of the preview
+  if (data.type === "coi-drop") return void addFiles([...data.files]); // a form dropped on the preview
+  if (data.type === "coi-edit-request" && state.selected?.status === "done") { // "Edytuj" next to an element of the preview
     state.view = "edit";
     showView();
     return sendPreview(data.id);
@@ -852,11 +859,15 @@ $("#copy").addEventListener("click", async () => {
 
 // --- model status ---
 
-fetch("/health").then((r) => r.json()).then((health) => {
-  const text = { ok: "gotowy", model_missing: "brak modelu", unreachable: "niedostępny" }[health.llm] ?? health.llm;
-  $("#llm").textContent = `Model AI: ${text}`;
-  $("#llm").title = health.llm_model;
-}).catch(() => ($("#llm").textContent = "Model AI: brak danych"));
+// Asked on load and again after a failed file, so the header never says "gotowy" next to "model niedostępny".
+function checkModel() {
+  fetch("/health").then((r) => r.json()).then((health) => {
+    const text = { ok: "gotowy", model_missing: "brak modelu", unreachable: "niedostępny" }[health.llm] ?? health.llm;
+    $("#llm").textContent = `Model AI: ${text}`;
+    $("#llm").title = health.llm_model;
+  }).catch(() => ($("#llm").textContent = "Model AI: brak danych"));
+}
+checkModel();
 
 // --- Bonus II block (thread "propozycje słowników"): dictionary proposals next to the COI JSON ---
 // Wraps convert() and select() instead of editing them: every converted file also gets
@@ -938,7 +949,7 @@ $("#dicts-download").addEventListener("click", () => saveDicts(state.selected, s
   renderDicts = (item) => {
     base(item);
     const d = item?.dicts, tab = $("#dicts-tab");
-    tab.hidden = !d;
+    tab.hidden = !d || item.status !== "done"; // a failed or waiting file shows its own state, not proposals
     tab.textContent = d?.status === "done" ? `Słowniki (${d.result?.proposals?.length ?? 0})` : d?.status === "working" ? "Słowniki…" : "Słowniki";
     showView();
     if (item) renderNote(item);

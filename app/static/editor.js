@@ -4,9 +4,9 @@
    checked by the server with the real COI rules (POST /api/forms/check, called by the parent).
 
    Protocol (same-origin postMessage):
-   - here -> parent {type: "coi-edit-request", id}: "Popraw" was clicked on an element of the read-only preview
+   - here -> parent {type: "coi-edit-request", id}: "Edytuj" was clicked next to an element of the read-only preview
      (preview.html sends it); the parent switches to "Edytuj" and answers with coi-preview {edit: true, select: id}.
-   - parent -> here {type: "coi-preview", json, edit: true, evidence, doc, select?}: preview.html loads the JSON and its
+   - parent -> here {type: "coi-preview", json, edit: true, evidence, doc, key, select?}: preview.html loads the JSON and its
      evidence as always, then this file switches to edit mode. Without `edit` the preview stays read-only. `doc`
      numbers the document; every message back carries it, so the parent ignores edits of a document it no longer shows.
    - here -> parent {type: "coi-edit", json, evidence, version} after every change, undo and redo;
@@ -35,7 +35,7 @@ const ED_DICT_EXTRA = {
 };
 const ED_EMPTY_HTML = "<html><head></head><body></body></html>";
 
-const ed = {on: false, doc: 0, sel: null, version: 0, checked: -1, problems: [], undo: [], redo: [],
+const ed = {on: false, doc: 0, key: undefined, sel: null, version: 0, checked: -1, problems: [], undo: [], redo: [],
   pending: null, timer: 0, note: "", focusLabel: false};
 
 /* ---------- where things are ---------- */
@@ -55,7 +55,7 @@ function edFind(id) {
 // Standard pages (Dane, Kontakt i zgody, finish) come from the COI Standards and stay as code built them.
 const edEditable = loc => loc && (loc.kind === "title" || !isStandard(loc.tab));
 // On standard pages only what came from the paper is editable: the addressee and the statements (consents).
-const edAddressee = loc => loc.kind === "field" && ["nazwa_urzedu", "nazwa_organu"].includes(loc.el.techName);
+const edAddressee = loc => loc.kind === "field" && ADDRESSEE_FIELDS.includes(loc.el.techName);
 const edConsents = loc => loc.kind === "field" && loc.el.type === "CONSENT_SECTION" && Array.isArray(loc.el.consentSectionConfig?.consents);
 
 // Every element whose SHOW condition reads one of `fields`.
@@ -755,10 +755,12 @@ function edConditionControls(loc) {
 }
 
 /* ---------- entering and leaving edit mode ---------- */
-// `select` = the element to open right away ("Popraw" in the preview): shown, selected, its label ready to type in.
-function edEnter(doc, select) {
+// `select` = the element to open right away ("Edytuj" next to it in the preview): shown, selected, its label ready
+// to type in. `key` names the file: coming back to the same file (a look at "Podgląd" in between) keeps undo and redo.
+function edEnter(doc, select, key) {
   if (!cfg || $("#app").hidden) return;  // the JSON did not load: preview shows the error
-  Object.assign(ed, {on: true, doc, sel: null, version: 0, checked: -1, problems: [], undo: [], redo: [], pending: null, note: ""});
+  if (key === undefined || key !== ed.key) Object.assign(ed, {undo: [], redo: []});
+  Object.assign(ed, {on: true, doc, key, sel: null, version: 0, checked: -1, problems: [], pending: null, note: ""});
   edEnsurePanel();
   document.body.classList.add("editmode");
   applyModes();
@@ -784,7 +786,7 @@ function edLeave() {
 window.addEventListener("message", e => {
   if (e.origin !== location.origin) return;
   const d = e.data || {};
-  if (d.type === "coi-preview") { if (d.edit) edEnter(d.doc, d.select); else if (ed.on) edLeave(); }
+  if (d.type === "coi-preview") { if (d.edit) edEnter(d.doc, d.select, d.key); else if (ed.on) edLeave(); }
   if (!ed.on) return;
   if (d.type === "coi-problems" && d.doc === ed.doc && d.version === ed.version) {
     // rules name no element for the form title: pin those on the title (h1)

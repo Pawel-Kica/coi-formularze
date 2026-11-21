@@ -29,9 +29,9 @@ a{color:#0052a5}
 /* embed mode (/preview?embed=1, inside the upload page): the parent feeds the JSON, so no load buttons;
    one light strip with a single switch instead of the dark tool bar */
 .embed .tb-title,.embed #tbOpen,.embed #tbPaste,.embed #techLabel,.embed #tbReset{display:none}
-#tbFull{display:none}
-.embed #tbFull{display:block;margin-left:auto;color:#0052a5;border-color:#c5ccd6}
-.embed #tbFull:hover{background:#e8f0fb}
+.embed .wrap{padding-top:1rem}
+.embed h1{font-size:1.25rem;margin-bottom:.6rem}
+.embed .stepper{margin-bottom:1rem}
 .embed .toolbar{background:#fff;color:#4b5563;border-bottom:1px solid #d5dbe3;position:sticky;top:0;z-index:5}
 .embed .toolbar label{color:#1b1f24;font-weight:600}
 .embed .toolbar :focus-visible{outline-color:#0052a5}
@@ -112,13 +112,13 @@ body:not(.editmode) .src.edit-only{display:none}
 .card>.src+.src{margin-top:-.7rem}
 #pageHeading~.src,.legend{margin:0 0 1rem}
 .legend{border-left-color:#1e7b34}
-/* "Popraw" on every element of the embedded preview: one click from reading a field to fixing it in the editor */
+body.editmode .read-only{display:none}
+/* "Edytuj" next to every element of the embedded preview (annotations on): one click from reading a field to fixing it */
 .fix{display:none}
-.embed:not(.editmode) :is(.cell,.card){position:relative}
-.embed:not(.editmode) .fix{display:block;position:absolute;top:-.2rem;right:0;opacity:0;background:#fff;color:#0052a5;border:1px solid #0052a5;border-radius:4px;padding:.1rem .55rem;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
-.embed:not(.editmode) .card>.fix{top:1.1rem;right:1.25rem}
-.embed:not(.editmode) [data-bound]:hover>.fix,.embed .fix:focus-visible{opacity:1}
-.embed .fix:hover{background:#e8f0fb}
+.embed .cell{display:flow-root}
+body.embed.notes:not(.editmode) .fix{display:block;float:right;margin:.3rem 0 0 .75rem;background:none;color:#0052a5;border:1px solid transparent;border-radius:4px;padding:.05rem .45rem;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+body.embed.notes:not(.editmode) .card>.fix{margin-top:.1rem}
+.embed [data-bound]:hover:not(:has([data-bound]:hover))>.fix,.embed .fix:hover,.embed .fix:focus-visible{border-color:#0052a5;background:#e8f0fb}
 .ghost{display:none}
 /* a hidden element in annotation mode: one dashed line saying what would show it */
 body.ghosts .cond-hidden:has(>.ghost){display:block!important}
@@ -151,11 +151,10 @@ body.techmode .tech{display:block}
   <button type="button" class="tb-btn" id="tbOpen">Wczytaj plik JSON</button>
   <input type="file" id="fileInput" accept=".json,application/json" hidden>
   <button type="button" class="tb-btn" id="tbPaste">Wklej JSON</button>
-  <label><input type="checkbox" id="notesToggle" checked> Cytaty z papieru i warunki</label>
+  <label><input type="checkbox" id="notesToggle" checked> Pokaż cytaty z papieru i warunki</label>
   <label id="techLabel"><input type="checkbox" id="techToggle"> Nazwy techniczne</label>
   <details class="issues" id="issuesBox" hidden><summary>Uwagi (0)</summary><ol></ol></details>
   <button type="button" class="tb-btn" id="tbReset">Wyczyść odpowiedzi</button>
-  <button type="button" class="tb-btn" id="tbFull">Otwórz w nowej karcie</button>
 </header>
 <div class="load-error" id="loadError" role="alert"></div>
 
@@ -188,7 +187,9 @@ body.techmode .tech{display:block}
 
 <script>
 "use strict";
-const STORE_KEY = "coi-preview", EVIDENCE_KEY = "coi-preview-evidence";
+const STORE_KEY = "coi-preview";
+const EMBED = new URLSearchParams(location.search).has("embed");  // inside the upload page, which feeds the JSON
+const ADDRESSEE_FIELDS = ["nazwa_urzedu", "nazwa_organu"];  // the one Dane field that holds what the paper says
 const KNOWN_TYPES = ["SECTION","REPEATING_SECTION","TEXT_FIELD","TEXTAREA","NUMBER","DATEPICKER","RADIO","SELECT","CHECKBOX","FILE_UPLOADER","TEXT_BLOCK","INFO_SECTION","CONSENT_SECTION"];
 const STATIC_TYPES = ["TEXT_BLOCK","INFO_SECTION"];
 
@@ -363,6 +364,19 @@ function resetAnswers() {
   }
 }
 
+// Copies earlier answers into the fresh ones wherever the same page, section and field still exist with the same
+// kind of value (the config may have been edited in between).
+function keepAnswers(old) {
+  const fill = (row, was) => { for (const k of Object.keys(row)) if (k in was && typeof was[k] === typeof row[k] && Array.isArray(was[k]) === Array.isArray(row[k])) row[k] = was[k]; };
+  for (const [tab, secs] of Object.entries(answers)) for (const [name, now] of Object.entries(secs)) {
+    const was = old[tab]?.[name];
+    if (!was || Array.isArray(was) !== Array.isArray(now)) continue;
+    if (!Array.isArray(now)) { fill(now, was); continue; }
+    while (now.length < was.length) now.push({...now[0]}); // rows the citizen added
+    now.forEach((row, i) => { if (was[i]) fill(row, was[i]); });
+  }
+}
+
 /* ---------- conditions (JSONata subset) ---------- */
 const Q = String.raw`(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")`;
 const SEL = key => String.raw`\[\s*(${Q})\s+in\s+${key}\s*\]`;
@@ -529,14 +543,14 @@ function findRef(ref) {
 
 const refField = ref => { const r = findRef(ref); return typeof r === "string" ? null : r.f; };
 
-// A condition in plain words: „Pole” = „opcja” lub ...
+// A condition in plain words: w polu „Pole” wybrano „opcja” lub ...
 function describeCond(n, parentOp) {
   const name = ref => { const f = refField(ref); return f ? `„${labelOf(f)}”` : "(usunięte pole)"; };
   switch (n.op) {
     case "in": case "=": case "!=": {
       const lit = [n.l, n.r].find(x => x.op === "lit"), path = [n.l, n.r].find(x => x.op === "path");
       if (!lit || !path) return "…";
-      return `${name(path.ref)} ${n.op === "!=" ? "≠" : "="} „${lit.v}”`;
+      return `w polu ${name(path.ref)} ${n.op === "!=" ? "nie wybrano" : "wybrano"} „${lit.v}”`;
     }
     case "not": return `nie: ${describeCond(n.e, "not")}`;
     case "or": case "and": {
@@ -589,9 +603,13 @@ function notesOf(f, kind, standard) {
   return out;
 }
 
-// "Popraw": asks the upload page to open the click editor on this element (embedded preview only).
-const fixButton = f => h("button", {type: "button", class: "fix", "aria-label": `Popraw: ${labelOf(f)}`,
-  onclick: () => parent.postMessage({type: "coi-edit-request", id: f.id}, location.origin)}, "Popraw");
+// "Edytuj" next to an element: asks the upload page to open the click editor on it (embedded preview only).
+// Standard pages are built by code and stay as they are, except what came from the paper: the addressee and the statements.
+function fixButton(f, kind, standard) {
+  const editable = !standard || (kind === "field" && (ADDRESSEE_FIELDS.includes(f.techName) || f.type === "CONSENT_SECTION"));
+  return EMBED && editable && h("button", {type: "button", class: "fix", "aria-label": `Edytuj: ${labelOf(f)}`,
+    onclick: () => parent.postMessage({type: "coi-edit-request", id: f.id}, location.origin)}, "Edytuj");
+}
 
 // One dashed line that stands in for a hidden element in annotation mode, or null when the element is always
 // visible. Code-made fields (the two address variants) stay simply hidden.
@@ -605,10 +623,10 @@ function ghostOf(f, kind) {
 // The line under the form title: what the green quotes are, and how many elements have one.
 function renderLegend() {
   const n = Object.values(evidence).filter(e => e.source === "paper" && e.quote).length;
-  $("#legend").textContent = !hasEvidence()
-    ? "Ten plik nie ma cytatów z papieru (wczytany JSON albo starszy wynik). Wgraj formularz ponownie, aby je zobaczyć."
-    : `Z papieru: ${n} ${plural(n, ["element", "elementy", "elementów"])}, pod każdym jest dosłowny cytat z formularza. ` +
-      "Strony „Dane”, „Kontakt i zgody” i końcową dodaje kod według Standardów COI.";
+  $("#legend").replaceChildren(...(!hasEvidence()
+    ? ["Ten plik nie ma cytatów z papieru (wczytany JSON albo starszy wynik). Wgraj formularz ponownie, aby je zobaczyć."]
+    : [`Z papieru: ${n} ${plural(n, ["element", "elementy", "elementów"])}, pod każdym jest dosłowny cytat z formularza.`,
+       EMBED && h("span", {class: "read-only"}, " „Edytuj” obok elementu otwiera go do poprawy.")].filter(Boolean)));
 }
 // Polish plural: plural(3, ["pole", "pola", "pól"]) -> "pola".
 const plural = (n, [one, few, many]) => n === 1 ? one : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? few : many;
@@ -738,7 +756,7 @@ function loadText(text, save = true, ev = null) {
   try { obj = JSON.parse(text); } catch (e) { return showLoadError("To nie jest poprawny JSON: " + e.message); }
   if (!obj || typeof obj !== "object" || !Array.isArray(obj.tabs) || !obj.tabs.length)
     return showLoadError("W pliku brak niepustej tablicy „tabs”: to nie wygląda na konfigurację e-usługi COI.");
-  if (save) { try { localStorage.setItem(STORE_KEY, text); localStorage.removeItem(EVIDENCE_KEY); } catch (e) { /* quota or private mode: preview still works */ } }
+  if (save) { try { localStorage.setItem(STORE_KEY, text); } catch (e) { /* quota or private mode: preview still works */ } }
   showLoadError("");
   evidence = ev && typeof ev === "object" ? ev : {};
   start(obj);
@@ -805,7 +823,7 @@ function renderQuestion(tab, q) {
 function renderSection(tab, q) {
   const f = q.field, hid = uid(), hint = hintEl(f.description);
   const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
-    ghostOf(f, "section"), h("h3", {id: hid}, f.title || f.techName), fixButton(f), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q),
+    ghostOf(f, "section"), fixButton(f, "section", isStandard(tab)), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q),
     layoutGrid(f.repeatingSectionGrid, c => renderField(c, {store: answers[tab.title][f.techName], row: null, standard: isStandard(tab)})));
   card._entry = {field: f, row: null, controls: []};
   return card;
@@ -832,7 +850,7 @@ function renderRepeating(tab, q) {
   }
   drawRows();
   const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
-    ghostOf(f, "section"), h("h3", {id: hid}, f.title || f.techName), fixButton(f), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q), list, addBtn);
+    ghostOf(f, "section"), fixButton(f, "section", isStandard(tab)), h("h3", {id: hid}, f.title || f.techName), notesOf(f, "section", isStandard(tab)), hint, techLines(f, q), list, addBtn);
   card._entry = {field: f, row: null, controls: []};
   return card;
 }
@@ -941,7 +959,7 @@ function renderField(cell, ctx) {
   }
   if (caption) wrap.append(caption);
   if (f.tooltipMessage) wrap.append(h("details", {class: "tip"}, h("summary", {}, "Pomoc"), sanitize(f.tooltipMessage)));
-  wrap.append(h("p", {class: "err", id: errId, hidden: true}), ...notesOf(f, "field", ctx.standard), ...techLines(f, cell), fixButton(f));
+  wrap.append(h("p", {class: "err", id: errId, hidden: true}), fixButton(f, "field", ctx.standard) || "", ...notesOf(f, "field", ctx.standard), ...techLines(f, cell));
   // a wrong format (PESEL, kod pocztowy...) shows as soon as the field is left; an empty required field never blocks the preview
   wrap.addEventListener("change", () => showErr(wrap, isEmpty(st[tn]) ? null : checkField(entry)));
   return wrap;
@@ -968,7 +986,10 @@ function refreshStates(first = false) {
     void el.offsetWidth; // restart the animation
     el.classList.add("flash");
   }
-  if (shown.length) $("#live").textContent = "Pokazano: " + shown.map(el => labelOf(el._entry.field)).join(", ");
+  if (!shown.length) return;
+  $("#live").textContent = "Pokazano: " + shown.map(el => labelOf(el._entry.field)).join(", ");
+  const top = shown[0].getBoundingClientRect().top; // revealed below (or above) what is on screen: bring it into view
+  if (top > innerHeight - 140 || top < 60) window.scrollTo({top: scrollY + top - innerHeight * 0.3, behavior: "smooth"});
 }
 
 function renderStepper() {
@@ -1171,47 +1192,49 @@ $("#pasteDlg").addEventListener("close", () => { if ($("#pasteDlg").returnValue 
 $("#techToggle").addEventListener("change", applyModes);
 $("#notesToggle").addEventListener("change", applyModes);
 $("#tbReset").addEventListener("click", () => { if (!cfg) return; resetAnswers(); go(0); });
-// Embedded preview -> the same form on a full tab: the JSON and its evidence travel through localStorage
-// (it survives the new tab, unlike sessionStorage with noopener).
-$("#tbFull").addEventListener("click", () => {
-  if (!cfg) return;
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(cfg)); localStorage.setItem(EVIDENCE_KEY, JSON.stringify(evidence)); } catch (e) { return; }
-  window.open("/preview", "_blank");
-});
 window.addEventListener("dragover", e => { e.preventDefault(); document.body.classList.add("dragging"); });
 window.addEventListener("dragleave", e => { if (!e.relatedTarget) document.body.classList.remove("dragging"); });
 window.addEventListener("drop", e => {
   e.preventDefault();
   document.body.classList.remove("dragging");
-  readFile(e.dataTransfer.files[0]);
+  // embedded: a file dropped here is a form for the upload page, not a JSON for this preview
+  if (EMBED) parent.postMessage({type: "coi-drop", files: [...e.dataTransfer.files]}, location.origin);
+  else readFile(e.dataTransfer.files[0]);
 });
 
 renderIssues();
 // Embed mode: the same-origin parent (upload page) posts {type: "coi-preview", json, evidence, key} for the selected file.
 // Each message replaces the whole form, and nothing is saved, so the standalone preview keeps its own JSON.
-// The same `key` again (the same file: a switch between "Podgląd" and "Edytuj") keeps the step that was open.
+// The same `key` again (the same file: a switch between "Podgląd" and "Edytuj") keeps the open step, the scroll
+// position and the answers given in the preview, so a revealed section is still there after an edit.
 // With {edit: true} editor.js then switches the form to edit mode (upload page "Edytuj").
 applyModes();
-if (new URLSearchParams(location.search).has("embed")) {
+if (EMBED) {
   document.body.classList.add("embed");
   $("#empty").hidden = true;
-  let shownKey;
+  let shownKey, kept = null; // kept = the answers of the last read-only view of this file (the editor resets them)
   window.addEventListener("message", e => {
     if (e.origin !== location.origin || e.data?.type !== "coi-preview") return;
-    const step = cfg && e.data.key !== undefined && e.data.key === shownKey ? pageIdx : 0;
+    const same = cfg && e.data.key !== undefined && e.data.key === shownKey;
+    const step = same ? pageIdx : 0, y = same ? scrollY : 0;
+    const edited = same && $(".ed-sel")?.dataset.fid; // back from the editor: the element that was being fixed
+    if (!same) kept = null;
+    else if (!document.body.classList.contains("editmode")) kept = answers;
     shownKey = e.data.key;
     $("#app").hidden = true; // a JSON that fails to load must not leave the previous form on screen
     loadText(e.data.json, false, e.data.evidence);
-    if (step && !$("#app").hidden) go(step, false);
-    window.scrollTo(0, 0);
+    if ($("#app").hidden) return;
+    if (kept) keepAnswers(kept);
+    if (same) go(step, false);
+    // after editor.js has left or entered edit mode (its listener runs next and changes the layout)
+    setTimeout(() => {
+      const back = edited && $(`#page [data-fid="${CSS.escape(edited)}"]`);
+      if (back) back.scrollIntoView({block: "center"}); else if (!e.data.select) window.scrollTo(0, y);
+    });
   });
 } else {
-  // "Pełny ekran" on the upload page leaves the JSON and its evidence in localStorage
-  const read = key => { try { return localStorage.getItem(key); } catch (e) { return null; } };
-  const saved = read(STORE_KEY);
-  let ev = null;
-  try { ev = JSON.parse(read(EVIDENCE_KEY)); } catch (e) { /* no evidence: the preview works without quotes */ }
-  if (saved) loadText(saved, false, ev);
+  const saved = (() => { try { return localStorage.getItem(STORE_KEY); } catch (e) { return null; } })();
+  if (saved) loadText(saved, false);
 }
 </script>
 <!-- Edit mode (the click editor on the upload page); inactive unless the parent sends {edit: true}. -->

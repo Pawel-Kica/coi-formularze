@@ -27,7 +27,7 @@ Ollama powinna mieć okno kontekstu co najmniej 32k tokenów (najdłuższy formu
 
 Strona: http://localhost:8000, dokumentacja OpenAPI: http://localhost:8000/docs. Testy: `uv run pytest`.
 
-Podgląd e-usługi: http://localhost:8000/preview pokazuje JSON COI tak, jak zobaczy go obywatel (strony, sekcje, zależności na żywo, walidatory, przełącznik „pokaż techniczne”). JSON wrzucasz plikiem, wklejasz albo otwierasz przyciskiem „Podgląd” na stronie uploadu.
+Podgląd e-usługi: http://localhost:8000/preview pokazuje JSON COI tak, jak zobaczy go obywatel (strony, sekcje, zależności na żywo, walidatory). Każdy krok otwiera się bez wypełniania pól. Przełącznik „Cytaty z papieru i warunki” pokazuje pod każdym polem dosłowny fragment papierowego formularza, z którego powstało, a ukryte pola jako jedną linię z warunkiem, który je odsłoni. JSON wrzucasz plikiem albo wklejasz; na stronie uploadu ten sam podgląd jest wbudowany obok oryginału.
 
 ## Docker
 
@@ -88,10 +88,11 @@ Kolumna „Autoryzacja” dotyczy `AUTH_ENABLED=1`; przy domyślnym `0` wszystko
 |---|---|---|
 | `GET /api/auth/config` | brak | `{"enabled": true \| false}`, czy wymagany jest token (`AUTH_ENABLED`); strony pytają o to przed pokazaniem logowania |
 | `POST /api/auth/token` | brak | `username` i `password` (JSON lub formularz) → `{access_token, token_type, expires_in}` |
-| `POST /api/forms/convert` | `Bearer` JWT | Jeden plik w polu `file` (multipart) → JSON COI, bez żadnej otoczki. Z `?evidence=1` → `{"coi": ..., "evidence": {id elementu: {"source": "paper" \| "model" \| "code", "quote": cytat z papieru, "page": ...}}}` (tego używa edytor na stronie) |
+| `POST /api/forms/convert` | `Bearer` JWT | Jeden plik w polu `file` (multipart) → JSON COI, bez żadnej otoczki. Z `?evidence=1` → `{"coi": ..., "evidence": {id elementu: {"source": "paper" \| "model" \| "code", "quote": cytat z papieru, "page": ...}}}` (tego używa strona: cytaty w podglądzie i w edytorze) |
+| `POST /api/forms/text` | `Bearer` JWT | Jeden plik w polu `file` (multipart) → `{"text": tekst odczytany z pliku, "method": sposób odczytu}`, bez modelu. Strona pokazuje go jako oryginał dla formatów, których przeglądarka nie wyświetla (DOC, DOCX, ODS, XLSX, XLS) |
 | `POST /api/forms/check` | `Bearer` JWT | JSON COI (np. po poprawkach urzędnika) → `{"problems": [{"id": id elementu lub null, "message": opis po polsku, "detail": reguła}]}`; pusta lista = gotowe do importu, te same reguły co przy konwersji |
 | `GET /health` | brak | `{"status": "ok", "llm": "ok" \| "model_missing" \| "unreachable" \| "no_api_key", "llm_backend": ..., "llm_model": ...}` |
-| `GET /` | brak | Strona do wgrywania plików (kilka plików przetwarza po kolei, wynik jako podgląd e-usługi albo drzewo JSON) z edytorem „Edytuj”: urzędnik klika element i poprawia go w panelu, przy każdym polu widzi cytat z papieru, a każdą zmianę sprawdzają reguły COI (z problemami nie pobierze JSON-a) |
+| `GET /` | brak | Strona do wgrywania plików (kilka plików przetwarza po kolei): oryginał obok e-usługi w widokach „Podgląd” (cytat z papieru pod każdym polem), „Edytuj”, „JSON” i „Słowniki”. „Edytuj” obok pola otwiera edytor na tym polu: urzędnik poprawia je w panelu, a każdą zmianę sprawdzają reguły COI (z problemami nie pobierze JSON-a) |
 | `GET /docs` | brak | OpenAPI / Swagger UI (przycisk „Authorize” loguje loginem i hasłem) |
 
 ```bash
