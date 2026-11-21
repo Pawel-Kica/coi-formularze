@@ -105,7 +105,6 @@ input.ro,textarea.ro,select:disabled{background:#f3f4f6;border-color:#f3f4f6;col
 /* annotations ("Cytaty z papieru i warunki", always on in the editor): where an element comes from and when it shows */
 .src{display:none;font-size:13px;line-height:1.4;margin:.4rem 0 0;padding:.05rem 0 .05rem .6rem;border-left:3px solid #c5ccd6;color:#4b5563;word-break:break-word}
 body.notes .src{display:block}
-body:not(.editmode) .src.edit-only{display:none}
 .src.paper{border-left-color:#1e7b34;color:#14532d}
 .src.cond{border-left-color:#b7791f;color:#6b2c00}
 .card>.src{margin:-.5rem 0 1rem}
@@ -580,19 +579,15 @@ const quoteLine = (label, quote) => h("p", {class: "src paper", title: quote.len
   h("strong", {}, label + ": "), `„${quote.length > 240 ? quote.slice(0, 237) + "…" : quote}”`);
 
 // Annotation lines of an element (kind "tab" | "section" | "field"): the paper quote it was built from, when it
-// shows, and the quote behind that condition. Lines that only matter while editing carry "edit-only".
-// Fields that code added (standard pages, address blocks) get no line of their own: the page or section says it once.
+// shows, and the quote behind that condition. Pages and sections the model grouped get no line (the legend says it
+// once), nor do fields added from the Standards (standard pages, address blocks): the page or section says it once.
 function notesOf(f, kind, standard) {
   const ev = evidence[f.id], out = [], codeField = kind === "field" && ev?.source === "code";
   if (ev?.source === "paper" && ev.quote) {
     out.push(quoteLine("Z papieru", ev.quote));
     if (kind === "section" && (f.repeatingSectionGrid || []).some(c => evidence[c.field.id]?.source === "code"))
-      out.push(h("p", {class: "src"}, "Pola adresu w tej sekcji układa kod według Standardów COI."));
-  } else if (ev && !standard) {
-    const text = {clerk: "Dodane w edytorze, bez cytatu z papieru.", code: "Dodane przez kod według Standardów COI, bez cytatu z papieru.",
-      model: kind === "tab" ? "Stronę ułożył model, grupując sekcje. Cytaty są przy polach." : "Sekcję ułożył model, grupując pola. Cytaty są przy polach."}[ev.source];
-    if (text) out.push(h("p", {class: "src" + (ev.source === "clerk" ? "" : " edit-only")}, text));
-  }
+      out.push(h("p", {class: "src"}, "Pola adresu w tej sekcji są dodane automatycznie według Standardów COI."));
+  } else if (ev?.source === "clerk") out.push(h("p", {class: "src"}, "Dodane w edytorze, bez cytatu z papieru."));
   if (kind !== "tab" && !codeField) {
     const ct = condText(f);
     if (ct) out.push(h("p", {class: "src cond"}, h("strong", {}, "Widoczne, gdy: "), ct));
@@ -648,7 +643,7 @@ function standardNote(tab) {
   const fields = tab.questions.flatMap(q => (q.field.repeatingSectionGrid || []).map(c => c.field));
   const paper = [fields.some(f => ADDRESSEE_FIELDS.includes(f.techName) && evidence[f.id]?.source === "paper") && "adresat wniosku",
     fields.some(f => (evidence[f.id]?.consent_quotes || []).some(Boolean)) && "oświadczenia"].filter(Boolean);
-  return "Strona standardowa COI, buduje ją kod." + (paper.length ? ` Z papieru: ${paper.join(" i ")}.` : "");
+  return "Strona standardowa COI, dodana automatycznie." + (paper.length ? ` Z papieru: ${paper.join(" i ")}.` : "");
 }
 
 // The line under the form title: what the green quotes are, and how many elements have one.

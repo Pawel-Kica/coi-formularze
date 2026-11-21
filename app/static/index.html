@@ -65,7 +65,7 @@
   ul.files .pick:hover { background: #eef3f9; color: var(--text); }
   ul.files .del { flex: none; border-color: var(--line); color: var(--muted); padding: 0 10px; }
   ul.files .del:hover { background: #fbeaea; border-color: var(--err); color: var(--err); }
-  .name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; font-weight: 600; line-height: 1.3; }
   .sub { display: flex; justify-content: space-between; gap: 8px; font-size: .8rem; color: var(--muted); }
   .status { white-space: nowrap; }
   .status.done { color: var(--ok); } .status.error { color: var(--err); } .status.interrupted { color: var(--warn); }
@@ -251,7 +251,7 @@ const state = {
   token: sessionStorage.getItem("token"), items: [], selected: null, busy: false, hits: [], hit: -1,
   view: "preview", // e-service view: preview | edit | json | dicts; a new file always opens in the preview
   originalUrl: null, previewReady: false,
-  doc: 0, docItem: null, lastCheck: null, // editor: which document the iframe shows, the newest rules check asked for
+  doc: 0, docItem: null, // editor: which document the iframe shows (and whose edits it sends)
 };
 const STATUS = { queued: "Czeka", working: "W trakcie", done: "Gotowe", error: "Błąd", interrupted: "Przerwane" };
 
@@ -655,7 +655,8 @@ function sendPreview(select) {
 
 // --- editor ("Edytuj"): the iframe sends every change, we save it and check it with the real COI rules ---
 
-// Ready to download: finished, the newest edit checked (item.checking), and no rules problems.
+// Ready to download: finished, the newest edit checked (item.checking; item.lastCheck = the check asked for last,
+// item.checkFailed = it did not get through), and no rules problems.
 function exportable(item) { return item.status === "done" && !item.checking && !(item.problems?.length > 0); }
 
 // Download, copy and the status next to them follow the selected item; problems (or a check still running) block the export.
@@ -663,9 +664,10 @@ function updateActions() {
   const item = state.selected, done = item?.status === "done", bad = done && item.problems?.length > 0;
   $("#download").disabled = $("#copy").disabled = !done || !exportable(item);
   const status = $("#edit-status");
-  status.className = bad ? "bad" : "muted";
+  status.className = bad || item?.checkFailed ? "bad" : "muted";
   // why "Pobierz JSON" is off; inside "Edytuj" the editor panel already says it and lists the problems
-  status.textContent = bad && state.view !== "edit" ? `Do poprawy: ${item.problems.length}. Otwórz „Edytuj”.` : "";
+  status.textContent = !done ? "" : item.checkFailed ? "Nie udało się sprawdzić zmian. Zmień cokolwiek w „Edytuj”, aby spróbować ponownie."
+    : bad && state.view !== "edit" ? `Do poprawy: ${item.problems.length}. Otwórz „Edytuj”.` : "";
   renderFiles();
 }
 
@@ -686,14 +688,14 @@ window.addEventListener("message", (event) => {
     persist(item);
     if (item === state.selected) updateActions(); // no download of a change the rules have not seen yet
     clearTimeout(checkTimer);
-    checkTimer = setTimeout(() => checkRules(item, data.version), 250);
+    const doc = state.doc; // the check belongs to this document even if another file is opened before it starts
+    checkTimer = setTimeout(() => checkRules(item, data.version, doc), 250);
   }
 });
 
 // POST /api/forms/check on the item's current JSON; the problems go to the editor and into history.
-async function checkRules(item, version) {
-  const doc = state.doc;
-  state.lastCheck = { doc, version };
+async function checkRules(item, version, doc = state.doc) {
+  item.lastCheck = { doc, version };
   let problems;
   try {
     const response = await fetch("/api/forms/check", {
@@ -703,11 +705,12 @@ async function checkRules(item, version) {
     if (!response.ok) throw new Error();
     problems = (await response.json()).problems;
   } catch {
-    if (item === state.selected) $("#edit-status").textContent = "Nie udało się sprawdzić zmian (brak połączenia z serwerem).";
+    item.checkFailed = true; // "Pobierz JSON" stays off, and the pane head says why
+    if (item === state.selected) updateActions();
     return;
   }
-  if (state.lastCheck?.doc !== doc || state.lastCheck.version !== version) return; // a newer edit is being checked
-  Object.assign(item, { problems, checking: false });
+  if (item.lastCheck.doc !== doc || item.lastCheck.version !== version) return; // a newer edit is being checked
+  Object.assign(item, { problems, checking: false, checkFailed: false });
   persist(item);
   if (doc === state.doc) $("#preview-frame").contentWindow.postMessage({ type: "coi-problems", problems, version, doc }, location.origin);
   if (item === state.selected) updateActions();

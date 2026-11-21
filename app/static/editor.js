@@ -312,7 +312,7 @@ function edMove(id, dir) {
 function edRemove(id) {
   const loc = edFind(id);
   const gone = loc.kind === "section" ? [loc.el, ...(loc.el.repeatingSectionGrid || []).map(c => c.field)] : [loc.el];
-  const deps = edDependents(gone).length;
+  const broken = edDependents(gone).filter(f => !gone.includes(f)), deps = broken.length;  // their conditions read what goes away
   const what = loc.kind === "section" ? "sekcję" : "pole";
   edChange(() => {
     if (loc.kind === "field") {
@@ -320,10 +320,15 @@ function edRemove(id) {
       edLayoutSection(loc.section);
     } else loc.tab.questions = loc.tab.questions.filter(q => q.field.id !== id);
     edLayoutTab(loc.tab);
-    ed.sel = loc.kind === "field" ? loc.section.id : null;
+    ed.sel = deps ? broken[0].id : loc.kind === "field" ? loc.section.id : null;
   }, `Usunięto ${what}. ` + (deps
-    ? `Od usuniętego zależy warunek: ${deps} ${plural(deps, ["element", "elementy", "elementów"])}. Popraw te warunki (czerwone) albo cofnij (Ctrl+Z).`
+    ? `${deps === 1 ? "Zależał od niego 1 element" : `Zależały od niego ${deps} ${plural(deps, ["element", "elementy", "elementów"])}`}, ` +
+      `teraz na czerwono. Popraw warunek albo cofnij (Ctrl+Z).`
     : "Cofniesz to przez Ctrl+Z."));
+  if (!deps) return;
+  const at = edFind(broken[0].id);  // show the element that now needs a fix, on whatever step it is
+  if (at.tab && pages.indexOf(at.tab) !== pageIdx) go(pages.indexOf(at.tab), false);
+  document.querySelector(`[data-fid="${CSS.escape(broken[0].id)}"]`)?.scrollIntoView({block: "start"});  // its heading and the red line under it
 }
 
 // Type change: keeps label, description and REQUIRED; drops what the new type cannot have.
@@ -581,9 +586,9 @@ function edEvidenceBox(loc) {
     box.append(quote("Z papieru", ev.quote));
   } else {
     box.append(h("p", {}, {
-      model: loc.kind === "tab" ? "Stronę ułożył model, grupując sekcje. Strona nie ma własnego cytatu."
-        : "Sekcję ułożył model, grupując pola z papieru. Sekcja nie ma własnego cytatu, cytaty są przy jej polach.",
-      code: "Dodane przez kod ze Standardów COI. Tego elementu nie ma na papierze.",
+      model: loc.kind === "tab" ? "Stronę ułożył model, grupując sekcje. Cytaty są przy polach."
+        : "Sekcję ułożył model, grupując pola. Cytaty są przy polach.",
+      code: "Dodane automatycznie według Standardów COI. Tego elementu nie ma na papierze.",
       clerk: "Dodane przez Ciebie w edytorze. Nie ma cytatu z papieru.",
       paper: "Z papieru, bez zapisanego cytatu.",
     }[ev.source] || "Brak informacji o pochodzeniu."));
@@ -591,19 +596,19 @@ function edEvidenceBox(loc) {
   if (ev?.condition_quote) box.append(quote("Warunek z papieru", ev.condition_quote));
   if (ev?.condition_source === "clerk") box.append(h("p", {}, "Warunek ustawiony przez Ciebie."));
   (ev?.consent_quotes || []).forEach((q, i) => box.append(q ? quote(`Oświadczenie ${i + 1} z papieru`, q)
-    : h("p", {}, h("strong", {}, `Oświadczenie ${i + 1}: `), i === 0 ? "standard COI (klauzula RODO), dodana przez kod" : "dodane przez Ciebie, bez cytatu")));
+    : h("p", {}, h("strong", {}, `Oświadczenie ${i + 1}: `), i === 0 ? "standard COI (klauzula RODO), dodana automatycznie" : "dodane przez Ciebie, bez cytatu")));
   return box;
 }
 
 function edElementPanel(loc) {
   const kind = {title: "Tytuł e-usługi", tab: "Strona", section: ED_TYPE_NAMES[loc.el?.type] || "Sekcja", field: "Pole"}[loc.kind];
   const name = loc.kind === "title" ? cfg.title : loc.kind === "tab" ? loc.tab.title : labelOf(loc.el);
-  const out = [h("p", {class: "ed-kind"}, kind + (loc.kind === "field" ? ` · ${ED_TYPE_NAMES[loc.el.type] || loc.el.type}` : "")),
+  const out = [h("p", {class: "ed-kind"}, kind),
     h("h3", {class: "ed-title"}, name || "(bez tytułu)"), edEvidenceBox(loc) || "", h("ul", {class: "ed-probs", id: "edMine"})];
   if (!edEditable(loc)) {
     if (edAddressee(loc)) out.push(...edAddresseeControls(loc.el));
     else if (edConsents(loc)) out.push(...edConsentControls(loc.el));
-    else out.push(h("p", {class: "ed-readonly"}, "Tę stronę buduje kod według Standardów COI, taka sama w każdej e-usłudze. " +
+    else out.push(h("p", {class: "ed-readonly"}, "Ta strona powstaje automatycznie według Standardów COI, taka sama w każdej e-usłudze. " +
       "Poprawisz na takich stronach tylko to, co jest z papieru: adresata wniosku i oświadczenia."));
     return out;
   }
@@ -741,13 +746,13 @@ function edConditionControls(loc) {
     if (!groups.has(t.tab)) groups.set(t.tab, []);
     groups.get(t.tab).push(t);
   }
-  const fieldSel = h("select", {"data-k": "condfield", "aria-label": "Zależy od pola"}, h("option", {value: ""}, "nie zależy, zawsze widoczne"),
+  const fieldSel = h("select", {"data-k": "condfield", "aria-label": "Zależy od pola"}, h("option", {value: ""}, "nie zależy od innego pola"),
     [...groups].map(([tab, list]) => h("optgroup", {label: tab.title}, list.map(t => h("option", {value: t.f.id}, `${labelOf(t.f)} (${t.section.title || t.section.techName})`)))));
   fieldSel.value = shown ? single.field.id : "";
   fieldSel.addEventListener("change", () => {
     const trig = triggers.find(t => t.f.id === fieldSel.value)?.f;
     edChange(() => edSetCondition(target, trig || null, trig ? optionsOf(trig)[0] : null),
-      trig ? "Ustawiono warunek. Wybierz opcję, przy której element ma się pokazać." : "Usunięto warunek: element jest zawsze widoczny.");
+      trig ? "Ustawiono warunek. Wybierz opcję, przy której element ma się pokazać." : "Usunięto warunek: element nie zależy od innego pola.");
   });
   box.append(h("div", {class: "ed-cond-line"}, h("span", {}, "Zależy od"), fieldSel));
   if (shown) {
@@ -878,13 +883,13 @@ body.editmode #edPanel{display:block}
 .ed-consents li{margin-bottom:.75rem}
 .ed-consent-row{display:flex;justify-content:space-between;align-items:center;margin-top:.3rem}
 .ed-cond-box{border-top:1px solid #e3e7ec;padding-top:.8rem}
-.ed-cond-line{display:grid;grid-template-columns:5.5rem 1fr;align-items:center;gap:.5rem;margin-top:.4rem;font-size:14px}
+.ed-cond-line{display:grid;grid-template-columns:1fr;gap:.2rem;margin-top:.5rem;font-size:14px}
 .ed-actions{display:flex;flex-wrap:wrap;gap:.4rem;border-top:1px solid #e3e7ec;padding-top:.9rem;margin-top:.4rem}
 body.editmode .cond-hidden{display:block!important}
 body.editmode #page .grid :is(input,select,textarea,label,button:not(.ed-add)){pointer-events:none}
 body.editmode .send{display:none}
 body.editmode .tech{display:none}
-.ed-item{cursor:pointer;border-radius:6px;outline:2px solid transparent;outline-offset:4px}
+.ed-item{cursor:pointer;border-radius:6px;outline:2px solid transparent;outline-offset:4px;scroll-margin-top:16px}
 .ed-item:hover{outline-color:#9cb8dc}
 .ed-item.ed-bad{outline:2px solid #b3261e}
 .ed-item.ed-sel{outline:3px solid #0052a5}
