@@ -23,7 +23,7 @@
    - parent -> here {type: "coi-bind-dict", doc, req, code, name, items, quote, label}: "Dodaj" next to a dictionary
      proposal; the field of that proposal (paper quote first, then label) gets the catalog dictionary `code` as one
      undoable change (a text field becomes a SELECT, RADIO/CHECKBOX keep their type); answer {type: "coi-bound", req,
-     doc, id, label} (id null: no such field).
+     doc, id, label} (id null: no such field, or a choice field whose options a condition reads).
    - parent -> here {type: "coi-show", id}: scroll to the element on its step and flash it ("Zobacz w podglądzie").
 
    Evidence (preview.html's `evidence`, drawn under every element by its notesOf) = {elementId: {source: "paper" |
@@ -396,9 +396,11 @@ function edSetType(f, type) {
   f.type = type;
   f.validation = [...(required ? ["REQUIRED"] : []), ...keepFormat];
   if (!ED_CHOICE.includes(type)) f.options = [];
-  if (type !== "SELECT" || !f.dictionaryName) for (const k of ["dictionaryName", "multiLevelTree"]) delete f[k];
+  const ours = f.dictionaryName in CATALOG_NAMES && ED_CHOICE.includes(type);  // a catalog dictionary fits RADIO/CHECKBOX too
+  if (!ours && (type !== "SELECT" || !f.dictionaryName)) for (const k of ["dictionaryName", "multiLevelTree"]) delete f[k];
   for (const k of ["searchEnabled", "defaultValue", "defaultValueType"]) delete f[k];
-  if (type === "SELECT") Object.assign(f, f.dictionaryName ? ED_DICT_EXTRA[f.dictionaryName] || {} : {searchEnabled: f.options.length > 15, defaultValue: []});
+  if (ours && type !== "SELECT") delete f.multiLevelTree;
+  if (type === "SELECT") Object.assign(f, f.dictionaryName ? ED_DICT_EXTRA[f.dictionaryName] || ED_CATALOG_EXTRA : {searchEnabled: f.options.length > 15, defaultValue: []});
   edCanonical(f);
 }
 function edSetDictionary(f, name) {
@@ -417,7 +419,9 @@ function edProposalField(quote, label) {
   eachField(f => {
     if (!["TEXT_FIELD", "TEXTAREA", ...ED_CHOICE].includes(f.type)) return;
     const fq = n(evidence[f.id]?.quote), ft = n(f.title);
-    const score = fq && q && (q.includes(fq) || fq.includes(q)) ? 3 : ft && ft === l ? 2 : ft.length > 3 && l.length > 3 && (ft.includes(l) || l.includes(ft)) ? 1 : 0;
+    // same quote > same label > one quote inside the other (a much longer quote, like a statement, never counts)
+    const score = fq && fq === q ? 4 : ft && ft === l ? 3
+      : fq && q && fq.length <= 2 * q.length && (q.includes(fq) || fq.includes(q)) ? 2 + fq.length / 1000 : 0;
     if (score > top) [best, top] = [f, score];
   });
   return best;
@@ -426,7 +430,9 @@ function edProposalField(quote, label) {
 function edBindDictionary(d) {
   CATALOG[d.code] = d.items || [];  // the preview has the values before it redraws, not after its next fetch
   CATALOG_NAMES[d.code] = d.name;
-  const f = edProposalField(d.quote, d.label);
+  let f = edProposalField(d.quote, d.label);
+  // a choice field other fields depend on keeps its options: the conditions compare with their exact names
+  if (f && ED_CHOICE.includes(f.type) && edDependents([f]).length) f = null;
   if (f) edChange(() => { if (!ED_CHOICE.includes(f.type)) edSetType(f, "SELECT"); edSetDictionary(f, d.code); },
     `Pole „${nameOf(f)}” bierze wartości ze słownika „${d.name}”.`);
   parent.postMessage({type: "coi-bound", req: d.req, doc: ed.doc, id: f ? f.id : null, label: f ? nameOf(f) : ""}, location.origin);
@@ -961,7 +967,8 @@ window.addEventListener("message", e => {
     renderPage();
     edStatus();
   }
-  if (d.type === "coi-bind-dict" && d.doc === ed.doc) edBindDictionary(d);
+  if (d.type === "coi-bind-dict" && d.doc !== ed.doc) parent.postMessage({type: "coi-bound", req: d.req, doc: d.doc, id: null, stale: true}, location.origin);
+  else if (d.type === "coi-bind-dict") edBindDictionary(d);
   if (d.type === "coi-show") {
     edShow(d.id, "center");
     const el = document.querySelector(`[data-fid="${CSS.escape(d.id)}"]`);

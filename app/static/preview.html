@@ -70,6 +70,7 @@ input.ro,textarea.ro,select:disabled{background:#f3f4f6;border-color:#f3f4f6;col
 .hint p,.textblock p,.info p{margin:.2rem 0 .5rem}
 .caption{font-size:13px;color:#4b5563;margin:.3rem 0 0}
 .dict-empty{color:#9a4d00}
+body:not(.notes) .dict-empty{display:none}  /* an admin hint: not in the citizen's view */
 .dict-empty a{color:#0052a5;font-weight:600}
 .flash{animation:flash 2.4s ease-out}
 @keyframes flash{0%,40%{box-shadow:0 0 0 3px #ffb800;background:#fff8dc}100%{box-shadow:0 0 0 3px transparent}}
@@ -321,7 +322,7 @@ const isRequired = f => validators(f).includes("REQUIRED");
 
 // Our dictionaries from the catalog (app/catalog.py, GET /api/dictionaries): {code: [value names]}. A field names one
 // by `dictionaryName` = code, without its values, so the preview asks the server: a value added on the "Słowniki" page
-// shows up here on the next document, on window focus (back from that page) and when the upload page says so.
+// shows up here on the next document, when this tab is shown again and when another tab saved a catalog change.
 let CATALOG = {}, CATALOG_NAMES = {};
 const inCatalog = name => Object.prototype.hasOwnProperty.call(CATALOG, String(name || ""));
 async function loadCatalog() {
@@ -329,8 +330,9 @@ async function loadCatalog() {
     const token = sessionStorage.getItem("token") || "open";
     const r = await fetch("/api/dictionaries", {headers: {Authorization: `Bearer ${token}`}});
     if (!r.ok) return;
-    const next = {};
-    for (const d of await r.json()) if (!d.builtin) { next[d.code] = d.items.map(i => i.nazwa); CATALOG_NAMES[d.code] = d.name; }
+    const next = {}, names = {};
+    for (const d of await r.json()) if (!d.builtin) { next[d.code] = d.items.map(i => i.nazwa); names[d.code] = d.name; }
+    CATALOG_NAMES = names;  // a deleted dictionary leaves "Skąd lista" too
     setCatalog(next);
   } catch (e) { /* offline: the preview keeps what it had */ }
 }
@@ -1384,13 +1386,11 @@ window.addEventListener("drop", e => {
 });
 
 renderIssues();
-// The catalog: now, on focus, when the "Słowniki" page (any tab) saved a change, with every document and when the upload page added one
-// ({type: "coi-catalog"}).
+// The catalog: now, when this tab comes back, when the "Słowniki" page or "Dodaj" (any tab) saved a change, with every document.
 loadCatalog();
-addEventListener("focus", loadCatalog);
 addEventListener("storage", e => { if (e.key === "coi-catalog") loadCatalog(); });  // the "Słowniki" page saved a change
 document.addEventListener("visibilitychange", () => { if (!document.hidden) loadCatalog(); });
-addEventListener("message", e => { if (e.origin === location.origin && ["coi-preview", "coi-catalog"].includes(e.data?.type)) loadCatalog(); });
+addEventListener("message", e => { if (e.origin === location.origin && e.data?.type === "coi-preview") loadCatalog(); });
 // Embed mode: the same-origin parent (upload page) posts {type: "coi-preview", json, evidence, key, doc} for the
 // selected file. Each message replaces the whole form, and nothing is saved, so the standalone preview keeps its own
 // JSON. The same `key` again (the same file sent once more) keeps the open step, the place on screen and the answers.

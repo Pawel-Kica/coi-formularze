@@ -1225,7 +1225,9 @@ function dictActions(item, p, download) {
   const catalogLink = (code) => { const a = el("a", "", "katalogu"); a.href = `/slowniki?kod=${encodeURIComponent(code)}`; return a; };
   if (bound) {
     const done = el("p", "dict-done");
-    done.append(`Dodano do słownika „${p.added.name}”, podpięte do pola „${p.added.label}”. Wartości są w `, catalogLink(p.added.code), ".");
+    const empty = !state.catalog.find((d) => d.code === p.added.code)?.items.length;
+    done.append(`Dodano do słownika „${p.added.name}”, podpięte do pola „${p.added.label}”. ${empty ? "Słownik jest pusty, uzupełnij go w " : "Wartości są w "}`,
+      catalogLink(p.added.code), ".");
     const look = el("button", "small primary", "Zobacz w podglądzie");
     look.type = "button";
     look.addEventListener("click", () => {
@@ -1239,15 +1241,18 @@ function dictActions(item, p, download) {
     box.append(done, actions);
     return box;
   }
-  if (p.added && !p.added.id) {  // in the catalog, but no field of this form matched the proposal
+  if (p.added && !p.added.id) {  // in the catalog, but the field is not bound (none matched, conditions read it, or the preview was not ready)
     const note = el("p", "dict-done warn");
-    note.append(`Dodano do słownika „${p.added.name}” w `, catalogLink(p.added.code), ". Pola nie znalazłem: podepnij je w edycji („Skąd lista”).");
+    note.append(`Dodano do słownika „${p.added.name}” w `, catalogLink(p.added.code), p.added.stale
+      ? ". Podgląd nie był gotowy, więc pole nie jest podpięte: kliknij „Dodaj” jeszcze raz."
+      : ". Pola nie podpiąłem (nie znalazłem go albo zależą od niego warunki): zrób to w edycji („Skąd lista”).");
     box.append(note);
   }
   const target = el("select");
   target.setAttribute("aria-label", `Dokąd dodać: ${p.name}`);
   target.append(new Option("Nowy słownik", ""), ...state.catalog.map((d) => new Option(`Do: ${d.name}`, d.code)));
-  if (state.catalog.some((d) => d.code === p.code)) target.value = p.code;  // the same dictionary again: merge, no "_2" twin
+  const again = p.added?.code ?? p.code;  // the same dictionary again (also after an undo): merge, no "_2" twin
+  if (state.catalog.some((d) => d.code === again)) target.value = again;
   const add = el("button", "small primary", "Dodaj");
   add.type = "button";
   add.title = "Dodaj do katalogu słowników i podepnij pole w tym formularzu";
@@ -1277,18 +1282,19 @@ async function addDict(item, p, code, button) {
     $("#dicts-status").className = "error";
     return ($("#dicts-status").textContent = `Nie udało się dodać słownika: ${error.message}`);
   }
-  let bound = { id: null, label: "" };
+  let bound = { id: null, label: "", stale: true };
   if (state.docItem === item && item === state.selected) {
     const req = ++bindReq;
     bound = await new Promise((resolve) => {
       bindWaits.set(req, resolve);
-      setTimeout(() => resolve({ id: null, label: "" }), 4000);
+      setTimeout(() => resolve({ id: null, label: "", stale: true }), 4000);
       $("#preview-frame").contentWindow.postMessage({ type: "coi-bind-dict", doc: state.doc, req, code: dict.code, name: dict.name,
         items: dict.items.map((i) => i.nazwa), quote: p.field.quote, label: p.field.label }, location.origin);
     });
     bindWaits.delete(req);
   }
-  p.added = { code: dict.code, name: dict.name, id: bound.id, label: bound.label };
+  localStorage.setItem("coi-catalog", String(Date.now()));  // an open "Słowniki" page reads the catalog again
+  p.added = { code: dict.code, name: dict.name, id: bound.id, label: bound.label, stale: Boolean(bound.stale) };
   if (item.id !== undefined) localStorage.setItem(DICTS_KEY(item), JSON.stringify(item.dicts));
   await loadCatalogList();
   if (item === state.selected) renderDicts(item);

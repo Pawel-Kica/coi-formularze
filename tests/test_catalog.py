@@ -69,3 +69,25 @@ def test_taken_code_gets_a_suffix_and_delete(client):
 def test_auth_required_when_enabled(client, monkeypatch):
     monkeypatch.setattr(settings, "auth_enabled", True)
     assert client.get("/api/dictionaries").status_code == 401
+
+
+def test_items_must_be_a_list(client):
+    assert client.post("/api/dictionaries", json={"name": "X", "items": "abc"}).status_code == 400
+
+
+def test_field_bound_by_dodaj_passes_the_coi_rules(client):
+    """What "Dodaj" makes of a text field (editor.js edBindDictionary): a SELECT with only dictionaryName, no options."""
+    import json
+    from pathlib import Path
+
+    from app.rules import check
+
+    coi = json.loads(Path("gold/coi/form1.json").read_text())
+    field = next(c["field"] for t in coi["tabs"] for q in t["questions"] for c in q["field"].get("repeatingSectionGrid") or []
+                 if c["field"]["type"] == "TEXT_FIELD" and not c["field"].get("states"))
+    assert check(coi) == []
+    for k in ("readOnly", "defaultValueType"):
+        field.pop(k, None)
+    field.update(type="SELECT", options=[], validation=["REQUIRED"], dictionaryName=BREEDS, multiLevelTree=False,
+                 searchEnabled=True, defaultValue=[])
+    assert check(coi) == []

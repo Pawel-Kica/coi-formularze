@@ -63,8 +63,10 @@ def _row(r: sqlite3.Row) -> dict:
             "items": json.loads(r["items"]), "created": r["created"]}
 
 
-def _merge(items: list[dict], new: list) -> list[dict]:
+def _merge(items: list[dict], new) -> list[dict]:
     """Items + new values (strings or {nazwa, kod?}), same name (case, spaces, accents aside) only once."""
+    if not isinstance(new, list):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "items musi być listą.")
     out = [dict(i) for i in items]
     seen = {normalize(i["nazwa"]) for i in out}
     taken = {i["kod"] for i in out}

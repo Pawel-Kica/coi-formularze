@@ -163,7 +163,9 @@ function renderDetail(d) {
     const li = el("li");
     const del = button("×", "", () => save(d, d.items.filter((_, k) => k !== i), null));
     del.title = del.ariaLabel = `Usuń wartość „${v.nazwa}”`;
-    li.append(el("span", "", v.nazwa), el("code", "", v.kod), del);
+    const name = el("span", "", v.nazwa);
+    name.title = `Kod: ${v.kod}`;
+    li.append(name, del);
     values.append(li);
   }
   const form = el("form", "add");
@@ -177,21 +179,27 @@ function renderDetail(d) {
     event.preventDefault();
     const name = input.value.trim();
     if (!name) return input.focus();
-    if (d.items.some((v) => v.nazwa.toLowerCase() === name.toLowerCase())) return (msg.textContent = "Taka wartość już jest.");
-    save(d, [...d.items, { nazwa: name }], "add");
+    save(d, null, "add", name);
   });
   form.append(input, add);
   const foot = el("div", "foot");
   foot.append(el("span", "muted", "Formularze widzą zmiany od razu, bez przerabiania pliku."),
     button("Usuń słownik", "danger", () => remove(d)));
+  msg.textContent = state.flash || "";
+  state.flash = null;
   box.replaceChildren(head, dl, el("h3", "", "Wartości"), values, form, msg, foot);
   if (state.focus === "add") input.focus();
   state.focus = null;
 }
 
-async function save(d, items, focus) {
+// "+ Dodaj wartość" merges one value on the server (POST .../items: nothing else is overwritten, a duplicate is skipped);
+// "×" sends the list without that value (PUT).
+async function save(d, items, focus, added) {
   try {
-    const next = await api(`/api/dictionaries/${encodeURIComponent(d.code)}`, "PUT", { items });
+    const next = added ? await api(`/api/dictionaries/${encodeURIComponent(d.code)}/items`, "POST", { items: [added] })
+      : await api(`/api/dictionaries/${encodeURIComponent(d.code)}`, "PUT", { items });
+    if (added && next.items.length === d.items.length) state.flash = "Taka wartość już jest.";
+    if (focus === "add" && next.items.length === d.items.length) return alert("Taka wartość już jest.");
     state.list = state.list.map((x) => (x.code === d.code ? next : x));
     localStorage.setItem("coi-catalog", String(Date.now()));  // open forms (other tabs) read the catalog again
     state.focus = focus;
@@ -216,9 +224,17 @@ async function remove(d) {
 // Opened from the preview ("uzupełnij w katalogu", a new tab): "Formularze" goes back to that tab, where the form
 // stays as it was and reads the new values on focus.
 $("#back").addEventListener("click", (event) => {
-  if (window.opener && !window.opener.closed) { event.preventDefault(); window.opener.focus(); window.close(); }
+  if (window.opener && !window.opener.closed) {
+    event.preventDefault();
+    window.opener.focus();
+    window.close();
+    setTimeout(() => (location.href = "/"), 200);  // the browser refused to close this tab
+  }
 });
 load();
+// another tab changed the catalog ("Dodaj" next to a proposal): read it again, so a save never writes stale values
+addEventListener("focus", load);
+addEventListener("storage", (event) => { if (event.key === "coi-catalog") load(); });
 </script>
 </body>
 </html>
