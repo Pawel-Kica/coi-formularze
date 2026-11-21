@@ -25,9 +25,9 @@ from pathlib import Path
 from app.builder import build
 from app.extract import extract
 from app.llm.planner import make_plan
-from app.llm.vision import page_images, setup
+from app.llm.vision import images_only, page_images, setup
 from app.plan import Plan
-from app.quotes import THRESHOLD, THRESHOLD_OCR, filter_plan
+from app.quotes import filter_plan, threshold_for
 from app.rules import check
 from bench.score import score_coi, score_plan
 
@@ -68,15 +68,25 @@ def reference(form: str) -> dict | None:
     return json.loads(ref.read_text()) if ref else None
 
 
+def input_kind(pages: list) -> str:
+    """What the model got: "text", "img+text" or "img" (LLM_VISION_TEXT=0 and every page has an image)."""
+    return "text" if not pages else "img" if images_only(pages) else "img+text"
+
+
 def run_file(form: str, path: Path, out: Path, rebuild: bool = False) -> dict:
+    """One file through the pipeline, or from its cached plan/COI. `<ext>.meta.json` keeps the
+    quote drops, seconds and input kind of the model run, so a cached row still has them."""
     ext = path.suffix.lower().lstrip(".")
     plan_path, coi_path = out / form / f"{ext}.plan.json", out / form / f"{ext}.coi.json"
+    meta_path = out / form / f"{ext}.meta.json"
     row = {"form": form, "ext": ext, "file": path.name}
     if rebuild and not plan_path.exists():  # --rebuild never calls the model
         return row | {"ok": False, "error": "not cached (--rebuild)"}
     if plan_path.exists() and (rebuild or coi_path.exists()):
         plan = Plan.model_validate_json(plan_path.read_text())
         row["cached"] = True
+        if meta_path.exists():
+            row |= json.loads(meta_path.read_text())
         if rebuild:  # builder changed: rebuild the COI JSON from the cached plan
             coi = build(plan)
             coi_path.write_text(json.dumps(coi, ensure_ascii=False, indent=1))
@@ -87,15 +97,18 @@ def run_file(form: str, path: Path, out: Path, rebuild: bool = False) -> dict:
         try:
             data = path.read_bytes()
             doc = extract(data, path.name)
-            threshold = THRESHOLD_OCR if "ocr" in doc.method else THRESHOLD
-            plan, dropped = filter_plan(make_plan(doc.text, page_images(data, path.name)), doc.text, threshold)
+            pages = page_images(data, path.name)
+            plan, dropped = filter_plan(make_plan(doc.text, pages), doc.text,
+                                        threshold_for(doc.method, images_only(pages)))
             coi = build(plan)
         except Exception as e:  # noqa: BLE001 - a benchmark records every failure
             return row | {"ok": False, "error": f"{type(e).__name__}: {e}"[:300], "s": round(time.time() - t)}
         plan_path.parent.mkdir(parents=True, exist_ok=True)
         plan_path.write_text(plan.model_dump_json(indent=1))
         coi_path.write_text(json.dumps(coi, ensure_ascii=False, indent=1))
-        row |= {"dropped": dropped, "s": round(time.time() - t)}
+        meta = {"dropped": dropped, "s": round(time.time() - t), "input": input_kind(pages)}
+        meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=1))
+        row |= meta
     row |= {"ok": True, "problems": check(coi), "fields": sum(len(s.fields) for p in plan.pages for s in p.sections)}
     gold = GOLD / f"form{form}.json"
     if gold.exists():

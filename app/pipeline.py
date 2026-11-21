@@ -7,17 +7,17 @@ quotes (drop items not backed by the paper) -> builder (Plan -> COI JSON) -> rul
 from app.builder import build
 from app.extract import extract
 from app.llm.planner import make_plan
-from app.llm.vision import page_images
-from app.quotes import THRESHOLD, THRESHOLD_OCR, filter_plan
+from app.llm.vision import images_only, page_images
+from app.quotes import filter_plan, threshold_for
 from app.rules import check
 
 
 def convert(data: bytes, filename: str) -> dict:
     """Bytes of one blank form -> COI JSON ready to import. Raises on unreadable input."""
     doc = extract(data, filename)
-    plan = make_plan(doc.text, page_images(data, filename))
-    threshold = THRESHOLD_OCR if "ocr" in doc.method else THRESHOLD
-    plan, _dropped = filter_plan(plan, doc.text, threshold)
+    pages = page_images(data, filename)
+    plan = make_plan(doc.text, pages)
+    plan, _dropped = filter_plan(plan, doc.text, threshold_for(doc.method, images_only(pages)))
     coi = build(plan)
     problems = check(coi)
     if problems:

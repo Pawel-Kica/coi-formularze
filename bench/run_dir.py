@@ -20,8 +20,8 @@ from pathlib import Path
 from app.builder import build
 from app.extract import extract
 from app.llm.planner import make_plan
-from app.llm.vision import page_images, setup
-from app.quotes import THRESHOLD, THRESHOLD_OCR, filter_plan
+from app.llm.vision import images_only, page_images, setup
+from app.quotes import filter_plan, threshold_for
 from app.rules import check
 
 SKIP_NAMES = {"README.md", "source.md", ".DS_Store"}
@@ -37,8 +37,8 @@ def run_file(path: Path, out: Path) -> dict:
         data = path.read_bytes()
         doc = extract(data, path.name)
         (out / f"{path.name}.txt").write_text(doc.text)
-        threshold = THRESHOLD_OCR if "ocr" in doc.method else THRESHOLD
-        plan, dropped = filter_plan(make_plan(doc.text, page_images(data, path.name)), doc.text, threshold)
+        pages = page_images(data, path.name)
+        plan, dropped = filter_plan(make_plan(doc.text, pages), doc.text, threshold_for(doc.method, images_only(pages)))
         coi = build(plan)
     except Exception as e:  # noqa: BLE001 - a benchmark records every failure
         return row | {"ok": False, "error": f"{type(e).__name__}: {e}"[:300], "s": round(time.time() - t)}

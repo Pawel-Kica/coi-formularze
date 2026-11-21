@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     llm_vision_max_side: int = 1400  # long side of a page image in pass 1 (structure), px
     llm_vision_max_pages: int = 8  # only the first N pages get an image, the rest is text only
     llm_vision_conditions_side: int = 1024  # long side in pass 2 (conditions), px; 0 = text only
+    # 0 = images only, no extracted text, when every page of the file has an image (a longer file
+    # keeps the text); quotes then come from the model's own reading, checked at THRESHOLD_OCR.
+    llm_vision_text: bool = True
+    llm_vision_gray: bool = False  # 1 = page images in grayscale
     # OCR
     ocr_engine: str = "tesseract"  # "tesseract" or "vlm" (vision model in Ollama)
     ocr_vlm_model: str | None = None  # model for OCR_ENGINE=vlm; unset = LLM_MODEL (must read images)

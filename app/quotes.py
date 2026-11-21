@@ -27,6 +27,14 @@ THRESHOLD = 90.0
 THRESHOLD_OCR = 85.0
 MIN_QUOTE_CHARS = 3  # after normalization; shorter quotes ("a", "1)") prove nothing
 
+
+def threshold_for(method: str, images_only: bool = False) -> float:
+    """Threshold for `filter_plan`: THRESHOLD_OCR when our text is OCR (`Document.method`) or when the
+    model read the quotes off page images itself (`app.llm.vision.images_only`): two readings of
+    one page differ like two OCRs do. Else THRESHOLD."""
+    return THRESHOLD_OCR if images_only or "ocr" in method else THRESHOLD
+
+
 CHOICE_TYPES = {FieldType.RADIO, FieldType.CHECKBOX, FieldType.SELECT}
 
 # Built by code from the Standards ("Dane", contact + consent, finish page), never in `pages`.

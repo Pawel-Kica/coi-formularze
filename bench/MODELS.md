@@ -12,6 +12,8 @@ Prompts and code target a strong model: no prompt hacks or task splitting for a 
 
     uv run python -m bench.run_all --forms 1,2,3,4,5,6,7 --formats pdf --out bench/runs/<name>
 
+Input questions (text vs page images, grayscale, VL instead of Tesseract on scans): `uv run python -m bench.matrix --screen`, then the full 9 forms on the arms that survive; arms in `bench/matrix_arms.json`, table in `bench/runs/matrix-<time>/matrix.md`.
+
 Columns: JSON ok (definition-of-done point 1), COI rules problems (point 2), quote-filter drops, `gold` = `score_plan` against `gold/plans/formN.json`, `ref` = `score_coi` recall against the COI reference JSON (forms 1 and 5, point 3), seconds per form (Ollama shared with other threads, so times are indicative). Drops include fields the filter removes because they belong to the pages code builds from the Standards (applicant, proxy, contact data); those are expected, not hallucinations.
 
 Quote filter sanity check (no model): the gold plans run through `filter_plan` on the extracted text of all 69 form files drop **0** quotes on every format (pdf, doc, docx, ods, xlsx, jpg, jpeg, jpe, png).

@@ -11,6 +11,9 @@ With LLM_VISION=1 both passes also get page images (`app.llm.vision`) before the
 short prompt on what to read from them (`prompts/vision*.md`). Pass 2 gets them smaller
 (LLM_VISION_CONDITIONS_SIDE): it reads layout (what is indented or boxed under which option),
 not small print. Quotes still come from the text, which the quote filter checks.
+With LLM_VISION_TEXT=0 (`vision.images_only`) the images replace the text in both passes
+(`prompts/vision_only*.md`): the model copies quotes off the images, the filter checks them
+against our extracted text at the OCR threshold.
 
 Used by the pipeline as `make_plan(text, pages)`; the quote filter (`app.quotes`) runs after.
 """
@@ -26,7 +29,7 @@ from pydantic import ValidationError
 
 from app.config import settings
 from app.llm.client import LLMError, chat_json
-from app.llm.vision import data_url
+from app.llm.vision import data_url, images_only
 from app.plan import (
     Applicant,
     Condition,
@@ -416,18 +419,19 @@ def _pages_note(n: int) -> str:
 def make_plan(text: str, pages: list[Image.Image] | None = None, model: str | None = None) -> Plan:
     """Paper form text (+ page images from `app.llm.vision.page_images`, LLM_VISION=1) -> Plan,
     not yet quote-filtered. Deterministic: temperature 0, fixed seed. Without pages the requests
-    are exactly the text-only ones.
+    are exactly the text-only ones; with `images_only(pages)` they carry no extracted text.
 
     Pass 1 is retried once with a frequency penalty when its answer is cut off or unusable
     (a looping model); a failed pass 2 leaves the plan without conditions.
     """
     pages = pages or []
-    src = prepare_text(text)
+    only = images_only(pages)  # LLM_VISION_TEXT=0: the page images replace the text
+    form_text = f"Tekst formularza:\n```\n{prepare_text(text)}\n```\n\n"
     sys1 = _structure_system()
-    user1 = f"Tekst formularza:\n```\n{src}\n```\n\n{TASK}"
+    user1 = ("" if only else form_text) + TASK
     img1 = [data_url(p, settings.llm_vision_max_side) for p in pages]
     if img1:
-        sys1 += "\n" + _prompt("vision.md")
+        sys1 += "\n" + _prompt("vision_only.md" if only else "vision.md")
         user1 = _pages_note(len(img1)) + user1
     try:
         plan = draft_to_plan(chat_json(sys1, user1, STRUCTURE_SCHEMA, model=model, name="plan", images=img1).data)
@@ -438,11 +442,12 @@ def make_plan(text: str, pages: list[Image.Image] | None = None, model: str | No
                       images=img1).data
         )
     sys2 = _conditions_system()
-    user2 = f"Tekst formularza:\n```\n{src}\n```\n\nPlan:\n```\n{plan_listing(plan)}\n```"
     side2 = settings.llm_vision_conditions_side
     img2 = [data_url(p, side2) for p in pages] if side2 > 0 else []
+    only2 = only and bool(img2)  # a pass 2 without images keeps the text
+    user2 = ("" if only2 else form_text) + f"Plan:\n```\n{plan_listing(plan)}\n```"
     if img2:
-        sys2 += "\n" + _prompt("vision_conditions.md")
+        sys2 += "\n" + _prompt("vision_only_conditions.md" if only2 else "vision_conditions.md")
         user2 = _pages_note(len(img2)) + user2
     try:
         r2 = chat_json(sys2, user2, conditions_schema(plan), model=model, name="conditions", max_tokens=4000,

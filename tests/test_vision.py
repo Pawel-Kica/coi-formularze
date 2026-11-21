@@ -1,4 +1,5 @@
-"""Vision path (LLM_VISION) without a model: page rendering, page cap, message shape, flag off = text only."""
+"""Vision path (LLM_VISION) without a model: page rendering, page cap, message shape, flag off = text only,
+images instead of text (LLM_VISION_TEXT=0), grayscale (LLM_VISION_GRAY=1)."""
 
 import base64
 import io
@@ -11,6 +12,7 @@ from PIL import Image
 
 from app.config import settings
 from app.llm import client, planner, vision
+from app.quotes import THRESHOLD, THRESHOLD_OCR, threshold_for
 
 PASS1 = {"title": "Wniosek o test", "addressee": "", "addressee_quote": "",
          "applicant": {"person": True, "entity": False, "entity_ids": [], "pesel": False, "proxy": True,
@@ -70,6 +72,7 @@ def decoded(part: dict) -> Image.Image:
 
 def test_flag_off_no_images_and_text_only_requests(bodies, monkeypatch):
     monkeypatch.setattr(settings, "llm_vision", False)
+    monkeypatch.setattr(settings, "llm_vision_text", False)  # no images: the text stays whatever this says
     assert vision.page_images(a4_pdf(3), "a.pdf") == []
     planner.make_plan("Imię ____", vision.page_images(a4_pdf(1), "a.pdf"))
     assert len(bodies) == 2
@@ -128,4 +131,72 @@ def test_conditions_side_zero_keeps_pass2_text_only(bodies, vision_on, monkeypat
 
 def test_setup_names_the_vision_settings(vision_on):
     assert vision.setup() | {"model": "m"} == {"model": "m", "vision": True, "max_side": 1400, "max_pages": 2,
-                                                "conditions_side": 1024}
+                                                "conditions_side": 1024, "text": True, "gray": False}
+
+
+# ---------- LLM_VISION_TEXT=0: page images instead of our text ----------
+
+
+@pytest.fixture
+def images_only_on(vision_on, monkeypatch):
+    monkeypatch.setattr(settings, "llm_vision_text", False)
+
+
+def test_images_only_both_passes_get_no_text(bodies, images_only_on):
+    pages = vision.page_images(a4_pdf(2), "a.pdf")
+    assert vision.images_only(pages)
+    planner.make_plan("Imię ____", pages)
+    (s1, u1), (s2, u2) = (b["messages"] for b in bodies)
+    note = "Powyżej: obrazy stron 1-2 formularza, po kolei.\n\n"
+    assert [p["type"] for p in u1["content"]] == [p["type"] for p in u2["content"]] == ["image_url", "image_url", "text"]
+    assert u1["content"][2]["text"] == note + planner.TASK
+    assert u2["content"][2]["text"].startswith(note + "Plan:\n```\n")  # the plan listing, no form text
+    for system, user in ((s1, u1), (s2, u2)):
+        assert "Tekst formularza" not in user["content"][2]["text"]
+        assert "bez wyciągniętego tekstu" in system["content"] and "dalej kopiuj z tekstu" not in system["content"]
+    assert "Kwadraty lub kółka" in s1["content"] and "wcięte pod opcją" in s2["content"]
+
+
+@pytest.mark.parametrize("file", ["pdf", "png"])
+def test_images_only_keeps_text_when_pages_were_cut_off(bodies, images_only_on, file):
+    data = a4_pdf(3) if file == "pdf" else png(Image.new("L", (1654, 3 * 2339), 255))  # 3 pages, cap 2
+    pages = vision.page_images(data, f"a.{file}")
+    assert (len(pages), pages.total) == (2, 3) and not vision.images_only(pages)
+    planner.make_plan("Imię ____", pages)
+    for b in bodies:  # pages 3.. exist only in the text: both passes keep it, with the usual prompts
+        assert "Tekst formularza:\n```\nImię ____\n```" in b["messages"][1]["content"][-1]["text"]
+        assert "bez wyciągniętego tekstu" not in b["messages"][0]["content"]
+
+
+def test_images_only_pass2_without_images_keeps_text(bodies, images_only_on, monkeypatch):
+    monkeypatch.setattr(settings, "llm_vision_conditions_side", 0)
+    planner.make_plan("Imię ____", vision.page_images(a4_pdf(1), "a.pdf"))
+    assert "Tekst formularza" not in bodies[0]["messages"][1]["content"][1]["text"]
+    assert bodies[1]["messages"][1]["content"].startswith("Tekst formularza:\n```\nImię ____\n```")
+
+
+def test_documents_without_images_keep_text_in_images_only_mode(images_only_on):
+    assert not vision.images_only(vision.page_images(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\0" * 512, "a.doc"))
+    assert not vision.images_only([])
+
+
+def test_quote_threshold_follows_who_read_the_page():
+    assert threshold_for("pdf-text") == THRESHOLD
+    assert threshold_for("pdf-ocr") == threshold_for("ocr") == THRESHOLD_OCR
+    assert threshold_for("pdf-text", images_only=True) == THRESHOLD_OCR  # the model's own reading
+
+
+# ---------- LLM_VISION_GRAY ----------
+
+
+def test_gray_pages_stay_gray_in_the_request(vision_on, monkeypatch):
+    monkeypatch.setattr(settings, "llm_vision_gray", True)
+    pages = [*vision.page_images(a4_pdf(1), "a.pdf"), *vision.page_images(png(Image.new("RGB", (600, 800), "red")), "p.png")]
+    assert [p.mode for p in pages] == ["L", "L"]
+    assert decoded({"image_url": {"url": vision.data_url(pages[1], 400)}}).mode == "L"
+    assert vision.setup()["gray"] is True
+
+
+def test_gray_off_sends_rgb_even_for_a_gray_scan(vision_on):
+    page = vision.page_images(png(Image.new("L", (600, 800), 255)), "scan.png")[0]
+    assert page.mode == "RGB" and decoded({"image_url": {"url": vision.data_url(page, 400)}}).mode == "RGB"
