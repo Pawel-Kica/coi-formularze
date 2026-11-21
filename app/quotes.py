@@ -2,14 +2,19 @@
 
 `filter_plan(plan, text)` runs after the model and before the builder:
 - fields that belong to the pages code generates from the Standards (applicant and
-  proxy data, signature, date of filling, RODO clause) are dropped even if the model
-  put them in `pages`;
+  proxy data, the applicant's own address, signature, date of filling, RODO clause) are
+  dropped even if the model put them in `pages`; attachments (FILE_UPLOADER) and fields the
+  paper fills only in some case ("wypełnić jeżeli ...") are case data and stay even under
+  such a page or section title;
+- a negated condition over every option of its trigger (never shown once answered) is
+  cleared before the repairs, so they see the section as ungated;
 - every field / section / statement whose `quote` is not found in the paper text
   is dropped (proxy for "the model made it up"); sections and pages left empty go too;
 - an addressee whose quote is not on paper is cleared (empty name, the office fills it in);
 - every condition (`show_if`) is checked: its quote is on paper, the trigger field
   exists, is a choice field (RADIO/CHECKBOX/SELECT), its options exist (fuzzy-fixed
-  to the exact option text), the trigger comes before the target, and the quote is more
+  to the exact option text), the trigger comes before the target (a trigger found after
+  its target is first moved right before it, `_hoist_triggers`), and the quote is more
   than the trigger's own question or option line unless the target sits right there on
   paper (`_supported`). A broken condition is dropped, the target stays (always visible;
   a field also stops being required);
@@ -25,7 +30,7 @@ from functools import lru_cache
 
 from rapidfuzz import fuzz, process
 
-from app.plan import FieldType, Plan
+from app.plan import FieldType, Plan, Section
 
 # Calibrated in bench/run_models.py (see bench/MODELS.md).
 THRESHOLD = 90.0
@@ -45,9 +50,12 @@ CHOICE_TYPES = {FieldType.RADIO, FieldType.CHECKBOX, FieldType.SELECT}
 # Built by code from the Standards ("Dane", contact + consent, finish page), never in `pages`.
 _STANDARD_SECTION = re.compile(
     r"^(dane )?wnioskodawc|^twoje dane|pełnomocni|^dane kontaktowe|^kontakt|^podpis|adresat|do którego"
-    r"|^dane identyfikacyjne( wnioskodawcy| składającego( deklarację)?)?$|^adres (zamieszkania|siedziby)( lub [\w ]+)?( wnioskodawcy)?$"
+    r"|^dane identyfikacyjne( wnioskodawcy| składającego( deklarację)?)?$"
+    r"|^adres (zamieszkania|siedziby)( lub [\w ]+| (zamieszkania|siedziby))?( wnioskodawcy| składającego( deklarację)?)?$"
 )
-_STANDARD_LABEL = re.compile(r"pieczę|klauzul|\brodo\b|pełnomocni|wnioskodaw|^podpis$|^podpis wnioskodawcy")
+_STANDARD_LABEL = re.compile(r"pieczę|klauzul|\brodo\b|pełnomocni|dokument\w* upoważniając|wnioskodaw|^podpis$|^podpis wnioskodawcy")
+# "(wypełnić jeżeli nieruchomość nie ma adresu)": a field the paper asks only in some case is case data
+_FILL_ONLY_IF = re.compile(r"wypełni\w*,? (tylko|jeżeli|jeśli|w przypadku|gdy|wyłącznie)")
 _APPLICANT_WORD = re.compile(r"wnioskodaw")  # the part of _STANDARD_LABEL a choice question may contain (a proxy question may not)
 _STANDARD_QUOTE = re.compile(r"podpis wnioskodawcy|czytelny podpis|^\W*podpis\W*$|pieczę|klauzula informacyjna")
 _FILL_DATE = re.compile(r"^\(?data\)?$|miejscowość i data|data i podpis|^\w+, dnia$|^dnia$")
@@ -195,6 +203,64 @@ def _supported(c, trig, target, text: str, next_section: bool | None) -> bool:
     return _overlap(target_at, quote_at + [at for o in c.options for at in quote_lines(o, text)])
 
 
+def _targets(plan: Plan) -> list[tuple]:
+    """(section, element, is_section) for every section and field, in plan order."""
+    return [(sec, t, t is sec) for page in plan.pages for sec in page.sections for t in [sec, *sec.fields]]
+
+
+def _drop_vacuous(plan: Plan, dropped: list[str]) -> None:
+    """A negated condition over every option of its trigger hides the target for every answer: clear it."""
+    fields = {f.id: f for _, f, is_sec in _targets(plan) if not is_sec}
+    for _, t, is_sec in _targets(plan):
+        c, trig = t.show_if, fields.get(t.show_if.field) if t.show_if else None
+        if c and c.negate and trig and trig.options and set(_fix_options(c.options, trig.options)) == set(trig.options):
+            dropped.append(f"condition on {t.id}: negated over every option of {c.field}, never shown")
+            t.show_if = None
+            if not is_sec:
+                t.required = False
+
+
+def _hoist_triggers(plan: Plan, ok, dropped: list[str]) -> None:
+    """A trigger that comes after its target ("E.3 amount" shown by "Czy dołączasz załącznik A?" on the last page)
+    moves right before the target, instead of the condition being dropped: before the target field in its section,
+    or for a section target to the end of the section before it on the same page (or a new section there titled like
+    the trigger's old one). Only an unconditional choice field with options outside repeating sections moves, and only
+    for a condition whose quote is on paper and whose options exist; sections left empty go."""
+    for _ in range(50):  # one move per round, the order changes
+        order = {t.id: n for n, (_, t, _) in enumerate(_targets(plan))}
+        home = {f.id: sec for sec, f, is_sec in _targets(plan) if not is_sec}
+        move = None
+        for sec, t, is_sec in _targets(plan):
+            c = t.show_if
+            if c is None or c.field not in home or order[c.field] < order[t.id]:
+                continue
+            src = home[c.field]
+            trig = next(f for f in src.fields if f.id == c.field)
+            if (trig.type in CHOICE_TYPES and trig.options and trig.show_if is None and not src.repeating
+                    and not sec.repeating and not (is_sec and src is sec) and ok(c.quote)
+                    and _fix_options(c.options, trig.options)):
+                move = (sec, t, is_sec, src, trig)
+                break
+        if move is None:
+            return
+        sec, t, is_sec, src, trig = move
+        src.fields.remove(trig)
+        page = next(p for p in plan.pages if any(s is sec for s in p.sections))
+        if not is_sec:
+            sec.fields.insert(next(i for i, f in enumerate(sec.fields) if f is t), trig)
+        else:
+            i = next(i for i, s in enumerate(page.sections) if s is sec)
+            prev = page.sections[i - 1] if i else None
+            if prev and prev is not src and not prev.repeating and not prev.address and prev.show_if is None:
+                prev.fields.append(trig)
+            else:
+                page.sections.insert(i, Section(id=f"s{trig.id}", title=src.title, fields=[trig]))
+        dropped.append(f"hoist: trigger {trig.id} '{trig.label}' moved before its target {t.id}")
+        for p in plan.pages:
+            p.sections = [s for s in p.sections if s.fields]
+        plan.pages = [p for p in plan.pages if p.sections]
+
+
 def filter_plan(plan: Plan, text: str, threshold: float | None = None) -> tuple[Plan, list[str]]:
     """Drop items not backed by `text` and broken conditions. Pass THRESHOLD_OCR for OCR text."""
     th = THRESHOLD if threshold is None else threshold
@@ -212,8 +278,10 @@ def filter_plan(plan: Plan, text: str, threshold: float | None = None) -> tuple[
             std_sec = std_page or bool(_STANDARD_SECTION.search(normalize(sec.title)))
             for f in sec.fields:
                 lab, quo = normalize(f.label), normalize(f.quote)
-                # a choice field inside an applicant section is usually case data ("Składający jako: ...")
-                in_std_sec = std_sec and f.type not in CHOICE_TYPES
+                # a choice field inside an applicant section is usually case data ("Składający jako: ..."),
+                # so are attachments ("Kontakt i załączniki") and fields asked only in some case
+                in_std_sec = (std_sec and f.type not in CHOICE_TYPES and f.type != FieldType.FILE_UPLOADER
+                              and not _FILL_ONLY_IF.search(f.quote.lower()))
                 # the same for a question about the applicant ("Czy osoba odpowiedzialna to wnioskodawca?")
                 std = _STANDARD_LABEL.search(lab)
                 std_label = std and not (f.type in CHOICE_TYPES and _APPLICANT_WORD.fullmatch(std.group()))
@@ -240,9 +308,11 @@ def filter_plan(plan: Plan, text: str, threshold: float | None = None) -> tuple[
         raise ValueError("no page of the plan is backed by the paper text")
     from app.repair import repair_plan  # repair imports this module
 
+    _drop_vacuous(plan, dropped)
     dropped += repair_plan(plan, text)
     if not plan.pages:
         raise ValueError("no page of the plan is backed by the paper text")
+    _hoist_triggers(plan, ok, dropped)
 
     # 2. Conditions. Order = position in the plan; a trigger must come before its target,
     # which also rules out cycles. A trigger that is itself conditional is fine (chain).
