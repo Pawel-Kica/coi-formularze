@@ -159,6 +159,10 @@ def test_correspondence_address_gets_a_question_when_the_paper_says_only_if_othe
     assert ask.label == CORRESPONDENCE_QUESTION and ask.type == FieldType.RADIO and ask.options == ["Tak", "Nie"]
     assert s2.show_if.field == ask.id and s2.show_if.options == ["Tak"]
     assert any(d.startswith("correspondence:") for d in dropped)
+    # no earlier section to take the question: it gets its own, the address section is renamed
+    out, _ = filter_plan(plan(address(), sec("s3", [f("f1", "Nazwa inwestycji", "Nazwa inwestycji")])), paper)
+    assert [s.title for s in out.pages[0].sections] == ["Adres do korespondencji", "Inny adres do korespondencji", "S"]
+    assert out.pages[0].sections[1].show_if.field == out.pages[0].sections[0].fields[0].id
 
 
 def test_correspondence_address_without_a_rule_on_paper_is_dropped_but_not_a_third_persons():

@@ -27,6 +27,7 @@ _SAME = re.compile(r"taki sam|ten sam|zgodny|identyczn")
 _OWN_CORRESPONDENCE = re.compile(r"^adres (do korespondencji|korespondencyjny)( wnioskodawc\w*)?$")
 _ONLY_IF_OTHER = re.compile(r"\binn[yae] niż\b|różni się|\bjest inny\b")
 CORRESPONDENCE_QUESTION = "Czy chcesz podać inny adres do korespondencji?"
+CORRESPONDENCE_TITLE = "Adres do korespondencji"  # section of the question when no earlier section can take it
 
 
 @lru_cache(maxsize=16)
@@ -128,7 +129,9 @@ def _correspondence_address(plan: Plan, text: str, notes: list[str]) -> None:
                     if prev and not prev.address and not prev.repeating and prev.show_if is None:
                         prev.fields.append(ask)
                     else:
-                        out.append(Section(id=f"s{fid}", title=CORRESPONDENCE_QUESTION, fields=[ask]))
+                        out.append(Section(id=f"s{fid}", title=CORRESPONDENCE_TITLE, fields=[ask]))
+                        if title == normalize(CORRESPONDENCE_TITLE):  # two sections in a row, one title
+                            sec.title = f"Inny {CORRESPONDENCE_TITLE[0].lower()}{CORRESPONDENCE_TITLE[1:]}"
                 answer = next(o for o in ask.options if (normalize(o) == "nie") == bool(_SAME.search(normalize(ask.label))))
                 sec.show_if = Condition(field=ask.id, options=[answer], quote=rule)
                 out.append(sec)
