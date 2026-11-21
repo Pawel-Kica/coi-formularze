@@ -81,7 +81,15 @@ def test_reference_specific_switches():
     # Standards win over the trimmed references: Twoje dane always has PESEL, all from MLPZ, read-only.
     assert one["imie"]["defaultValue"] == "MLPZ.name" and one["numer_pesel"]["defaultValue"] == "MLPZ.pesel"
     assert five["numer_pesel"]["defaultValue"] == "MLPZ.pesel" and five["numer_pesel"]["readOnly"] is True
-    assert one["kod_pocztowy"]["readOnly"] is True and one["kod_pocztowy_zagranica"]["readOnly"] is False
+    # Own address: the whole block from MLPZ, read-only (Kraj and TERYT too, plus a Polish Miejscowość).
+    for tech, src in [("kraj", "country"), ("wojewodztwo", "voivodeship"), ("miejscowosc", "place"),
+                      ("kod_pocztowy", "postCode"), ("kod_pocztowy_zagranica", "postCode")]:
+        assert one[tech]["readOnly"] is True and one[tech]["defaultValue"] == f"MLPZ.{src}"
+        assert one[tech]["defaultValueType"] == "EXTERNAL_SYSTEM"
+    # Other people's addresses stay editable with the Standards defaults.
+    for suffix in ("_inna_osoba", "_siedziba"):
+        assert one[f"kraj{suffix}"]["readOnly"] is False and one[f"kraj{suffix}"]["defaultValue"] == ["Polska"]
+        assert one[f"wojewodztwo{suffix}"]["defaultValue"] == [] and f"miejscowosc{suffix}" not in one
     assert five["numer_pesel"]["validation"] == ["REQUIRED", "PESEL"]
     assert {"nip", "regon", "numer_krs"} <= one.keys()
     assert "nip" in five and "regon" not in five

@@ -72,6 +72,9 @@ def address_section(ctx: Ctx, title: str, section_tech: str, suffix: str, *, reg
                     register: bool = True) -> dict:
     """Address block per Standards: Kraj, then foreign or Polish fields by country.
 
+    `registry=True` (the applicant's own address): every field comes from MLPZ, one
+    attribute each, and is read-only, so the address cannot be half-edited. TERYT gets
+    only MLPZ.voivodeship, so a read-only Polish "Miejscowość" (MLPZ.place) is added.
     `register=False` when the caller already reserved `section_tech` via ctx.tech."""
     if register:
         section_tech = ctx.tech(section_tech)
@@ -80,17 +83,28 @@ def address_section(ctx: Ctx, title: str, section_tech: str, suffix: str, *, reg
     abroad = negate(poland)
     reg = (lambda attr: f"MLPZ.{attr}") if registry else (lambda attr: None)
     ro = registry  # Dane inicjalne: fields fed from a registry are read-only
+
+    def select_default(attr, plain):  # SELECT prefill: registry attribute or a plain default
+        return {"defaultValue": reg(attr), "defaultValueType": "EXTERNAL_SYSTEM"} if registry else {"defaultValue": plain}
+
     fields = [
-        field(ctx, "SELECT", "Kraj", kraj, validation=["REQUIRED"], extra={
+        field(ctx, "SELECT", "Kraj", kraj, validation=["REQUIRED"], read_only=ro, extra={
             "dictionaryName": "Kraje", "multiLevelTree": False, "searchEnabled": True,
-            "defaultValue": ["Polska"]}),
-        _text(ctx, "Miejscowość", f"miejscowosc{suffix}_zagranica", required=True, query=abroad),
-        _text(ctx, "Kod pocztowy", f"kod_pocztowy{suffix}_zagranica", query=abroad),
-        _text(ctx, "Ulica", f"ulica{suffix}_zagranica", query=abroad),
+            **select_default("country", ["Polska"])}),
+        _text(ctx, "Miejscowość", f"miejscowosc{suffix}_zagranica", required=True,
+              registry=reg("place"), read_only=ro, query=abroad),
+        _text(ctx, "Kod pocztowy", f"kod_pocztowy{suffix}_zagranica", registry=reg("postCode"),
+              read_only=ro, query=abroad),
+        _text(ctx, "Ulica", f"ulica{suffix}_zagranica", registry=reg("street"), read_only=ro, query=abroad),
         field(ctx, "SELECT", "TERYT_4G_DOWODOWY", ctx.tech(f"wojewodztwo{suffix}"),
-              validation=["REQUIRED"], query=poland, extra={
+              validation=["REQUIRED"], read_only=ro, query=poland, extra={
                   "dictionaryName": "TERYT_4G_DOWODOWY", "multiLevelTree": True,
-                  "searchEnabled": True, "defaultValue": []}),
+                  "searchEnabled": True, **select_default("voivodeship", [])}),
+    ]
+    if registry:
+        fields.append(_text(ctx, "Miejscowość", f"miejscowosc{suffix}", required=True,
+                            registry=reg("place"), read_only=ro, query=poland))
+    fields += [
         _text(ctx, "Kod pocztowy", f"kod_pocztowy{suffix}", required=True,
               extra_validators=["ZIP_CODE"], registry=reg("postCode"), read_only=ro, query=poland),
         _text(ctx, "Ulica", f"ulica{suffix}", registry=reg("street"), read_only=ro, query=poland),
