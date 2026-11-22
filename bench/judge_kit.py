@@ -182,18 +182,23 @@ def _attrs(f: dict) -> list[str]:
     return parts
 
 
-def _field_lines(f: dict, index: dict) -> list[str]:
+def _tag(f: dict, ids: bool) -> str:
+    """` `techName`` after an element's name when the outline shows ids (the clerk-corrections judge cites them)."""
+    return f" `{f.get('techName')}`" if ids and f.get("techName") else ""
+
+
+def _field_lines(f: dict, index: dict, ids: bool = False) -> list[str]:
     t = f.get("type")
     if t == "TEXT_BLOCK":
         head = (f.get("title") or "").strip()
-        lines = [f"- [tekst informacyjny]{' ' + head + ':' if head else ''} {_short(f.get('description'), 300)}"]
+        lines = [f"- [tekst informacyjny]{' ' + head + ':' if head else ''}{_tag(f, ids)} {_short(f.get('description'), 300)}"]
     elif t == "CONSENT_SECTION":
         consents = (f.get("consentSectionConfig") or {}).get("consents") or []
-        lines = [f"- CONSENT_SECTION, {len(consents)} do zaznaczenia (pierwsza to RODO ze Standardów):"]
+        lines = [f"- CONSENT_SECTION{_tag(f, ids)}, {len(consents)} do zaznaczenia (pierwsza to RODO ze Standardów):"]
         lines += [f"  - [{'wymagana' if c.get('required') else 'opcjonalna'}] {_short(c.get('description'), 400)}"
                   for c in consents]
     else:
-        lines = [f"- **{_label(f)}** · " + " · ".join(_attrs(f))]
+        lines = [f"- **{_label(f)}**{_tag(f, ids)} · " + " · ".join(_attrs(f))]
         if desc := _short(f.get("description"), 250):
             lines.append(f"  - opis: {desc}")
     return lines + [f"  - {s}" for s in _states(f, index)]
@@ -220,8 +225,8 @@ def _address_line(kids: list[dict]) -> str:
     return f"- [blok adresu ze Standardów COI, * = wymagane] {', '.join(names)}{src}"
 
 
-def outline(coi: dict) -> list[str]:
-    """COI JSON -> markdown lines: pages -> sections -> fields."""
+def outline(coi: dict, ids: bool = False) -> list[str]:
+    """COI JSON -> markdown lines: pages -> sections -> fields; `ids` adds each element's techName."""
     index = _index(coi)
     tabs = coi.get("tabs", [])
     lines = []
@@ -232,7 +237,7 @@ def outline(coi: dict) -> list[str]:
             s = q["field"]
             kids = _kids(s)
             kind = "Sekcja powtarzalna (wiersze dodaje użytkownik)" if s.get("type") == "REPEATING_SECTION" else "Sekcja"
-            lines += ["", f"### {kind}: {_label(s)}"]
+            lines += ["", f"### {kind}: {_label(s)}{_tag(s, ids)}"]
             lines += [f"- _{st}_" for st in _states(s, index)]
             if desc := _short(s.get("description"), 300):
                 lines.append(f"- _opis sekcji: {desc}_")
@@ -240,7 +245,7 @@ def outline(coi: dict) -> list[str]:
                 lines.append(_address_line(kids))
                 continue
             for k in kids:
-                lines += _field_lines(k, index)
+                lines += _field_lines(k, index, ids)
     return lines
 
 

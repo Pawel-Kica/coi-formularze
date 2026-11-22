@@ -319,6 +319,20 @@ Uruchomienie: `uv run python -m bench.run_all` (woła modele na Edenie, więc ko
 
 Zastrzeżenie: to nasze wzorce, przygotowane przez zespół, więc mierzą zgodność z naszymi decyzjami projektowymi.
 
+### Poprawki urzędnika
+
+Główna miara: ile poprawek musi zrobić urzędnik w naszym edytorze, żeby e-usługa pytała o to samo co papier. Mniej = lepiej. Trzech sędziów AI (dwa mocniejsze modele i jeden szybszy) dostaje obrazy stron papierowego formularza i naszą e-usługę jako czytelny konspekt, bez naszych wzorców. Każdy osobno wypisuje poprawki w 7 kategoriach: brakujące pole, zmyślone pole, zły typ, złe opcje, brak warunku, zły warunek, złe „wymagane”. Poprawka się liczy, gdy wypisało ją co najmniej 2 z 3 sędziów. Nie liczą się styl, brzmienie etykiet, walidatory ani strony standardowe, które buduje kod. Brief sędziego i przepis są w `bench/JUDGE-POPRAWKI.md`, liczenie robi `bench/poprawki.py` (bez sieci).
+
+Skąd wiemy, że sędziom można ufać: wzorcowy plan formularza zbudowaliśmy w e-usługę dwa razy, czystą i z wpisanymi znanymi błędami (`bench/poprawki.py plant`: 3 usunięte pola, 2 złe typy, usunięty warunek, warunek na złej opcji, zmyślone pole, ucięta lista opcji, zdjęte „wymagane”). Panel ocenił obie wersje, nie wiedząc o błędach.
+
+| Formularz | Wpisane błędy | Znalezione | Zmyślone przez sędziów | Czysta wersja |
+|---|---|---|---|---|
+| 8, deklaracja o opłacie za odpady (6 stron) | 10 | 10 | 0 | 0 poprawek |
+| 7, zezwolenie na psy (2 strony) | 10 | 9 | 0 | 0 poprawek |
+| 3, zaświadczenie (1 strona) | 7 | 4 | 0 | 0 poprawek |
+
+Na formularzach 7 i 8 sędziowie znaleźli 19 z 20 błędów i nie dopisali ani jednej poprawki, której nie było. Ominęli zdjęte „wymagane” przy potwierdzeniu przelewu, a papier wprost nie każe go dołączać (jeden sędzia uznał całe to pole za zbędne). Formularz 3 ma na papierze tylko 3 rzeczy do wypełnienia, więc 3 z 7 błędów trafiły w elementy, których papier nie ma: pytanie o opłatę i załącznik z potwierdzeniem zapłaty (dodane przez nasz wzorzec) oraz warunek przy tekście informacyjnym, którego sędziowie z zasady nie oceniają. Sędziowie słusznie ich nie policzyli. Na elementach z papieru znaleźli 4 z 4.
+
 ### 1. Start: lokalny qwen3 30B w Ollamie (porzucony)
 
 Zaczęliśmy od modelu na laptopie: `qwen3:30b-a3b-instruct-2507-q4_K_M` w Ollamie, czytający tekst z naszej ekstrakcji (PDFium, parsery Worda i arkuszy, Tesseract dla skanów). Zadziałał od początku do końca, ale był za słaby na trudne formularze i za wolny na długich. Porzuciliśmy go. Liczby zostają jako historia.
