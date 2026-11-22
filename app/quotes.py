@@ -497,8 +497,9 @@ def filter_plan(plan: Plan, text: str, threshold: float | None = None) -> tuple[
         page.sections = [s for s in page.sections if s.fields]
     plan.pages = [p for p in plan.pages if p.sections]
 
-    # 4. A field shown by its own condition is required when shown (`app.repair.require_shown`).
+    # 4. A field shown by its own condition is required when shown (`app.repair.require_shown`). A flag, not a drop:
+    # its notes stay out of `dropped`, which bench.run_all counts as the hallucination proxy.
     from app.repair import require_shown
 
-    dropped += require_shown(plan)
+    require_shown(plan)
     return plan, dropped

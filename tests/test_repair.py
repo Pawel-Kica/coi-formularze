@@ -315,7 +315,7 @@ def test_a_field_shown_by_its_own_condition_is_required_unless_the_paper_says_op
                         f("f7", "Co oznakujesz?", "taśma", FieldType.CHECKBOX, ["Wjazd", "Wyjazd"], show_if=opt, required=False)]))
     out, notes = filter_plan(p, PAPER)
     got = fields_of(out)
-    assert got["f3"].required is True and any(n.startswith("required: field f3") for n in notes)
+    assert got["f3"].required is True and not [n for n in notes if n.startswith("required:")]  # a flag, not a drop
     assert got["f4"].required is False and got["f7"].required is False
     # a field without a condition keeps the model's choice
     out, _ = filter_plan(plan(sec("s1", [f("f4", "Nazwa inwestycji", "4. Nazwa inwestycji", required=False)])), PAPER)

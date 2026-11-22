@@ -71,7 +71,7 @@ def test_condition_options_fixed_to_trigger_options():
     cond = Condition(field="f1", options=["zwrócić przelewem"], quote="zwrócić przelewem na wskazany rachunek")
     out, dropped = filter_plan(plan([RADIO, f("f2", "Numer rachunku", "wskazany rachunek", show_if=cond)]), TEXT)
     assert out.pages[0].sections[0].fields[1].show_if.options == ["Zwrócić przelewem"]
-    assert [d for d in dropped if not d.startswith("required:")] == []
+    assert dropped == []
 
 
 @pytest.mark.parametrize(
