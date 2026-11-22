@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8">
+<meta name="render" content="1600x660">
+<!-- Jeden wykres historii (README, „Jak doszliśmy do tej architektury”, szczegóły docs/historia.md).
+     Liczby są historyczne i stałe, źródła w docs/historia.md. Render: python3 docs/img/render.py historia -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1600px;background:#faf8f4;font-family:-apple-system,"Helvetica Neue",Helvetica,sans-serif;color:#1c1f4d;padding:36px 44px}
+h1{font-size:28px;font-weight:700}
+.sub{font-size:16px;color:#5b5f7a;margin-top:6px}
+.panels{display:grid;grid-template-columns:1fr 1.25fr 1fr;gap:26px;margin-top:26px}
+.panel{background:#fff;border:1.5px solid #ddd7cc;border-radius:14px;padding:16px 18px 12px}
+.panel h2{font-size:17px;margin-bottom:2px}
+.panel p{font-size:13px;color:#5b5f7a;margin-bottom:10px;min-height:34px}
+.chart{display:flex;align-items:flex-end;gap:14px;height:300px;border-bottom:1.5px solid #b9b2a6;padding:0 4px}
+.grp{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.bars{display:flex;gap:5px;align-items:flex-end;height:100%;width:100%;justify-content:center}
+.bar{width:100%;max-width:46px;border-radius:6px 6px 0 0;position:relative}
+.bar span{position:absolute;top:-19px;left:50%;transform:translateX(-50%);font-size:12.5px;font-weight:700;white-space:nowrap}
+.lbl{font-size:12.5px;text-align:center;margin-top:6px;height:34px;line-height:1.25;color:#2e3150}
+.a{background:#c9c4d9}.b{background:#c2662d}.ours{background:#2b2f6b}.grey{background:#b9b2a6}
+.key{display:flex;gap:14px;font-size:12.5px;color:#3b3f5c;margin-top:8px;flex-wrap:wrap}
+.key i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:5px}
+.foot{margin-top:14px;font-size:13.5px;color:#5b5f7a}
+</style></head><body>
+<h1>Jak doszliśmy do tej architektury: trzy pomiary</h1>
+<div class="sub">Wysokość słupka = gold=, zgodność planu formularza z naszym wzorcem (1,0 = jak wzorzec). Te same formularze COI, ten sam kod oceny.</div>
+<div class="panels">
+
+ <div class="panel"><h2>1. Model z laptopa był za słaby</h2>
+  <p>Ten sam tekst i prompty: lokalny qwen3 30B wobec mocniejszego modelu zamkniętego (górna granica, tylko pomiar)</p>
+  <div class="chart">
+   <div class="grp"><div class="bars"><div class="bar a" style="height:56.3%"><span>0,56</span></div><div class="bar grey" style="height:96.8%"><span>0,97</span></div></div></div>
+   <div class="grp"><div class="bars"><div class="bar a" style="height:58.7%"><span>0,59</span></div><div class="bar grey" style="height:84.5%"><span>0,85</span></div></div></div>
+   <div class="grp"><div class="bars"><div class="bar a" style="height:57.8%"><span>0,58</span></div><div class="bar grey" style="height:85.8%"><span>0,86</span></div></div></div>
+  </div>
+  <div style="display:flex;gap:14px;padding:0 4px"><div class="lbl" style="flex:1">form. 7<br>skan</div><div class="lbl" style="flex:1">form. 8<br>PDF</div><div class="lbl" style="flex:1">form. 9<br>PDF</div></div>
+  <div class="key"><span><i class="a"></i>qwen3 30B lokalnie</span><span><i class="grey"></i>mocniejszy model</span></div>
+ </div>
+
+ <div class="panel"><h2>2. Obrazy stron czytają lepiej niż sam tekst</h2>
+  <p>Qwen3.5 na Edenie: tekst z naszej ekstrakcji i Tesseracta (A) wobec obrazu każdej strony przepisanego do Markdown (B)</p>
+  <div class="chart">
+   <div class="grp"><div class="bars"><div class="bar a" style="height:69.3%"><span>0,69</span></div><div class="bar b" style="height:69.6%"><span>0,70</span></div></div></div>
+   <div class="grp"><div class="bars"><div class="bar a" style="height:55.5%"><span>0,56</span></div><div class="bar b" style="height:67.5%"><span>0,68</span></div></div></div>
+   <div class="grp"><div class="bars"><div class="bar a" style="height:61.4%"><span>0,61</span></div><div class="bar b" style="height:71.3%"><span>0,71</span></div></div></div>
+   <div class="grp"><div class="bars"><div class="bar a" style="height:57.9%"><span>0,58</span></div><div class="bar b" style="height:89.1%"><span>0,89</span></div></div></div>
+  </div>
+  <div style="display:flex;gap:14px;padding:0 4px"><div class="lbl" style="flex:1">form. 3<br>PDF</div><div class="lbl" style="flex:1">form. 3<br>skan</div><div class="lbl" style="flex:1">form. 7<br>PDF</div><div class="lbl" style="flex:1">form. 7<br>skan</div></div>
+  <div class="key"><span><i class="a"></i>A: tekst, średnio 0,61</span><span><i class="b"></i>B: obrazy stron, średnio 0,74 (zostało)</span></div>
+ </div>
+
+ <div class="panel"><h2>3. GLM-5.2 najlepszym planerem</h2>
+  <p>Ten sam Markdown formularza 3 (PDF, JPEG, DOCX), średnia z 2 przebiegów; pod nazwą sekundy na plan</p>
+  <div class="chart">
+   <div class="grp"><div class="bars"><div class="bar ours" style="height:95%"><span>0,95</span></div></div></div>
+   <div class="grp"><div class="bars"><div class="bar grey" style="height:92.8%"><span>0,93</span></div></div></div>
+   <div class="grp"><div class="bars"><div class="bar grey" style="height:68.4%"><span>0,68</span></div></div></div>
+   <div class="grp"><div class="bars"><div class="bar grey" style="height:47.8%"><span>0,48</span></div></div></div>
+  </div>
+  <div style="display:flex;gap:14px;padding:0 4px"><div class="lbl" style="flex:1">GLM-5.2<br>12 s</div><div class="lbl" style="flex:1">DeepSeek V4 Pro<br>15 s</div><div class="lbl" style="flex:1">Mistral Large 3<br>12 s</div><div class="lbl" style="flex:1">Qwen3.5<br>123 s</div></div>
+  <div class="key"><span><i class="ours"></i>nasz wybór</span></div>
+ </div>
+
+</div>
+<div class="foot">Pomiary z 21-22.11: panel 1 pojedyncze, panele 2 i 3 średnie z 2 przebiegów (przebiegi nie są powtarzalne co do bitu). Wzorce przygotował zespół, więc gold= mierzy zgodność z naszymi decyzjami projektowymi.</div>
+</body></html>

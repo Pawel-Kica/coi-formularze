@@ -71,8 +71,8 @@ class Settings(BaseSettings):
                 raise ValueError("JWT_JWKS_URL needs an asymmetric JWT_ALGORITHM such as RS256")
             return self
         if self.jwt_secret is None:
-            # Safe dev fallback: unguessable, but tokens die with the process. Docker compose
-            # refuses to start without JWT_SECRET, so this only happens in local runs.
+            # Safe fallback: unguessable, but tokens die with the process (and with AUTH_ENABLED=0 nobody
+            # needs one); set JWT_SECRET in production. Nothing refuses to start without it.
             log.warning("JWT_SECRET not set: using a random per-process secret (set it in production)")
             self.jwt_secret = SecretStr(secrets.token_urlsafe(32))
         elif len(self.jwt_secret.get_secret_value()) < 32:

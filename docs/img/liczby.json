@@ -1,0 +1,7 @@
+{
+  "_opis": "Liczby na diagramach README. Puste = żółty {{KLUCZ}} na PNG. Po zmianie: python3 docs/img/render.py",
+  "CZAS_FORMULARZ": "50 s",
+  "KOSZT_FORMULARZ": "0,025 $",
+  "POPRAWKI_SREDNIO": "1,9",
+  "KALIBRACJA": "znalezione 10 z 10 i 9 z 10, zmyślone 0"
+}

@@ -1,4 +1,4 @@
-"""Judge kit: per source file, what a Claude judge needs to compare the paper with our COI JSON.
+"""Judge kit: per source file, what an AI judge needs to compare the paper with our COI JSON.
 
     uv run python -I bench/judge_kit.py bench/runs/drive-baseline ~/hacknation-2026/resources/drive-formularze
 

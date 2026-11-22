@@ -4,7 +4,7 @@
 (`data/coi/{1,5}. */konfiguracja_form_*.json`); only `validation` differs (test:
 `tests/test_gold_coi.py`). COI mentors (21.11): the references are illustrative and
 have `validation: []` everywhere, validation must be in the JSON. Added by hand by
-Claude from the COI Standards (`HackNation - Standardy i dobre praktyki projektowania
+the team from the COI Standards (`HackNation - Standardy i dobre praktyki projektowania
 formularzy.pdf`), the paper forms and COI's visualisation docx (screenshots: only
 "Numer telefonu" and "Adres e-mail" carry "(opcjonalnie)"), not from our builder.
 Decisions to review by Paweł. Allowed validators: `app/rules.py` VALIDATORS.
