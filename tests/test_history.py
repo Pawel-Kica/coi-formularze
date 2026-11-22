@@ -59,6 +59,32 @@ def test_missing_and_bad_input(client):
     assert r.status_code == 400
 
 
+def test_upload_checked_like_convert(client):
+    record = {"record": json.dumps({"created": 1})}
+    assert client.post("/api/history", data=record, files={"file": ("a.png", PDF)}).status_code == 415
+    assert client.post("/api/history", data=record, files={"file": ("a;b.pdf", PDF)}).status_code == 400
+    assert client.get("/api/history").json() == []
+
+
+def test_coi_json_saved_without_paper(client):
+    """A form started from a COI JSON or the blank form: its history file is the JSON, other JSON is refused."""
+    record = {"record": json.dumps({"created": 1, "status": "done"})}
+    ok = client.post("/api/history", data=record, files={"file": ("Nowy formularz.json", b'{"title": "x", "tabs": []}', "application/json")})
+    assert ok.status_code == 200
+    for bad in (b'{"a": 1}', b"[1]", b"not json"):
+        assert client.post("/api/history", data=record, files={"file": ("a.json", bad, "application/json")}).status_code == 415
+    assert [r["file_name"] for r in client.get("/api/history").json()] == ["Nowy formularz.json"]
+
+
+def test_history_disabled(client, monkeypatch):
+    monkeypatch.setattr(settings, "history_enabled", False)
+    assert client.get("/api/auth/config").json()["history"] is False
+    record = {"record": json.dumps({"created": 1})}
+    assert client.post("/api/history", data=record, files={"file": ("a.pdf", PDF)}).status_code == 404
+    assert client.get("/api/history").status_code == 404
+    assert client.get("/api/history/1/file").status_code == 404
+
+
 def test_needs_login_when_auth_is_on(client, monkeypatch):
     monkeypatch.setattr(settings, "auth_enabled", True)
     assert client.get("/api/history").status_code == 401

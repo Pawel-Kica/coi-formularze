@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     max_file_size_mb: float = 10
     # Upload page history (app/history.py): SQLite file with every processed file and its result.
     history_db: Path = Path(__file__).resolve().parent.parent / "history.sqlite3"
+    # 0 = the server keeps no uploaded file or result after the request (/api/history answers 404, the
+    # page keeps its list only until reload); the dictionary catalog stays, it holds names and values only.
+    history_enabled: bool = True
 
     # Auth switch: off (default for now) = open API and no login on the pages; 1 = JWT required.
     auth_enabled: bool = False

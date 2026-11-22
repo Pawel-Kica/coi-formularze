@@ -25,6 +25,7 @@ from fastapi import APIRouter, Body, Depends, Form, HTTPException, Response, Upl
 from app import sources
 from app.config import settings
 from app.security import current_user
+from app.upload import validate_upload
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS uploads (  -- not "history": that name had per-field columns in the first version
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,6 +160,15 @@ def create(file: UploadFile, record: Annotated[str, Form()]) -> dict:
     data = file.file.read(settings.max_file_size_bytes + 1)
     if len(data) > settings.max_file_size_bytes:
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Plik jest za duży.")
+    if (file.filename or "").lower().endswith(".json"):  # a form started without paper (upload page: a COI JSON or the blank form)
+        try:
+            coi = json.loads(data)
+        except ValueError:
+            coi = None
+        if not isinstance(coi, dict) or not isinstance(coi.get("tabs"), list):
+            raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Plik JSON nie jest konfiguracją e-usługi COI.")
+    else:
+        validate_upload(file.filename or "", data)  # the same name, extension and content checks as convert
     try:
         state = json.loads(record)
     except ValueError:

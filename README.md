@@ -1,6 +1,22 @@
 # coi-formularze
 
-REST API, które zamienia pusty formularz papierowy (PDF, DOC, DOCX, ODS, XLSX, XLS, JPG, PNG) w konfigurację e-usługi COI (JSON gotowy do importu). Domyślnie działa w całości lokalnie: otwarty model językowy w Ollamie, bez chmury i zewnętrznych API. Ten sam klient umie też użyć modelu z otwartymi wagami przez API zgodne z OpenAI (np. Eden AI, `LLM_BACKEND=openai`). Projekt na HackNation 2026, zadanie COI „Cyfryzacja Formularzy”.
+REST API, które zamienia pusty formularz papierowy (PDF, DOC, DOCX, ODS, XLSX, XLS, JPG, PNG) w konfigurację e-usługi COI (JSON gotowy do importu). Domyślnie działa w całości lokalnie: otwarty model językowy w Ollamie, bez chmury i zewnętrznych API. Opcjonalnie, poza wymaganą konfiguracją, ten sam klient umie użyć modelu z otwartymi wagami na zdalnym serwerze przez API zgodne z OpenAI (`LLM_BACKEND=openai`, np. własny serwer GPU albo Eden AI do pomiarów). Projekt na HackNation 2026, zadanie COI „Cyfryzacja Formularzy”.
+
+## Wymagania z zadania: gdzie są
+
+| Wymaganie z „Pełnej treści zadania konkursowego” | Gdzie |
+|---|---|
+| 3.2.I Usługa REST: plik formularza → JSON zgodny ze strukturą COI i wymaganiami projektowania | `POST /api/forms/convert` ([REST API](#rest-api)); każdy wynik sprawdzają reguły COI (`app/rules.py`) przed odpowiedzią |
+| 3.2.II Dokumentacja architektury | [Architektura](#architektura) |
+| Przesłanie pojedynczego pliku; formaty PDF, DOC, DOCX, ODS, XLSX, JPG, JPEG, PNG | [Walidacja i limity](#walidacja-i-limity) |
+| Walidacja typu pliku z weryfikacją MIME z zawartości | [Walidacja i limity](#walidacja-i-limity), `app/upload.py` |
+| Walidacja nazwy pliku (do 250 znaków, bez `; : > < / \ \| ' * % $`) | [Walidacja i limity](#walidacja-i-limity) |
+| Maksymalny rozmiar pliku konfigurowalny parametrem aplikacji | `MAX_FILE_SIZE_MB` ([Konfiguracja](#konfiguracja)) |
+| Tylko tymczasowe przetwarzanie pliku | [Przechowywanie plików](#przechowywanie-plików), `HISTORY_ENABLED=0` |
+| Konteneryzacja, wymagania dla obrazów Docker | [Budowanie obrazu Docker](#budowanie-obrazu-docker), [Uruchomienie aplikacji](#uruchomienie-aplikacji) |
+| Konfiguracja: rozmiar pliku, JWT, parametry integracji | [Konfiguracja](#konfiguracja) |
+| README: budowanie obrazu, uruchomienie, konfiguracja, REST API | sekcje o tych nazwach poniżej |
+| Python 3.14+, open source bez copyleft, bez zewnętrznych API i SaaS | [Licencje](#licencje); domyślna konfiguracja i obraz używają tylko lokalnego modelu w Ollamie |
 
 ## Architektura
 
@@ -27,12 +43,72 @@ Model rozumie papier, kod pilnuje formatu COI. Model zwraca tylko krótki plan f
 6. **Reguły** (`app/rules.py`): schemat JSON COI i „Reguły techniczne”. Każdy problem kończy żądanie kodem 422, więc API nie wypuszcza JSON-a, którego generator COI nie przyjmie.
 
 Obok głównej ścieżki:
-- **Strona `/` z edytorem** (`app/static/index.html`, `preview.html`, `editor.js`): oryginał obok e-usługi; podgląd pokazuje pod każdym polem jego cytat z papieru i warunek, który je pokazuje. „Edytuj” przy elemencie otwiera z prawej strony panel „Edycja” (zwijany jednym kliknięciem, bez zmiany widoku; historia plików jest zawsze widoczna, a gdy brakuje miejsca, ustępuje okno oryginału, które też zwija się do paska): urzędnik poprawia albo usuwa element w panelu, każdą zmianę sprawdza `POST /api/forms/check` (te same reguły co przy konwersji), a z problemami nie pobierze JSON-a. Wiele plików naraz przetwarza po kolei. Bez dokumentu też się da: gotowy JSON e-usługi (np. z innego systemu) wrzucony w to samo pole albo „+ Zacznij od pustego formularza” otwiera się od razu w edytorze, bez modelu; w panelu „Edycja” urzędnik dodaje pola, sekcje i strony.
+- **Strona `/` z edytorem** (`app/static/index.html`, `preview.html`, `editor.js`): oryginał obok e-usługi; podgląd pokazuje pod każdym polem jego cytat z papieru i warunek, który je pokazuje. Ikona ołówka przy elemencie otwiera z prawej strony panel „Edycja” (zwijany jednym kliknięciem, bez zmiany widoku; historia plików jest zawsze widoczna, a gdy brakuje miejsca, ustępuje okno oryginału, które też zwija się do paska): urzędnik poprawia albo usuwa element w panelu, każdą zmianę sprawdza `POST /api/forms/check` (te same reguły co przy konwersji), a z problemami nie pobierze JSON-a. Wiele plików naraz przetwarza po kolei. Bez dokumentu też się da: gotowy JSON e-usługi (np. z innego systemu) wrzucony w to samo pole albo „+ Zacznij od pustego formularza” otwiera się od razu w edytorze, bez modelu; w panelu „Edycja” urzędnik dodaje pola, sekcje i strony.
 - **Propozycje słowników** (bonus II, `app/dictionaries.py`): `POST /api/dictionaries/proposals`, obok czystego JSON-a; model proponuje, kod odrzuca propozycje bez oparcia w papierze.
 - **Katalog słowników** (`app/catalog.py`, strona `/slowniki`): „Dodaj” przy propozycji zapisuje słownik w katalogu (ta sama baza SQLite co historia) i od razu podpina pole formularza (w JSON-ie tylko `dictionaryName`, jak Kraje); urzędnik dopisuje i usuwa wartości na stronie „Słowniki”, a podgląd czyta je z katalogu bez przerabiania formularza. Słowniki COI (Kraje, TERYT, Numery kierunkowe) są tam tylko do odczytu.
-- **Historia strony** (`app/history.py`): SQLite w pliku `HISTORY_DB`, więc wyniki widać w każdej przeglądarce.
+- **Historia strony** (`app/history.py`): SQLite w pliku `HISTORY_DB`, więc wyniki widać w każdej przeglądarce; `HISTORY_ENABLED=0` ją wyłącza.
+- **Zadania w tle** (`app/jobs.py`): `POST /api/forms/jobs` zwraca od razu adres wyniku, który można odpytywać (dla klientów, które nie chcą trzymać połączenia przez kilka minut).
 
-## Uruchomienie natywne (macOS/Linux)
+## Budowanie obrazu Docker
+
+```bash
+docker build -t coi-formularze:0.1.0 .
+# albo razem z compose: docker compose build
+# z LibreOffice (potrzebny tylko przy PIPELINE=images): docker build --build-arg LIBREOFFICE=1 -t coi-formularze:0.1.0-lo .
+```
+
+Wymagany Docker 23+ (BuildKit, domyślny builder; `Dockerfile` używa `RUN --mount=type=cache`).
+
+Obraz API (`Dockerfile`):
+- oficjalny obraz `python:3.14.10-alpine3.24` w obu etapach budowy (wszystkie zależności mają gotowe koła dla musl); `uv` z PyPI w etapie budowy instaluje zależności dokładnie z `uv.lock`, a do obrazu końcowego trafia tylko środowisko i kod `app/`;
+- Tesseract z danymi `pol` (tekst) i `osd` (wykrywanie obróconych skanów);
+- proces jako użytkownik bez uprawnień (UID 10001), tylko port 8000, `HEALTHCHECK` na `/health`, sekrety wyłącznie przy uruchomieniu (z `.env`, nigdy w obrazie; `.dockerignore` wyklucza `.env`);
+- jawne wersje, nigdzie `latest`: obrazy bazowe przypięte co do wersji (`python:3.14.10-alpine3.24`, w compose `ollama/ollama:0.40.17`), `uv==0.13.9`, zależności Pythona z `uv.lock` (z hashami), pakiety systemowe (Tesseract) z zamrożonej gałęzi Alpine 3.24 (bez numerów rewizji, bo Alpine usuwa stare rewizje z repozytorium i taki build przestałby się budować).
+
+## Uruchomienie aplikacji
+
+### Docker Compose
+
+`docker-compose.yml` (Docker Compose 2.24+) dokłada: system plików kontenera tylko do odczytu, `cap_drop: ALL`, `no-new-privileges`. Jedyne miejsce zapisu w kontenerze API to `/tmp` w pamięci (tmpfs, 1 GB): pliki tymczasowe OCR i historia strony (`HISTORY_DB=/tmp/history.sqlite3`), która znika przy restarcie kontenera.
+
+```bash
+cp .env.example .env          # opcjonalnie; z AUTH_ENABLED=1 uzupełnij JWT_SECRET i AUTH_PASSWORD
+docker compose up -d --build  # strona http://localhost:8000, OpenAPI /docs, stan modelu /health
+```
+
+W pełni odizolowane, model też w kontenerze (pierwszy start pobiera model, ponad 10 GB):
+
+```bash
+LLM_BASE_URL=http://ollama:11434/v1 docker compose --profile ollama up -d --build
+```
+
+Skąd API bierze model (ustawiasz w `.env`):
+
+| Wariant | W `.env` | Uruchomienie |
+|---|---|---|
+| Ollama na hoście (domyślnie; na Macu tylko tak model liczy na GPU) | nic, API łączy się z `http://host.docker.internal:11434/v1` | `docker compose up -d --build` |
+| Ollama w kontenerze (serwer Linux, GPU NVIDIA opcjonalnie, patrz komentarz w `docker-compose.yml`) | `LLM_BASE_URL=http://ollama:11434/v1` | `docker compose --profile ollama up -d --build` |
+| Zdalny model z otwartymi wagami przez API zgodne z OpenAI (opcja poza wymaganą konfiguracją, np. Eden AI do pomiarów) | `LLM_BACKEND=openai`, `LLM_BASE_URL=https://api.edenai.run/v3`, `LLM_MODEL=deepinfra/google/gemma-4-31B-it`, `EDENAI_API_KEY=...` | `docker compose up -d --build` |
+
+- Ollama na hoście potrzebuje modelu (`ollama pull qwen3:30b-a3b-instruct-2507-q4_K_M`) i kontekstu 32k (`OLLAMA_CONTEXT_LENGTH=32768`). Na Linuksie musi też słuchać na adresie mostu Dockera, na który wskazuje `host-gateway`: `OLLAMA_HOST=172.17.0.1` (`0.0.0.0` też działa, ale wystawia Ollamę bez hasła na całą sieć).
+- Nie wpisuj do `.env` używanego z Dockerem `LLM_BASE_URL=http://localhost:...`: w kontenerze `localhost` to sam kontener.
+- `LIBREOFFICE=1` w `.env` (albo `docker build --build-arg LIBREOFFICE=1`) dokłada do obrazu LibreOffice, którego `PIPELINE=images` potrzebuje do plików DOC/DOCX/ODS/XLS/XLSX. Domyślny obraz go nie ma (to kilkaset MB), a domyślna ścieżka czyta te formaty bibliotekami Pythona.
+- Profil `ollama`: przy pierwszym starcie `ollama-pull` pobiera `LLM_MODEL` do wolumenu `ollama` (ponad 10 GB), do tego czasu `/health` pokazuje `"llm": "model_missing"`. Obraz `ollama/ollama` jest obrazem producenta i działa jako root; compose odbiera mu uprawnienia jądra (`cap_drop: ALL`, `no-new-privileges`).
+
+### Bez compose (`docker run`)
+
+Obraz z [Budowania obrazu Docker](#budowanie-obrazu-docker), Ollama na hoście:
+
+```bash
+docker run --rm -p 8000:8000 --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
+  --add-host=host.docker.internal:host-gateway \
+  -e LLM_BASE_URL=http://host.docker.internal:11434/v1 \
+  coi-formularze:0.1.0
+```
+
+Ze zdalnym modelem zamiast `-e LLM_BASE_URL=...` podaj `--env-file .env`.
+
+### Natywnie (macOS/Linux)
 
 Wymagane: Python 3.14+, [uv](https://docs.astral.sh/uv/), [Ollama](https://ollama.com), Tesseract z językiem polskim (`brew install tesseract tesseract-lang` albo `apt install tesseract-ocr tesseract-ocr-pol`).
 
@@ -47,55 +123,17 @@ Ollama powinna mieć okno kontekstu co najmniej 32k tokenów (najdłuższy formu
 
 Strona: http://localhost:8000, dokumentacja OpenAPI: http://localhost:8000/docs. Testy: `uv run pytest`.
 
-Podgląd e-usługi: http://localhost:8000/preview pokazuje JSON COI tak, jak zobaczy go obywatel (strony, sekcje, zależności na żywo, walidatory). Każdy krok otwiera się bez wypełniania pól. Przełącznik „Cytaty z papieru i warunki” pokazuje pod każdym polem dosłowny fragment papierowego formularza, z którego powstało, a ukryte pola jako jedną linię z warunkiem, który je odsłoni. JSON wrzucasz plikiem albo wklejasz; na stronie uploadu ten sam podgląd jest wbudowany obok oryginału.
-
-## Uruchomienie w Dockerze
-
-Obraz API (`Dockerfile`):
-- oficjalny obraz `python:3.14.10-alpine3.24` w obu etapach budowy (wszystkie zależności mają gotowe koła dla musl); `uv` z PyPI w etapie budowy instaluje zależności dokładnie z `uv.lock`, a do obrazu końcowego trafia tylko środowisko i kod `app/`;
-- Tesseract z danymi `pol` (tekst) i `osd` (wykrywanie obróconych skanów);
-- proces jako użytkownik bez uprawnień (UID 10001), tylko port 8000, `HEALTHCHECK` na `/health`, sekrety wyłącznie przy uruchomieniu (z `.env`, nigdy w obrazie).
-
-`docker-compose.yml` (Docker Compose 2.24+) dokłada: system plików kontenera tylko do odczytu, `cap_drop: ALL`, `no-new-privileges`. Jedyne miejsce zapisu w kontenerze API to `/tmp` w pamięci (tmpfs, 1 GB): pliki tymczasowe OCR i historia strony (`HISTORY_DB=/tmp/history.sqlite3`), która znika przy restarcie kontenera.
-
-```bash
-cp .env.example .env          # opcjonalnie; z AUTH_ENABLED=1 uzupełnij JWT_SECRET i AUTH_PASSWORD
-docker compose up -d --build  # strona http://localhost:8000, OpenAPI /docs, stan modelu /health
-```
-
-Skąd API bierze model (ustawiasz w `.env`):
-
-| Wariant | W `.env` | Uruchomienie |
-|---|---|---|
-| Ollama na hoście (domyślnie; na Macu tylko tak model liczy na GPU) | nic, API łączy się z `http://host.docker.internal:11434/v1` | `docker compose up -d --build` |
-| Ollama w kontenerze (serwer Linux, GPU NVIDIA opcjonalnie, patrz komentarz w `docker-compose.yml`) | `LLM_BASE_URL=http://ollama:11434/v1` | `docker compose --profile ollama up -d --build` |
-| Eden AI (model z otwartymi wagami przez API zgodne z OpenAI) | `LLM_BACKEND=openai`, `LLM_BASE_URL=https://api.edenai.run/v3`, `LLM_MODEL=deepinfra/google/gemma-4-31B-it`, `EDENAI_API_KEY=...` | `docker compose up -d --build` |
-
-- Ollama na hoście potrzebuje modelu (`ollama pull qwen3:30b-a3b-instruct-2507-q4_K_M`) i kontekstu 32k (`OLLAMA_CONTEXT_LENGTH=32768`). Na Linuksie musi też słuchać na adresie mostu Dockera, na który wskazuje `host-gateway`: `OLLAMA_HOST=172.17.0.1` (`0.0.0.0` też działa, ale wystawia Ollamę bez hasła na całą sieć).
-- Nie wpisuj do `.env` używanego z Dockerem `LLM_BASE_URL=http://localhost:...`: w kontenerze `localhost` to sam kontener.
-- `LIBREOFFICE=1` w `.env` (albo `docker build --build-arg LIBREOFFICE=1`) dokłada do obrazu LibreOffice, którego `PIPELINE=images` potrzebuje do plików DOC/DOCX/ODS/XLS/XLSX. Domyślny obraz go nie ma (to kilkaset MB), a domyślna ścieżka czyta te formaty bibliotekami Pythona.
-- Profil `ollama`: przy pierwszym starcie `ollama-pull` pobiera `LLM_MODEL` do wolumenu `ollama` (ponad 10 GB), do tego czasu `/health` pokazuje `"llm": "model_missing"`. Obraz `ollama/ollama` jest obrazem producenta i działa jako root; compose odbiera mu uprawnienia jądra (`cap_drop: ALL`, `no-new-privileges`).
-
-Bez compose (Ollama na hoście):
-
-```bash
-docker build -t coi-formularze:0.1.0 .
-docker run --rm -p 8000:8000 --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
-  --add-host=host.docker.internal:host-gateway \
-  -e LLM_BASE_URL=http://host.docker.internal:11434/v1 \
-  coi-formularze:0.1.0
-```
-
-Z Edenem zamiast `-e LLM_BASE_URL=...` podaj `--env-file .env`.
+Podgląd e-usługi: http://localhost:8000/preview pokazuje JSON COI tak, jak zobaczy go obywatel (strony, sekcje, zależności na żywo, walidatory). Każdy krok otwiera się bez wypełniania pól. Przełącznik „Pokaż cytaty” pokazuje pod każdym polem dosłowny fragment formularza, z którego powstało, a „Pokaż warunki” warunek, który je pokazuje, i ukryte pola jako jedną linię z warunkiem, który je odsłoni. JSON wrzucasz plikiem albo wklejasz; na stronie uploadu ten sam podgląd jest wbudowany obok oryginału.
 
 ## Konfiguracja
 
-Zmienne środowiskowe albo plik `.env` (wzór: `.env.example`).
+Zmienne środowiskowe albo plik `.env` (wzór: `.env.example`), czytane przy starcie (`app/config.py`); sekrety tylko przy uruchomieniu, nigdy w obrazie. Parametry, których wymaga zadanie: rozmiar pliku (`MAX_FILE_SIZE_MB`), uwierzytelnianie JWT (`AUTH_ENABLED`, `JWT_*`, `AUTH_*`) i integracja z modelem (`LLM_BACKEND`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_TIMEOUT_S`, `EDENAI_API_KEY`); reszta to opcjonalne strojenie modelu i OCR.
 
 | Zmienna | Domyślnie | Opis |
 |---|---|---|
 | `MAX_FILE_SIZE_MB` | `10` | Maksymalny rozmiar pliku (MiB) |
-| `HISTORY_DB` | `history.sqlite3` (katalog repo); w Dockerze `/tmp/history.sqlite3` | Plik SQLite z historią strony (wgrane pliki i wyniki) |
+| `HISTORY_DB` | `history.sqlite3` (katalog repo); w Dockerze `/tmp/history.sqlite3` | Plik SQLite z historią strony (wgrane pliki i wyniki) i katalogiem słowników |
+| `HISTORY_ENABLED` | `1` | `0` = serwer nie zachowuje żadnego wgranego pliku ani wyniku po zakończeniu żądania: `/api/history` odpowiada 404, strona trzyma listę plików tylko do odświeżenia (bez „Źródła”). Katalog słowników zostaje (same nazwy i wartości) |
 | `AUTH_ENABLED` | `0` | `0` = API otwarte, strony bez logowania (na razie domyślnie). `1` = każde wywołanie wymaga tokenu `Bearer` JWT, strony pokazują logowanie |
 | `JWT_SECRET` | brak | Klucz podpisu tokenów, min. 32 znaki. Wymagany w produkcji; lokalnie bez niego API losuje klucz na czas życia procesu (z ostrzeżeniem w logu) |
 | `JWT_ALGORITHM` | `HS256` | Algorytm podpisu (z `JWT_JWKS_URL` np. `RS256`) |
@@ -131,17 +169,21 @@ Kolumna „Autoryzacja” dotyczy `AUTH_ENABLED=1`; przy domyślnym `0` wszystko
 
 | Metoda i ścieżka | Autoryzacja | Opis |
 |---|---|---|
-| `GET /api/auth/config` | brak | `{"enabled": true \| false}`, czy wymagany jest token (`AUTH_ENABLED`); strony pytają o to przed pokazaniem logowania |
+| `GET /api/auth/config` | brak | `{"enabled": true \| false, "history": true \| false}`: czy wymagany jest token (`AUTH_ENABLED`) i czy serwer prowadzi historię (`HISTORY_ENABLED`); strony pytają o to przed pokazaniem logowania |
 | `POST /api/auth/token` | brak | `username` i `password` (JSON lub formularz) → `{access_token, token_type, expires_in}` |
 | `POST /api/forms/convert` | `Bearer` JWT | Jeden plik w polu `file` (multipart) → JSON COI, bez żadnej otoczki. Z `?evidence=1` → `{"coi": ..., "evidence": {id elementu: {"source": "paper" \| "model" \| "code", "quote": cytat z papieru, "page": ...}}}` (tego używa strona: cytaty w podglądzie i w edytorze) |
+| `POST /api/forms/jobs` | `Bearer` JWT | To samo co `convert`, ale bez czekania: plik w polu `file`, te same kontrole (400/413/415 od razu) → `202 {"id", "status_url", "result_url"}`, nagłówek `Location` = `result_url`. 429, gdy w kolejce czeka już 20 zadań |
+| `GET /api/forms/jobs/{id}/result` | `Bearer` JWT | **404, dopóki formularz się przetwarza** (nagłówek `Retry-After`), potem 200 i czysty JSON COI jak z `convert`, albo ten sam kod błędu co `convert` (422/500/502/503/504) z `{"detail"}`. Odpytuj, aż przestanie zwracać 404. Wynik jest dostępny przez 1 h od zakończenia |
+| `GET /api/forms/jobs/{id}` | `Bearer` JWT | `{"id", "status": "pending" \| "done" \| "error"}`, przy błędzie też `code` i `detail`; 404 = nieznane albo wygasłe zadanie |
 | `POST /api/forms/text` | `Bearer` JWT | Jeden plik w polu `file` (multipart) → `{"text": tekst odczytany z pliku, "method": sposób odczytu}`, bez modelu. Strona pokazuje go jako oryginał dla formatów, których przeglądarka nie wyświetla (DOC, DOCX, ODS, XLSX, XLS) |
 | `POST /api/forms/check` | `Bearer` JWT | JSON COI (np. po poprawkach urzędnika) → `{"problems": [{"id": id elementu lub null, "message": opis po polsku, "detail": reguła}]}`; pusta lista = gotowe do importu, te same reguły co przy konwersji |
 | `GET /api/forms/blank` | `Bearer` JWT | `{"coi": ..., "evidence": ...}` formularza do zbudowania ręcznie, bez pliku i bez modelu: strony standardowe COI (Dane, Kontakt i zgody, strona końcowa) wokół jednej strony z jednym polem. Tego używa przycisk „+ Zacznij od pustego formularza” |
-| `GET/POST/DELETE /api/history`, `GET /api/history/{id}/file`, `PUT/DELETE /api/history/{id}` | `Bearer` JWT | Historia strony na serwerze (SQLite, `HISTORY_DB`): lista bez bajtów pliku, najnowsze pierwsze; oryginał pliku; nowy wpis (multipart `record` JSON + `file`) → `{id}`; zmiana stanu (JSON); usunięcie jednego lub wszystkich. Skrypty dopisują gotowy wynik przez `uv run python -m bench.history_add <plik> <coi.json>` |
+| `POST /api/dictionaries/proposals` | `Bearer` JWT | Bonus II: ten sam upload co `convert` → propozycje nowych słowników dla pól formularza (nazwa, struktura kod + nazwa, wartości, pole) i to, co kod odrzucił; JSON e-usługi się nie zmienia |
+| `GET/POST/DELETE /api/history`, `GET /api/history/{id}/file`, `PUT/DELETE /api/history/{id}`, `POST /api/history/{id}/sources`, `GET /api/history/{id}/page/{n}.png` | `Bearer` JWT | Historia strony na serwerze (SQLite, `HISTORY_DB`; 404 przy `HISTORY_ENABLED=0`): lista bez bajtów pliku, najnowsze pierwsze; oryginał pliku; nowy wpis (multipart `record` JSON + `file`, ten sam plik i te same kontrole co w `convert`) → `{id}`; zmiana stanu (JSON); usunięcie jednego lub wszystkich; „Źródło”: `{coi, evidence}` → miejsce każdego elementu w oryginale i strona oryginału jako PNG. Skrypty dopisują gotowy wynik przez `uv run python -m bench.history_add <plik> <coi.json>` |
 | `GET/POST /api/dictionaries`, `GET/PUT/DELETE /api/dictionaries/{code}`, `POST /api/dictionaries/{code}/items` | `Bearer` JWT | Katalog słowników (SQLite, `HISTORY_DB`): lista (najpierw słowniki COI tylko do odczytu, potem nasze z wartościami `{kod, nazwa}`); nowy słownik `{name, code?, source?: {file, field}, items?}` (zajęty kod dostaje `_2`); zmiana nazwy lub wartości; dopisanie wartości bez duplikatów; usunięcie (słowniki COI: 403) |
 | `GET /slowniki` | brak | Strona katalogu słowników: słowniki COI tylko do odczytu i nasze (wartości „+ Dodaj wartość”, „×”, „Usuń słownik”) |
 | `GET /health` | brak | `{"status": "ok", "llm": "ok" \| "model_missing" \| "busy" \| "unreachable" \| "no_api_key", "llm_backend": ..., "llm_model": ...}` |
-| `GET /` | brak | Strona do wgrywania plików (kilka plików przetwarza po kolei): oryginał obok e-usługi w widokach „Podgląd” (cytat z papieru pod każdym polem), „JSON” i „Słowniki”. „Edytuj” obok każdego elementu (także na stronach standardowych: Dane, Kontakt i zgody, strona końcowa) otwiera w tym samym widoku boczny panel „Edycja” na tym elemencie (panel zwija się jednym kliknięciem): urzędnik poprawia go w panelu albo usuwa jednym kliknięciem (pole, sekcję, całą stronę, oświadczenie; „Cofnij” przywraca). Każdą zmianę sprawdzają reguły COI: z problemami nie pobierze JSON-a, a gdy usunięcie zepsułoby import, przycisk jest wyłączony i podaje powód |
+| `GET /` | brak | Strona do wgrywania plików (kilka plików przetwarza po kolei): oryginał obok e-usługi w widokach „Podgląd” (cytat z papieru pod każdym polem), „JSON” i „Słowniki”. Ikona ołówka przy każdym elemencie (także na stronach standardowych: Dane, Kontakt i zgody, strona końcowa) otwiera w tym samym widoku boczny panel „Edycja” na tym elemencie (panel zwija się jednym kliknięciem): urzędnik poprawia go w panelu albo usuwa jednym kliknięciem (pole, sekcję, całą stronę, oświadczenie; „Cofnij” przywraca). Każdą zmianę sprawdzają reguły COI: z problemami nie pobierze JSON-a, a gdy usunięcie zepsułoby import, przycisk jest wyłączony i podaje powód |
 | `GET /docs` | brak | OpenAPI / Swagger UI (przycisk „Authorize” loguje loginem i hasłem) |
 
 ```bash
@@ -156,24 +198,48 @@ curl -X POST http://localhost:8000/api/forms/convert \
   -H "Authorization: Bearer $TOKEN" -F "file=@wniosek.pdf" -o wniosek.json
 ```
 
+Zadanie w tle i odpytywanie adresu wyniku (z `AUTH_ENABLED=1` dodaj `-H "Authorization: Bearer $TOKEN"` do każdego `curl`):
+
+```bash
+BASE=http://localhost:8000
+JOB=$(curl -s -X POST $BASE/api/forms/jobs -F "file=@wniosek.pdf")   # {"id", "status_url", "result_url"}
+RESULT=$BASE$(echo "$JOB" | jq -r .result_url); STATUS=$BASE$(echo "$JOB" | jq -r .status_url)
+for i in $(seq 1 240); do   # do 20 minut
+  CODE=$(curl -s -o wniosek.json -w '%{http_code}' "$RESULT")
+  [ "$CODE" != 404 ] && break                                         # 200 = gotowe, inny kod = błąd w wniosek.json
+  [ "$(curl -s -o /dev/null -w '%{http_code}' "$STATUS")" = 404 ] && break   # nieznane/wygasłe zadanie
+  sleep 5
+done
+echo "$CODE"
+```
+
 Błędy zawsze jako JSON `{"detail": "..."}`:
 
 | Kod | Kiedy |
 |---|---|
 | 400 | zła nazwa pliku, pusty plik, brak pola `file` albo więcej niż jeden plik |
 | 401 | brak, zły lub wygasły token; zły login lub hasło (tylko z `AUTH_ENABLED=1`) |
+| 404 | `GET /api/forms/jobs/{id}/result`: wynik jeszcze się liczy (albo nieznane zadanie); `/api/history` przy `HISTORY_ENABLED=0` |
 | 413 | plik większy niż `MAX_FILE_SIZE_MB` |
 | 415 | nieobsługiwane rozszerzenie albo zawartość niezgodna z rozszerzeniem |
 | 422 | nie udało się odczytać formularza |
+| 429 | `POST /api/forms/jobs`: 20 zadań już czeka |
+| 500 | nieoczekiwany błąd serwera (szczegóły tylko w logu) |
 | 502 / 503 / 504 | model językowy zwrócił błąd / jest niedostępny / nie odpowiedział na czas |
 
 ## Walidacja i limity
 
-- Rozszerzenia (wielkość liter bez znaczenia): `.pdf .doc .docx .ods .xlsx .xls .jpg .jpeg .jpe .png`.
+- Jeden plik na żądanie (pole `file`); inne liczby plików kończą się kodem 400.
+- Rozszerzenia (wielkość liter bez znaczenia): `.pdf .doc .docx .ods .xlsx .xls .jpg .jpeg .jpe .png`. To świadomy nadzbiór listy z zadania: `.xls` (starszy Excel) i `.jpe` (inne rozszerzenie JPEG) spotykamy w BIP-ach gmin, a ich zawartość przechodzi tę samą kontrolę sygnatury. Każde inne rozszerzenie: 415. Zadanie wymienia DOC jako „.doc .docx”, więc oba rozszerzenia Worda przyjmują oba formaty Worda (gminy publikują DOCX z końcówką `.doc`), ale zawartość musi być prawdziwym dokumentem Worda.
 - Nazwa pliku: najwyżej 250 znaków, bez `; : > < / \ | ' * % $`.
 - Typ MIME ustalany z zawartości (sygnatury), musi pasować do rozszerzenia: PDF `%PDF`, DOC plik OLE2 ze strumieniem `WordDocument`, XLS plik OLE2 ze strumieniem `Workbook` (lub `Book`), DOCX/XLSX archiwum ZIP z `[Content_Types].xml` i katalogiem `word/` lub `xl/`, ODS archiwum z `mimetype` = `application/vnd.oasis.opendocument.spreadsheet`, JPEG `FF D8 FF`, PNG sygnatura PNG. Nagłówek `Content-Type` od klienta nie decyduje.
 - Rozmiar: liczony w trakcie strumieniowego odczytu, odczyt przerywany po przekroczeniu limitu (nie ufamy samemu `Content-Length`).
-- Pliki w pamięci: treść żądania trafia prosto do RAM, a `POST /api/forms/convert` niczego trwale nie zapisuje. Na dysk trafiają tylko pliki tymczasowe: OCR (`pytesseract` przekazuje obraz strony Tesseractowi przez plik w katalogu tymczasowym i zaraz go usuwa), a przy `PIPELINE=images` LibreOffice konwertuje plik biurowy w katalogu tymczasowym. Oryginał i wynik zapisuje dopiero strona `/` w swojej historii (`HISTORY_DB`); w Dockerze to `/tmp` w pamięci kontenera.
+
+### Przechowywanie plików
+
+- `POST /api/forms/convert`: treść żądania trafia prosto do RAM i nic nie zostaje po odpowiedzi. Na dysk trafiają tylko pliki tymczasowe na czas żądania: OCR (`pytesseract` przekazuje obraz strony Tesseractowi przez plik w katalogu tymczasowym i zaraz go usuwa), a przy `PIPELINE=images` LibreOffice konwertuje plik biurowy w katalogu tymczasowym.
+- `POST /api/forms/jobs`: bajty pliku są tylko w pamięci procesu i znikają, gdy zadanie się skończy (nigdy na dysku); zostaje sam wynik JSON, 1 h od zakończenia. Restart serwera zapomina wszystkie zadania.
+- Historia strony `/` (`HISTORY_DB`) to funkcja interfejsu, nie API: zachowuje oryginał i wynik, żeby urzędnik wrócił do pliku. W Dockerze leży w `/tmp` w pamięci kontenera i znika przy restarcie. `HISTORY_ENABLED=0` wyłącza ją całkiem: wtedy serwer nie zachowuje żadnego wgranego pliku ani wyniku po zakończeniu żądania.
 
 ## Benchmark i wybór modelu
 

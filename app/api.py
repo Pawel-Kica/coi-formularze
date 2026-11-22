@@ -12,10 +12,11 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from app import catalog, history, pipeline, review
+from app import catalog, history, jobs, pipeline, review
 from app.builder import blank
 from app.dictionaries import propose as propose_dictionaries
 from app.config import settings
+from app.errors import conversion_error
 from app.extract import extract
 from app.llm.client import health as llm_health
 from app.problems import explain
@@ -34,8 +35,18 @@ app = FastAPI(
     version="0.1.0",
 )
 app.include_router(review.router)  # dev-only /review, 404 unless REVIEW_RUNS_DIR is set
-app.include_router(history.router)  # /api/history: upload page history in SQLite (HISTORY_DB)
+
+
+def _history_enabled() -> None:
+    """HISTORY_ENABLED=0: the server keeps no uploaded file or result, so /api/history answers 404."""
+    if not settings.history_enabled:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Historia jest wyłączona (HISTORY_ENABLED=0).")
+
+
+# /api/history: upload page history in SQLite (HISTORY_DB)
+app.include_router(history.router, dependencies=[Depends(_history_enabled)])
 app.include_router(catalog.router)  # /api/dictionaries: the dictionary catalog, same SQLite file
+app.include_router(jobs.router)  # /api/forms/jobs: convert in the background, poll the result URL
 
 
 class Credentials(BaseModel):
@@ -63,8 +74,9 @@ _FILE_BODY = _body(
 
 @app.get("/api/auth/config", tags=["auth"])
 async def auth_config() -> dict:
-    """Whether a token is required (AUTH_ENABLED); the pages skip the login form when it is not."""
-    return {"enabled": settings.auth_enabled}
+    """Whether a token is required (AUTH_ENABLED), so the pages skip the login form when it is not,
+    and whether the server keeps the upload page history (HISTORY_ENABLED)."""
+    return {"enabled": settings.auth_enabled, "history": settings.history_enabled}
 
 
 @app.post("/api/auth/token", openapi_extra=_CREDENTIALS_BODY, tags=["auth"])
@@ -109,14 +121,8 @@ async def convert(
             coi, ev = await run_in_threadpool(pipeline.convert_with_evidence, data, filename)
             return JSONResponse({"coi": coi, "evidence": ev})
         coi = await run_in_threadpool(pipeline.convert, data, filename)
-    except httpx.HTTPStatusError:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Model językowy zwrócił błąd.")
-    except httpx.TimeoutException, TimeoutError:  # the model is up but too slow: not "niedostępny"
-        raise HTTPException(status.HTTP_504_GATEWAY_TIMEOUT, "Model nie odpowiedział na czas. Spróbuj ponownie.")
-    except httpx.TransportError, ConnectionError:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Model językowy jest niedostępny.")
-    except ValueError as error:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Nie udało się odczytać formularza: {error}")
+    except Exception as error:  # 422 / 502 / 503 / 504 / 500, the same codes a job's result URL gives
+        raise conversion_error(error)
     return JSONResponse(coi)
 
 

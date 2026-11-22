@@ -292,6 +292,7 @@ const state = {
   // frame itself remembers, so a reload lays the panes out right at once
   sidebar: localStorage.getItem("coi-sidebar") === "1",
   originalHidden: localStorage.getItem("coi-original") === "0", // the original pane was collapsed to its strip by hand
+  history: true, // HISTORY_ENABLED on the server (GET /api/auth/config); off = nothing saved, the list lives until reload
   originalUrl: null, previewReady: false,
   doc: 0, docItem: null, // editor: which document the iframe shows (and whose edits it sends)
 };
@@ -315,6 +316,7 @@ function el(tag, className, text) {
 // One history request: store("put", record) creates a record without id (multipart with the file) or updates one
 // (JSON, file unchanged) and resolves with its id; store("getAll"), store("delete", id), store("clear").
 async function store(method, arg) {
+  if (!state.history) return method === "getAll" ? [] : undefined; // HISTORY_ENABLED=0: the server keeps nothing
   const headers = { Authorization: `Bearer ${state.token}` };
   let response;
   if (method === "put") {
@@ -339,6 +341,11 @@ async function store(method, arg) {
   const data = await response.json();
   return method === "put" ? data.id : data;
 }
+
+// The preview and editor tell documents apart by this key (a new key resets undo and the answers): the history id, or
+// a page-local one while the record is not saved yet or never will be (HISTORY_ENABLED=0).
+let localKeys = 0;
+const docKey = (item) => item.id ?? (item.localId ??= `local-${++localKeys}`);
 
 // Saves an item without its DOM row; the first save assigns item.id. Saves of one item run in order,
 // so a quick second save never creates the record twice.
@@ -890,7 +897,7 @@ function sendPreview() {
   state.doc += 1;
   state.docItem = item;
   $("#preview-frame").contentWindow.postMessage(
-    { type: "coi-preview", json: selectedJson(), evidence: item.evidence || {}, doc: state.doc, key: item.id }, location.origin);
+    { type: "coi-preview", json: selectedJson(), evidence: item.evidence || {}, doc: state.doc, key: docKey(item) }, location.origin);
   checkRules(item, 0);
   if (!isJson(item.file)) sendSources(item); // "Źródło" needs paper
 }
@@ -1353,12 +1360,14 @@ async function addDict(item, p, code, button) {
 }
 
 // AUTH_ENABLED off on the server: no login form, requests go without a real token.
-fetch("/api/auth/config").then((r) => r.json()).then(({ enabled }) => {
+// HISTORY_ENABLED off: no /api/history calls at all (the history is read only after this answer).
+fetch("/api/auth/config").then((r) => r.json()).then(({ enabled, history }) => {
   if (!enabled) Object.assign(state, { open: true, token: "open" });
+  if (history === false) state.history = false;
 }).catch(() => {}).finally(() => {
   showScreens();
+  loadHistory();
 });
-loadHistory();
 </script>
 </body>
 </html>
