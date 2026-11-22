@@ -1,6 +1,6 @@
 """PDF -> raw text with pypdfium2 (Apache-2.0/BSD): the text layer page by page. Pages whose layer is missing or
 garbage (scans, broken font encodings, including fonts without a Unicode map whose layer is a shifted cipher) are left
-out: the pipeline reads every page as an image (`app.llm.transcribe`)."""
+out: the pipeline reads every page as an image (`app.llm.transcribe`) and "Źródło" OCRs them (`app.sources`)."""
 
 import re
 import threading
@@ -9,8 +9,9 @@ import pypdfium2 as pdfium
 
 POLISH = set("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ")
 VOWELS = set("aeiouyąęó")
+OCR_DPI = 300  # page render for Tesseract in `app.sources`
 # pdfium is not thread-safe (parallel calls crash the process): every pdfium call in `app` runs under this one lock
-# (here and `app.llm.transcribe`). Reentrant, so a locked caller may call another locked reader.
+# (here, `app.sources`, `app.llm.transcribe`). Reentrant, so a locked caller may call another locked reader.
 PDFIUM = threading.RLock()
 # What a font without a Unicode map gives instead of words: control characters, and letters glued
 # together by symbols real words never hold inside (gov.pl "Zgłoszenie pobytu" -> `=JÊRV]HQLHSRE\WX`).

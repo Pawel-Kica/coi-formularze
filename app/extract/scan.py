@@ -1,5 +1,5 @@
 """Stacked page images (Pillow + numpy): `split_pages` cuts a tall image of n stacked A4 pages into n pages,
-overlapping at each cut. Used before transcription (`app.llm.transcribe`).
+overlapping at each cut. Used before transcription (`app.llm.transcribe`) and for "Źródło" (`app.sources`).
 """
 
 import numpy as np

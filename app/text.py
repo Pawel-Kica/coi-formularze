@@ -1,4 +1,4 @@
-"""Small text helpers shared by the builder, the rules checker and the quote filter."""
+"""Small text helpers shared by the builder, the rules checker and the benchmark."""
 
 import html
 import re

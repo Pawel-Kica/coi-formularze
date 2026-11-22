@@ -6,9 +6,13 @@ from app.plan import Condition, FieldType, Page, Plan, PlanField, Section, State
 from app.quotes import (
     THRESHOLD,
     THRESHOLD_OCR,
+    _elided_span,
+    _paper_lines,
     filter_plan,
     normalize,
+    place_quotes,
     quote_found,
+    span_lines,
     threshold_for,
 )
 
@@ -229,6 +233,56 @@ def test_applicant_address_section_dropped_attachments_and_case_fields_stay():
     kept = [x.id for pg in out.pages for s in pg.sections for x in s.fields]
     assert kept == ["f1", "f3", "f4"]  # f2: the Dane page has the address; f5: the proxy section has the file
     assert sum(d.startswith("standard:") for d in dropped) == 2
+
+
+FEE = """Opłata za wydanie zaświadczenia wynosi 17 zł.
+Opłatę skarbową należy wnieść w kasie lub bezgotówkowo na rachunek tut. Urzędu – przed złożeniem wniosku.
+Konto bankowe Urzędu: Bank PKO BP S.A.
+Wniosek należy złożyć przed złożeniem wniosku o dowód.
+"""
+
+
+@pytest.mark.parametrize("quote", ["Opłatę skarbową należy wnieść ... przed złożeniem wniosku",
+                                   "Opłatę skarbową należy wnieść … przed złożeniem wniosku",
+                                   "Opłatę skarbową należy wnieść [...] przed złożeniem wniosku"])
+def test_elided_quote_placed_from_first_to_last_part(quote):
+    # the model shortened a long sentence with an ellipsis (form 3 on Eden): every part is on paper, in order
+    span = place_quotes([("k", quote, True)], FEE)["k"]
+    joined, _ = _paper_lines(FEE)
+    assert joined[span[0]:span[1]].startswith("opłatę skarbową należy wnieść")
+    assert joined[span[0]:span[1]].endswith("przed złożeniem wniosku")
+    assert span_lines(span, FEE) == (1, 1)
+
+
+@pytest.mark.parametrize("quote", ["Opłatę skarbową należy wnieść ... przed wysłaniem pisma",  # a part not on paper
+                                   "Opłatę skarbową należy wnieść ... wniosku",  # a one-word part proves nothing
+                                   "przed złożeniem wniosku ... Opłatę skarbową",  # parts out of order
+                                   "Opłatę skarbową należy wnieść ... przed złożeniem wnios"])  # half a word
+def test_elided_quote_needs_every_part_exact_and_in_order(quote):
+    # no span by parts; place_quotes then falls back to its fuzzy match as for any other quote
+    assert _elided_span(quote, _paper_lines(FEE)[0], 0) is None
+
+
+def test_elided_quote_parts_must_sit_close_together():
+    far = "Opłata za wydanie zaświadczenia\n" + "Pouczenie o skutkach prawnych.\n" * 12 + "wynosi 17 zł od egzemplarza\n"
+    assert _elided_span("Opłata za wydanie ... wynosi 17 zł", _paper_lines(far)[0], 0) is None
+    near = "Opłata za wydanie zaświadczenia\nwynosi 17 zł od egzemplarza\n"
+    assert _elided_span("Opłata za wydanie ... wynosi 17 zł", _paper_lines(near)[0], 0) is not None
+
+
+def test_elided_quote_starts_at_the_first_part_nearest_the_rest():
+    text = "Imię i nazwisko ojca\nPESEL ojca\nImię i nazwisko matki\nAdres zamieszkania matki\n"
+    span = place_quotes([("k", "Imię i nazwisko ... zamieszkania matki", True)], text)["k"]
+    assert span_lines(span, text) == (2, 3)
+
+
+def test_elided_quote_follows_the_cursor():
+    text = "Imię i nazwisko ojca\nAdres zamieszkania ojca\nImię i nazwisko matki\nAdres zamieszkania matki\n"
+    joined = _paper_lines(text)[0]
+    after_first = joined.index("imię i nazwisko matki")
+    assert span_lines(_elided_span("Imię i nazwisko ... Adres zamieszkania", joined, after_first), text) == (2, 3)
+    assert span_lines(_elided_span("Imię i nazwisko ... Adres zamieszkania", joined, len(joined)), text) == (2, 3)
+    assert span_lines(_elided_span("Imię i nazwisko ... Adres zamieszkania", joined, 0), text) == (0, 1)
 
 
 def test_quote_threshold_follows_the_reading_method():

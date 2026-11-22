@@ -4,7 +4,7 @@ Tabs: "Dane" (predefined, from `plan.applicant`/`plan.addressee`), the Plan's
 subject-matter pages, "Kontakt i zgody" (contact + consents from `plan.statements`)
 and the FINISH page. Usage: `coi = build(plan)`, then `app.rules.check(coi)`.
 `coi, evidence = build_with_evidence(plan)` also says where every element came from
-(the paper quote for fields, see `_evidence`); `POST /api/forms/convert?evidence=1` returns it.
+(the paper quote for fields, see `_evidence`); the editor on the upload page shows it.
 
 Robust to imperfect plans (the local model writes them): choice fields without
 options become text fields, conditions pointing at unknown fields/options are
@@ -282,6 +282,16 @@ def build_with_evidence(plan: Plan) -> tuple[dict, dict]:
     tabs = [dane, *_plan_pages(ctx, plan, known), contact, finish]
     coi = {"title": title, "tabs": tabs, "flow": flow(ctx, tabs)}
     return coi, _evidence(coi, plan, known)
+
+
+def blank() -> tuple[dict, dict]:
+    """A form to build by hand ("Zacznij od pustego formularza" on the upload page, `GET /api/forms/blank`): the
+    standard pages around one page with one section and one text field, no paper. Everything that is not a standard
+    page is marked as the clerk's, so the editor renames its techNames with its labels."""
+    plan = Plan(title="Nowy wniosek", addressee="", pages=[{"title": "Nowa strona", "sections": [
+        {"id": "s1", "title": "Nowa sekcja", "fields": [{"id": "f1", "label": "Nowe pole", "type": "TEXT_FIELD", "quote": ""}]}]}])
+    coi, evidence = build_with_evidence(plan)
+    return coi, {k: v if v["source"] == "code" else _ev("clerk") for k, v in evidence.items()}
 
 
 def _ev(source: str, quote: str | None = None, *, plan_id: str | None = None,

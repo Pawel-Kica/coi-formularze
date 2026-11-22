@@ -1,4 +1,5 @@
-"""One mapping from a conversion failure to the HTTP answer of `POST /api/forms/convert`."""
+"""One mapping from a conversion failure to the HTTP answer, shared by `POST /api/forms/convert`
+and the jobs (`app/jobs.py`), so a polled result fails with exactly the code the sync call gives."""
 
 import logging
 

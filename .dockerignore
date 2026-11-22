@@ -7,5 +7,9 @@
 .pytest_cache
 .DS_Store
 data
+bench
 tests
 gold
+output
+docs
+history.sqlite3*

@@ -3,59 +3,1404 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Formularz na e-usługę COI</title>
+<title>Cyfryzacja formularzy | generator e-usług COI</title>
+<!-- One self-contained page served by the API at "/": log in, drop forms, check each result against its original.
+     Left column = drop one file or many (sent one by one); a COI JSON (dropped or picked with "Wgraj JSON")
+     and "Zacznij od pustego formularza" skip the model and open straight in the editor (openReady); plus history (on the server,
+     /api/history) with a ZIP of all results. Main area = original document | e-service, one of three views: "Podgląd" (the form
+     with the paper quote under every field and the paper heading of every page and section, a click on it shows that
+     place in the original (showPaper), and "Źródło" next to an element shows a crop of the paper page with its quote framed,
+     a click on it the whole page here (sendSources, showSource); to its right, the collapsible "Edycja" sidebar of /editor.js: the pencil
+     next to an element opens it there; edits are saved in history and checked with the COI rules), "JSON" (tree) and
+     "Słowniki" (bonus II proposals). The history column is always visible; when room runs out the original pane
+     gives way first (narrower, then a one-click strip), see layoutPanes.
+     No build step and no CDN, so it works offline. -->
 <style>
-  :root { --fg: #1b1b1f; --muted: #5d5d66; --bg: #f6f6f8; --card: #fff; --line: #d9d9e0; --accent: #1f3b73; }
-  @media (prefers-color-scheme: dark) {
-    :root { --fg: #ececf1; --muted: #a0a0ab; --bg: #16161a; --card: #202026; --line: #34343c; --accent: #8fb0ff; }
+  :root {
+    --navy: #2b2f6b; --navy-dark: #1c1f4d; --text: #1d1c26; --muted: #5a6470;
+    --line: #ddd7cc; --bg: #f1ede6; --ok: #1a7f37; --err: #b3261e; --warn: #9a4d00; --hit: #f9e3d3;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--text);
   }
-  body { margin: 0; font: 15px/1.5 system-ui, sans-serif; color: var(--fg); background: var(--bg); }
-  main { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
-  form, pre { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
-  form { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-  button, a.btn { background: var(--accent); color: var(--bg); border: 0; border-radius: 6px; padding: 8px 16px;
-    font: inherit; cursor: pointer; text-decoration: none; }
-  button:disabled { opacity: .5; cursor: wait; }
-  #status { color: var(--muted); }
-  pre { overflow: auto; max-height: 70vh; font-size: 13px; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); line-height: 1.5; height: 100vh; display: flex; flex-direction: column; }
+  header { background: var(--navy-dark); color: #fff; flex: none; }
+  .bar { padding: 10px 16px; display: flex; gap: 16px; align-items: center; }
+  .bar h1 { font-size: 1.15rem; margin: 0; flex: 1; }
+  .bar small { display: block; font-weight: 400; opacity: .85; }
+  .bar a.nav { color: #fff; font-weight: 600; text-decoration: none; padding: 4px 10px; border-radius: 4px; }
+  .bar a.nav:hover { background: rgba(255,255,255,.15); }
+  .pill { font-size: .85rem; padding: 2px 10px; border-radius: 999px; background: rgba(255,255,255,.15); }
+  main { flex: 1; min-height: 0; padding: 12px 16px 16px; display: grid; gap: 12px;
+         grid-template-columns: clamp(220px, 20vw, 300px) minmax(0, 1fr); } /* the history column is always there */
+  main.login { display: block; overflow: auto; }
+  #login { max-width: 420px; margin: 40px auto; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 16px; min-height: 0; min-width: 0; }
+  #upload { display: flex; flex-direction: column; overflow: auto; }
+  #result { display: flex; flex-direction: column; padding: 12px 16px 16px; }
+  h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  h3 { font-size: .95rem; margin: 0; }
+  label { display: block; font-weight: 600; margin: 12px 0 4px; }
+  input[type=text], input[type=password], input[type=search] {
+    width: 100%; padding: 8px 10px; font: inherit; border: 1px solid #8a94a0; border-radius: 4px; }
+  button, a.button { font: inherit; cursor: pointer; border-radius: 4px; padding: 8px 14px; text-decoration: none;
+           border: 1px solid var(--navy); background: #fff; color: var(--navy); }
+  button.primary, a.button { background: var(--navy); color: #fff; }
+  button:hover, a.button:hover { background: var(--navy-dark); border-color: var(--navy-dark); color: #fff; }
+  button:disabled { opacity: .45; cursor: default; pointer-events: none; }
+  .small { padding: 4px 10px !important; font-size: .9rem; }
+  header button { border-color: #fff; color: #fff; background: transparent; }
+  :focus-visible { outline: 3px solid #c2662d; outline-offset: 2px; }
+  .error { color: var(--err); }
+  .muted { color: var(--muted); font-size: .9rem; }
+  .drop { display: block; margin: 0; border: 2px dashed #a3a6cc; border-radius: 6px; padding: 16px 12px;
+          text-align: center; font-weight: 400; cursor: pointer; background: #f6f5fb; position: relative; flex: none; }
+  .drop.over { border-color: var(--navy); background: #ecebf6; }
+  #announce { font-size: .9rem; color: var(--warn); margin: 8px 0 0; }
+  #announce:empty { display: none; }
+  .drop:focus-within { outline: 3px solid #c2662d; outline-offset: 2px; }
+  .drop strong { color: var(--navy); }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  #blank, #json-pick { flex: none; width: 100%; margin-top: 10px; }
+  #json-pick { margin-top: 6px; }
+  #history-title { margin: 14px 0 6px; }
+  #zip { flex: none; width: 100%; margin-bottom: 8px; }
+  ul.files .err { display: block; font-size: .8rem; color: var(--err); white-space: normal; overflow-wrap: anywhere; }
+  ul.files { list-style: none; padding: 0; margin: 0; }
+  ul.files li { display: flex; gap: 4px; margin-bottom: 6px; }
+  ul.files .pick { flex: 1; min-width: 0; text-align: left; border-color: var(--line); color: var(--text); padding: 6px 10px; }
+  ul.files .pick[aria-pressed=true] { border-color: var(--navy); box-shadow: inset 4px 0 0 var(--navy); background: #f6f5fb; }
+  ul.files .pick:hover { background: #ecebf6; color: var(--text); }
+  ul.files .del { flex: none; border-color: var(--line); color: var(--muted); padding: 0 10px; }
+  ul.files .del:hover { background: #fbeaea; border-color: var(--err); color: var(--err); }
+  .name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; font-weight: 600; line-height: 1.3; }
+  .sub { display: flex; justify-content: space-between; gap: 8px; font-size: .8rem; color: var(--muted); }
+  .status { white-space: nowrap; }
+  .status.done { color: var(--ok); } .status.error { color: var(--err); } .status.interrupted { color: var(--warn); }
+  /* result: always two panes, original | result */
+  #original-name { flex: 1; min-width: 0; margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .9rem; color: var(--muted); }
+  /* nothing selected yet: the three steps of the whole job */
+  #result-empty { margin: auto; max-width: 520px; padding: 24px; }
+  #result-empty h2 { font-size: 1.3rem; }
+  #result-empty ol { margin: 0; padding-left: 1.3rem; }
+  #result-empty li { margin-bottom: 10px; }
+  /* history | original | e-service (the form and, inside its frame, the "Edycja" sidebar). The e-service pane keeps
+     the width the form needs (more while the sidebar is open: .wide); the original takes the rest and gives way
+     first: narrower, then a strip (.no-original: collapsed by hand, or by layoutPanes when there is no room left). */
+  .panes { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(460px, 1fr); gap: 12px; }
+  .panes.wide { grid-template-columns: minmax(0, 1fr) minmax(820px, 1.4fr); }
+  .panes.no-original { grid-template-columns: 40px minmax(0, 1fr); }
+  .panes.no-original #original-pane > :not(.strip), .panes:not(.no-original) .strip { display: none; }
+  /* a form that started without paper (a COI JSON or the blank form): no original pane at all */
+  .panes.no-paper, .panes.no-paper.wide, .panes.no-paper.no-original { grid-template-columns: minmax(0, 1fr); }
+  .panes.no-paper #original-pane { display: none; }
+  .strip { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 12px 0;
+           border: 0; border-radius: 0; background: #f8f6f2; color: var(--navy-dark); font-weight: 700; }
+  .strip:hover { background: #ecebf6; color: var(--navy-dark); }
+  .strip-label { writing-mode: vertical-rl; }
+  #original-collapse { padding: 2px 9px !important; font-size: 1.1rem; line-height: 1.2; }
+  .pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .pane-head { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 6px 10px;
+               background: #f8f6f2; border-bottom: 1px solid var(--line); min-height: 46px; }
+  .pane-head h3:last-child { margin-right: auto; }
+  .pane-head a.button { background: #fff; color: var(--navy); }
+  .pane-head a.button:hover { background: var(--navy-dark); color: #fff; }
+  .pane-head .switch { margin-right: auto; }
+  .pane-body { flex: 1; min-height: 0; overflow: auto; }
+  .pane-body iframe { display: block; width: 100%; height: 100%; border: 0; }
+  #original img { display: block; width: 100%; height: auto; }
+  .note { padding: 24px; }
+  .note p { margin: 0 0 12px; }
+  .note .big { font-size: 1.1rem; font-weight: 600; color: var(--text); }
+  /* original of a format browsers cannot display: the text read from it */
+  .doc-note { margin: 0; padding: 8px 12px; background: #f8f6f2; border-bottom: 1px solid var(--line); }
+  .doc-text { margin: 0; padding: 12px; font: .85rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .doc-text mark { background: var(--hit); }
+  /* "Źródło": the whole paper page with the quote framed, under a bar that leads back to the original */
+  .src-bar { position: sticky; top: 0; z-index: 1; display: flex; gap: 8px; align-items: center; padding: 6px 10px;
+             background: #f9e3d3; border-bottom: 1px solid #e2b394; font-size: .9rem; }
+  .src-bar span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .src-page { position: relative; }
+  .src-page img { display: block; width: 100%; height: auto; }
+  .src-page i { position: absolute; background: rgba(194,102,45,.28); border: 2px solid #c2662d; border-radius: 2px; }
+  #dicts-view { height: 100%; overflow: auto; }
+  #dicts-view #dicts { border: 0; padding: 12px; }
+  .switch { display: inline-flex; }
+  .switch button { border-radius: 0; }
+  .switch button:first-child { border-radius: 4px 0 0 4px; }
+  .switch button:last-child { border-radius: 0 4px 4px 0; border-left: 0; }
+  .switch button[aria-pressed=true] { background: var(--navy); color: #fff; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  .toolbar input { flex: 1; min-width: 160px; width: auto; }
+  #json-view { display: flex; flex-direction: column; height: 100%; }
+  #tree { font: .9rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow: auto;
+          flex: 1; min-height: 0; padding: 10px; }
+  #tree details > .kids { padding-left: 18px; border-left: 1px dotted var(--line); margin-left: 5px; }
+  #tree summary { cursor: pointer; }
+  .k { color: var(--navy-dark); } .meta { color: var(--muted); }
+  .v.string { color: #0a6b2f; } .v.number { color: #9a4d00; } .v.boolean, .v.null { color: #7b2fa6; }
+  .hit { background: var(--hit); } .current { outline: 2px solid #c2662d; }
+  /* why "Pobierz JSON" is off; a click opens the "Edycja" sidebar, which has the details */
+  #edit-status { font-size: .85rem; border: 0; background: none; padding: 4px 6px; text-decoration: underline; color: var(--muted); }
+  #edit-status:hover { background: #ecebf6; color: var(--text); }
+  #edit-status.bad, #edit-status.bad:hover { color: var(--err); font-weight: 600; }
+  @media (max-width: 1000px) { /* narrow screens: everything stacks and the page scrolls */
+    body { height: auto; display: block; }
+    main { grid-template-columns: 1fr; }
+    .panes, .panes.wide { grid-template-columns: 1fr; }
+    .pane { height: 80vh; }
+    #original-collapse { display: none; }
+  }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
-<main>
-  <h1>Formularz na e-usługę COI</h1>
-  <p>Wgraj pusty formularz (PDF, DOC, DOCX, ODS, XLS, XLSX, JPG, PNG), dostaniesz JSON e-usługi COI gotowy do importu.
-    API: <a href="/docs">/docs</a>.</p>
-  <form id="upload">
-    <input type="file" name="file" required
-      accept=".pdf,.doc,.docx,.ods,.xls,.xlsx,.jpg,.jpeg,.jpe,.png">
-    <button>Konwertuj</button>
-    <a class="btn" id="download" hidden download>Pobierz JSON</a>
-    <span id="status"></span>
-  </form>
-  <pre id="out" hidden></pre>
+<header>
+  <div class="bar">
+    <h1>Cyfryzacja formularzy<small>Pusty formularz (plik) → konfiguracja e-usługi COI (JSON)</small></h1>
+    <a href="/slowniki" class="nav">Słowniki</a>
+    <span id="llm" class="pill">Model AI: sprawdzam…</span>
+    <button id="logout" type="button" hidden>Wyloguj</button>
+  </div>
+</header>
+
+<main id="main" class="login">
+  <section class="card" id="login" aria-labelledby="login-title" hidden>
+    <h2 id="login-title">Zaloguj się</h2>
+    <form id="login-form">
+      <label for="username">Login</label>
+      <input id="username" name="username" type="text" autocomplete="username" required>
+      <label for="password">Hasło</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <p id="login-error" class="error" role="alert"></p>
+      <button class="primary" type="submit">Zaloguj</button>
+    </form>
+  </section>
+
+  <section class="card" id="upload" aria-labelledby="upload-title" hidden>
+    <h2 id="upload-title">Wgraj pusty formularz</h2>
+    <label class="drop" id="drop">
+      <input id="file" type="file" multiple accept=".pdf,.doc,.docx,.ods,.xlsx,.xls,.jpg,.jpeg,.jpe,.png,.json">
+      <strong>Przeciągnij pliki tutaj</strong> albo kliknij, aby wybrać z dysku
+      <span class="muted" style="display:block">PDF, DOC, DOCX, ODS, XLSX, XLS, JPG, PNG albo gotowy JSON e-usługi COI. Kilka plików przetworzymy po kolei.</span>
+    </label>
+    <button type="button" id="blank" class="small" title="Zbuduj e-usługę od zera w edytorze, bez dokumentu">+ Zacznij od pustego formularza</button>
+    <button type="button" id="json-pick" class="small" title="Otwórz gotowy JSON e-usługi COI w edytorze, bez modelu">Wgraj JSON</button>
+    <input id="json-file" type="file" accept=".json,application/json" multiple hidden>
+    <h3 id="history-title">Historia</h3>
+    <button type="button" id="zip" class="small" title="Pobierz ZIP z JSON-ami wszystkich gotowych plików z historii" hidden>Pobierz wszystkie</button>
+    <ul class="files" id="files" aria-labelledby="history-title"></ul>
+    <p id="history-empty" class="muted">Brak przetworzonych plików.</p>
+    <p id="announce" aria-live="polite"></p>
+    <p id="live" class="sr-only" aria-live="polite"></p>
+  </section>
+
+  <section class="card" id="result" aria-labelledby="result-title" hidden>
+    <h2 id="result-title" class="sr-only">Wynik</h2>
+    <div id="result-empty">
+      <h2>Z dokumentu do e-usługi w trzech krokach</h2>
+      <ol>
+        <li><strong>Wgraj pusty formularz</strong> po lewej: PDF, Word, Excel albo skan.</li>
+        <li><strong>Sprawdź e-usługę obok oryginału.</strong> Pod każdym polem jest cytat z dokumentu, z którego powstało.</li>
+        <li><strong>Popraw, co trzeba, i pobierz JSON</strong> gotowy do importu w COI. Ołówek przy nazwie pola otwiera je do poprawy.</li>
+      </ol>
+      <p class="muted">Masz już JSON e-usługi, np. z innego systemu? Wgraj go tak samo i pracuj na nim dalej. Bez dokumentu: „Zacznij od pustego formularza”.</p>
+    </div>
+    <div class="panes" id="panes" hidden>
+      <div class="pane" id="original-pane" role="region" aria-labelledby="original-title">
+        <button type="button" class="strip" id="original-strip" title="Rozwiń oryginał"><span aria-hidden="true">›</span><span class="strip-label">Oryginał</span></button>
+        <div class="pane-head">
+          <h3 id="original-title">Oryginał</h3>
+          <span id="original-name"></span>
+          <a id="original-download" class="button small" download>Pobierz plik</a>
+          <button type="button" class="small" id="original-collapse" title="Zwiń oryginał" aria-label="Zwiń oryginał">‹</button>
+        </div>
+        <div class="pane-body" id="original"></div>
+      </div>
+      <div class="pane" role="region" aria-label="E-usługa">
+        <div class="pane-head">
+          <h3 id="output-title" hidden>E-usługa</h3>
+          <div class="switch" role="group" aria-label="Widok e-usługi">
+            <button type="button" class="small" data-view="preview" aria-pressed="true">Podgląd</button>
+            <button type="button" class="small" data-view="json" aria-pressed="false">JSON</button>
+            <button type="button" class="small" data-view="dicts" aria-pressed="false" id="dicts-tab" hidden>Słowniki</button>
+          </div>
+          <button type="button" id="edit-status" class="muted" hidden></button>
+          <button type="button" class="small primary" id="download">Pobierz JSON</button>
+        </div>
+        <div class="pane-body">
+          <div class="note" id="output-note" role="status" hidden></div>
+          <iframe id="preview-frame" src="/preview?embed=1" title="Podgląd e-usługi" hidden></iframe>
+          <div id="json-view" hidden>
+            <div class="toolbar">
+              <input id="search" type="search" placeholder="Szukaj w JSON (Enter: następny)" aria-label="Szukaj w JSON">
+              <span id="hits" class="muted" aria-live="polite"></span>
+              <button type="button" class="small" id="expand">Rozwiń</button>
+              <button type="button" class="small" id="collapse">Zwiń</button>
+              <button type="button" class="small" id="copy">Kopiuj</button>
+            </div>
+            <div id="tree" role="tree" aria-label="Struktura JSON"></div>
+          </div>
+          <div id="dicts-view" hidden>
+          <!-- Bonus II block (thread "propozycje słowników"): proposals of new shared COI dictionaries for the selected file,
+               from POST /api/dictionaries/proposals, called next to /api/forms/convert. The COI JSON never references them. -->
+          <section id="dicts" aria-labelledby="dicts-title" hidden>
+            <style>
+              #dicts { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; }
+              #dicts .dicts-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+              #dicts .dicts-head h3 { margin-right: auto; }
+              #dicts-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+              #dicts-list > li { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: #f6f5fb; }
+              #dicts-list h4 { margin: 0; font-size: .95rem; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+              #dicts-list h4 span { margin-left: auto; }
+              #dicts .chip { font-size: .75rem; padding: 1px 8px; border-radius: 999px; background: #ecebf6; color: var(--navy-dark); white-space: nowrap; }
+              #dicts .chip.fill { background: #fff3e0; color: var(--warn); }
+              #dicts-list p { margin: 4px 0 0; font-size: .85rem; }
+              #dicts code { font-size: .8rem; }
+              #dicts details { margin-top: 8px; font-size: .85rem; }
+              #dicts .dict-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+              #dicts .dict-actions select { font: inherit; font-size: .9rem; padding: 3px 6px; border: 1px solid #8a94a0; border-radius: 4px; max-width: 100%; }
+              #dicts .dict-done { margin: 8px 0 0; padding: 6px 8px; border-radius: 4px; background: #e9f6ec; color: var(--ok); font-size: .9rem; }
+              #dicts .dict-done.warn { background: #fff3e0; color: var(--warn); }
+              #dicts .dict-done a { color: var(--navy); }
+            </style>
+            <div class="dicts-head">
+              <h3 id="dicts-title">Proponowane słowniki</h3>
+              <span class="muted">Propozycje dla COI obok JSON-a; formularz ich nie wymaga.</span>
+              <button type="button" class="small" id="dicts-download" disabled>Pobierz słowniki (JSON)</button>
+            </div>
+            <p id="dicts-status" class="muted" role="status"></p>
+            <ul id="dicts-list"></ul>
+            <details id="dicts-dropped" hidden><summary></summary><ul class="muted"></ul></details>
+          </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
+
 <script>
-const form = document.getElementById("upload"), out = document.getElementById("out"),
-  status = document.getElementById("status"), download = document.getElementById("download");
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const button = form.querySelector("button"), file = form.file.files[0], started = Date.now();
-  button.disabled = true; download.hidden = true; out.hidden = true;
-  const tick = setInterval(() => status.textContent = `Przetwarzanie... ${Math.round((Date.now() - started) / 1000)} s`, 1000);
-  try {
-    const res = await fetch("/api/forms/convert", { method: "POST", body: new FormData(form) });
-    const body = await res.json();
-    if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail));
-    const text = JSON.stringify(body, null, 2);
-    out.textContent = text; out.hidden = false;
-    download.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
-    download.download = file.name.replace(/\.[^.]+$/, "") + ".json"; download.hidden = false;
-    status.textContent = `Gotowe w ${Math.round((Date.now() - started) / 1000)} s`;
-  } catch (err) {
-    status.textContent = `Błąd: ${err.message}`;
-  } finally {
-    clearInterval(tick); button.disabled = false;
+const $ = (selector) => document.querySelector(selector);
+const state = {
+  token: sessionStorage.getItem("token"), items: [], selected: null, busy: false, hits: [], hit: -1,
+  view: "preview", // e-service view: preview | json | dicts; a new file always opens in the preview
+  // the "Edycja" sidebar of the preview is open: the frame says so (message "coi-sidebar"); every document opens
+  // with it collapsed and the original pane shown (Paweł 22.11: the original is always there first)
+  sidebar: false,
+  originalHidden: false, // the original pane was collapsed to its strip by hand, for the document on screen only
+  history: true, // HISTORY_ENABLED on the server (GET /api/auth/config); off = nothing saved, the list lives until reload
+  originalUrl: null, frameUrl: null, previewReady: false,
+  doc: 0, docItem: null, // editor: which document the iframe shows (and whose edits it sends)
+};
+const STATUS = { queued: "Czeka", working: "W trakcie", done: "Gotowe", error: "Błąd", interrupted: "Przerwane" };
+
+const detail = (data, response) => (typeof data.detail === "string" ? data.detail : `Błąd ${response.status}`);
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+// --- history: one record per file on the server (/api/history, SQLite), so conversions made in another browser or
+// added by a script (bench/history_add.py) show up here too: {id, file, created, status, result, error, evidence,
+// problems}, newest first on screen. result = the COI JSON (with the clerk's edits), evidence = where each element
+// came from, problems = COI rules problems after the last edit (non-empty blocks the download), checking = the last
+// edit was saved before its rules check came back (after a reload: no download until the check that runs when the file is opened comes back) ---
+
+// One history request: store("put", record) creates a record without id (multipart with the file) or updates one
+// (JSON, file unchanged) and resolves with its id; store("getAll"), store("delete", id).
+async function store(method, arg) {
+  if (!state.history) return method === "getAll" ? [] : undefined; // HISTORY_ENABLED=0: the server keeps nothing
+  const headers = { Authorization: `Bearer ${state.token}` };
+  let response;
+  if (method === "put") {
+    const { id, file, ...record } = arg;
+    if (id === undefined) {
+      const body = new FormData();
+      body.append("record", JSON.stringify(record));
+      body.append("file", file);
+      response = await fetch("/api/history", { method: "POST", headers, body });
+    } else {
+      response = await fetch(`/api/history/${id}`, {
+        method: "PUT", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(record),
+      });
+    }
+  } else if (method === "getAll") {
+    response = await fetch("/api/history", { headers });
+  } else {
+    response = await fetch(`/api/history/${arg}`, { method: "DELETE", headers });
   }
+  if (!response.ok) throw new Error(`history ${method}: ${response.status}`);
+  if (response.status === 204) return;
+  const data = await response.json();
+  return method === "put" ? data.id : data;
+}
+
+// The preview and editor tell documents apart by this key (a new key resets undo and the answers): the history id, or
+// a page-local one while the record is not saved yet or never will be (HISTORY_ENABLED=0).
+let localKeys = 0;
+const docKey = (item) => item.id ?? (item.localId ??= `local-${++localKeys}`);
+
+// Saves an item without its DOM row; the first save assigns item.id. Saves of one item run in order,
+// so a quick second save never creates the record twice.
+function persist(item) {
+  if (item.deleted) return Promise.resolve();
+  item.saving = (item.saving ?? Promise.resolve()).then(async () => {
+    if (item.deleted) return;
+    const { id, file, created, status, result, error, evidence, problems, checking, job, started } = item;
+    const record = { file, created, status, result, error, evidence, problems, checking, job, started };
+    if (id !== undefined) record.id = id;
+    try {
+      item.id = await store("put", record);
+      if (item.deleted) store("delete", item.id).catch(() => {}); // removed while it was being created
+    } catch {
+      $("#announce").textContent = "Nie udało się zapisać historii na serwerze.";
+    }
+  });
+  return item.saving;
+}
+
+async function loadHistory() {
+  let records = [];
+  try { records = await store("getAll"); } catch { return; }
+  records.sort((a, b) => b.created - a.created);
+  // the list has no bytes: each original comes back as a File, so the rest of the page works unchanged
+  const headers = { Authorization: `Bearer ${state.token}` };
+  const items = await Promise.all(records.map(async ({ file_name, file_type, file_size, ...record }) => {
+    const blob = await fetch(`/api/history/${record.id}/file`, { headers })
+      .then((r) => (r.ok ? r.blob() : new Blob())).catch(() => new Blob());
+    return { ...record, file: new File([blob], file_name, { type: file_type }) };
+  }));
+  for (const record of items) {
+    const item = { started: 0, ...record };
+    if (item.checking) Object.assign(item, { checking: false, checkFailed: true }); // closed before the rules saw the last edit
+    if (item.status === "working") item.status = "queued"; // page closed mid-run: convert() picks its job up again
+    state.items.push(item);
+  }
+  renderFiles();
+  const running = state.items.find((i) => i.status === "queued");
+  const newest = state.items.find((i) => i.status === "done");
+  if (!state.selected && (running || newest)) select(running ?? newest); // back on the page: the run (or last result) is open
+  processQueue();
+}
+
+// --- login ---
+
+function showScreens() {
+  const loggedIn = Boolean(state.token);
+  $("#main").classList.toggle("login", !loggedIn);
+  $("#login").hidden = loggedIn;
+  $("#logout").hidden = !loggedIn || state.open;
+  $("#upload").hidden = $("#result").hidden = !loggedIn;
+}
+
+function logout(reason = "") {
+  state.token = null;
+  sessionStorage.removeItem("token");
+  $("#login-error").textContent = reason;
+  showScreens();
+}
+
+$("#login-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  $("#login-error").textContent = "";
+  try {
+    const response = await fetch("/api/auth/token", { method: "POST", body: new URLSearchParams(new FormData(event.target)) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return ($("#login-error").textContent = detail(data, response));
+    state.token = data.access_token;
+    sessionStorage.setItem("token", state.token);
+    $("#password").value = "";
+    showScreens();
+    if (!state.items.length) loadHistory(); // the first load had no token yet
+    processQueue();
+  } catch {
+    $("#login-error").textContent = "Brak połączenia z serwerem.";
+  }
+});
+$("#logout").addEventListener("click", () => logout());
+
+// --- files: one or many (bonus VI), either way one request at a time ---
+
+async function addFiles(files) {
+  if (!files.length) return;
+  $("#announce").textContent = "";
+  const known = $("#file").accept.split(",");
+  const wrong = files.filter((file) => !known.includes("." + file.name.split(".").pop().toLowerCase()));
+  if (wrong.length) { // said here, not as a failed row whose "Spróbuj ponownie" could never work
+    $("#announce").textContent = `Ten format nie jest obsługiwany: ${wrong.map((file) => file.name).join(", ")}. Wgraj PDF, DOC, DOCX, ODS, XLSX, XLS, JPG, PNG albo JSON e-usługi.`;
+    files = files.filter((file) => !wrong.includes(file));
+    if (!files.length) return;
+  }
+  for (const file of files.filter(isJson)) await openJson(file); // a COI JSON never goes to the model
+  files = files.filter((file) => !isJson(file));
+  if (!files.length) return;
+  const added = [];
+  for (const file of files) {
+    const item = { file, created: Date.now(), status: "queued", started: 0, result: null, error: "" };
+    state.items.unshift(item);
+    added.push(item);
+    await persist(item);
+  }
+  state.view = "preview"; // also when the last file was left in "JSON" or "Słowniki"
+  select(added[0]); // the original shows at once, the e-service pane counts the seconds
+  processQueue();
+}
+
+// Forms that start without paper: a COI JSON (e.g. from another system) or the blank form (GET /api/forms/blank).
+// No model: the item is done at once and opens in the preview with the "Edycja" sidebar, checked with the COI rules
+// like every result. Its history file is the JSON itself, and there is no original pane (.no-paper).
+const isJson = (file) => file.name.toLowerCase().endsWith(".json");
+
+async function openReady(file, result, evidence) {
+  const item = { file, created: Date.now(), status: "done", started: 0, result, evidence, problems: [], error: "" };
+  state.items.unshift(item);
+  await persist(item);
+  state.view = "preview";
+  select(item);
+}
+
+// A JSON file from disk: an object with a "tabs" list is enough to open it, the rules check says what else is wrong.
+async function openJson(file) {
+  let coi = null;
+  try { coi = JSON.parse(await file.text()); } catch {}
+  if (!coi || typeof coi !== "object" || !Array.isArray(coi.tabs)) {
+    $("#announce").textContent = `${file.name} nie jest JSON-em e-usługi COI (brak listy stron „tabs”).`;
+    return;
+  }
+  await openReady(file, coi, {}); // no evidence: the editor says the origin is unknown and keeps its techNames
+}
+
+// "Wgraj JSON": a file picker for JSON only, the same path as a JSON dropped on the page.
+$("#json-pick").addEventListener("click", () => $("#json-file").click());
+$("#json-file").addEventListener("change", async (event) => {
+  const files = [...event.target.files];
+  event.target.value = ""; // the same file can be picked again
+  await addFiles(files);
+});
+
+$("#blank").addEventListener("click", async () => {
+  $("#announce").textContent = "";
+  try {
+    const response = await fetch("/api/forms/blank", { headers: { Authorization: `Bearer ${state.token}` } });
+    if (response.status === 401) return logout("Sesja wygasła. Zaloguj się ponownie.");
+    if (!response.ok) throw new Error();
+    const { coi, evidence } = await response.json();
+    await openReady(new File([JSON.stringify(coi, null, 2)], "Nowy formularz.json", { type: "application/json" }), coi, evidence);
+  } catch {
+    $("#announce").textContent = "Nie udało się utworzyć pustego formularza.";
+  }
+});
+
+async function processQueue() {
+  if (state.busy) return;
+  state.busy = true;
+  let item;
+  // state.items is newest first, so findLast takes files in the order they were dropped
+  while (state.token && (item = state.items.findLast((i) => i.status === "queued"))) await convert(item);
+  state.busy = false;
+}
+
+const POLL_MS = 2000;
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// One file as a server job: POST /api/forms/jobs?evidence=1 ({coi, evidence}: the editor shows the paper quotes),
+// then its result URL until it stops being 404. The job id is saved with the record, so a reload (or another
+// browser) picks up the same run instead of losing it; a job the server forgot (restart, 1 h after its end) is
+// sent again on its own.
+async function convert(item) {
+  if (!item.job) item.started = Date.now(); // a resumed job keeps counting from its real start
+  item.status = "working";
+  persist(item);
+  renderFiles();
+  if (item === state.selected) select(item);
+  const ticker = setInterval(() => { renderFiles(); if (item === state.selected) renderNote(item); }, 1000);
+  const headers = { Authorization: `Bearer ${state.token}` };
+  try {
+    if (!item.job) {
+      const body = new FormData();
+      body.append("file", item.file);
+      const response = await fetch("/api/forms/jobs?evidence=1", { method: "POST", headers, body });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) item.job = data.id;
+      else settle(item, response, data);
+      persist(item);
+    }
+    while (item.status === "working" && !item.deleted) {
+      let response;
+      try { response = await fetch(`/api/forms/jobs/${item.job}/result`, { headers }); } catch { await pause(POLL_MS); continue; } // server restarting
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 404 && response.headers.has("Retry-After")) await pause(POLL_MS); // still running
+      else if (response.status === 404) Object.assign(item, { status: "queued", job: null }); // forgotten: send again
+      else settle(item, response, data);
+    }
+  } catch {
+    Object.assign(item, { status: "error", job: null, error: "Brak połączenia z serwerem." });
+  }
+  clearInterval(ticker);
+  if (item.status !== "queued") checkModel(); // after a failure and after the success that follows it
+  if (item.deleted) return;
+  await persist(item);
+  if (item.status !== "queued") {
+    $("#live").textContent = `${item.file.name}: ${STATUS[item.status].toLowerCase()}`; // the list and the pane already show it
+    if (item === state.selected || !state.selected || state.selected.status !== "done") select(item);
+  }
+  renderFiles();
+}
+
+// A job's answer (or a refused upload) -> the item's status: done, error, or queued again after a lost login.
+function settle(item, response, data) {
+  if (response.status === 401) {
+    item.status = "queued"; // resumed after the next login, the job id stays
+    logout("Sesja wygasła. Zaloguj się ponownie.");
+  } else if (response.ok) {
+    Object.assign(item, { status: "done", job: null, result: data.coi, evidence: data.evidence, problems: [] });
+  } else {
+    Object.assign(item, { status: "error", job: null, error: detail(data, response) });
+  }
+}
+
+async function removeItem(item) {
+  item.deleted = true; // a run still in flight for it is dropped when it returns
+  state.items = state.items.filter((i) => i !== item);
+  item.row?.li.remove();
+  if (item.id !== undefined) await store("delete", item.id).catch(() => {});
+  if (item === state.selected) select(null);
+  renderFiles();
+  $("#live").textContent = `Usunięto z historii: ${item.file.name}`;
+}
+
+const when = (ms) => new Date(ms).toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+// Rows are created once and then only updated, so keyboard focus survives the 1 s ticker.
+// The list mirrors state.items (newest first): a new row is inserted at its index.
+function renderFiles() {
+  const list = $("#files");
+  for (const [index, item] of state.items.entries()) {
+    if (!item.row) {
+      const pick = el("button", "pick");
+      pick.type = "button";
+      pick.title = item.file.name;
+      pick.addEventListener("click", () => select(item));
+      const status = el("span", "status");
+      const sub = el("span", "sub");
+      const kind = item.file.name.includes(".") ? item.file.name.split(".").pop().toUpperCase() + " · " : ""; // tells the PDF from its scan
+      sub.append(el("span", "", kind + when(item.created)), status);
+      const err = el("span", "err");
+      pick.append(el("span", "name", item.file.name), sub, err);
+      const del = el("button", "del", "×");
+      del.type = "button";
+      del.title = "Usuń z historii";
+      del.setAttribute("aria-label", `Usuń z historii: ${item.file.name}`);
+      del.addEventListener("click", () => removeItem(item));
+      const li = el("li");
+      li.append(pick, del);
+      item.row = { li, pick, status, err };
+    }
+    // the selected row keeps to its status word: the pane next to it has the error text and the seconds
+    item.row.err.textContent = (item.status === "error" || item.status === "interrupted") && item !== state.selected ? item.error : "";
+    if (list.children[index] !== item.row.li) list.insertBefore(item.row.li, list.children[index] ?? null);
+    const seconds = Math.round((Date.now() - item.started) / 1000);
+    item.row.pick.setAttribute("aria-pressed", String(item === state.selected));
+    const fix = item.status === "done" && item.problems?.length > 0; // edited into a state that breaks the COI rules
+    item.row.status.className = `status ${fix ? "error" : item.status}`;
+    item.row.status.textContent = item.status === "working" ? `${STATUS.working}…${item === state.selected ? "" : ` ${seconds} s`}` : fix ? "Do poprawy" : STATUS[item.status];
+  }
+  $("#history-empty").hidden = state.items.length > 0;
+  const done = state.items.filter(exportable).length;
+  $("#zip").hidden = done < 2; // one result has its own "Pobierz JSON"
+  $("#zip").textContent = `Pobierz wszystkie JSON-y (${done})`;
+}
+
+// A file dropped anywhere on the page is an upload (the box lights up while one is dragged over the window);
+// one dropped on the embedded preview arrives as a "coi-drop" message.
+const drop = $("#drop");
+$("#file").addEventListener("change", (event) => { addFiles([...event.target.files]); event.target.value = ""; });
+window.addEventListener("dragover", (event) => { event.preventDefault(); drop.classList.add("over"); });
+window.addEventListener("dragleave", (event) => { if (!event.relatedTarget) drop.classList.remove("over"); });
+window.addEventListener("drop", (event) => {
+  event.preventDefault();
+  drop.classList.remove("over");
+  if (state.token) addFiles([...event.dataTransfer.files]);
+});
+
+// --- result: original on the left, form preview or JSON tree on the right ---
+
+// Shows an item (or nothing for null). Called on click and again when the selected item changes status.
+function select(item) {
+  const changed = item !== state.selected;
+  state.selected = item;
+  if (changed) state.originalHidden = false; // a new document shows its original again
+  if (changed && item?.status !== "done") state.view = "preview"; // a file still in the works opens in the preview when it is ready
+  renderFiles();
+  $("#result-empty").hidden = Boolean(item);
+  $("#panes").hidden = !item;
+  $("#panes").classList.toggle("no-paper", Boolean(item && isJson(item.file)));
+  $("#original-name").textContent = $("#original-name").title = item ? item.file.name : "";
+  if (changed) showOriginal(item);
+  if (!item) return;
+  updateActions();
+  if (item.status === "done") {
+    renderTree();
+    sendPreview();
+  }
+  renderNote(item);
+  showView();
+}
+
+// What the e-service pane says while there is no result: waiting (with seconds), queued, or the error with a way out.
+function renderNote(item) {
+  const note = $("#output-note"), failed = item.status === "error" || item.status === "interrupted";
+  note.hidden = item.status === "done";
+  if (note.hidden) return;
+  if (failed) {
+    if (note.dataset.for === `${docKey(item)}-failed`) return; // keep the button (and focus) while nothing changed
+    const again = el("button", "primary", "Spróbuj ponownie");
+    again.type = "button";
+    again.addEventListener("click", () => retry(item));
+    note.replaceChildren(el("p", "big error", item.status === "error" ? "Nie udało się przetworzyć pliku" : "Przetwarzanie przerwane"),
+      el("p", "", item.error), again);
+    note.dataset.for = `${docKey(item)}-failed`;
+    return;
+  }
+  note.dataset.for = "";
+  const seconds = Math.round((Date.now() - item.started) / 1000);
+  note.replaceChildren(...(item.status === "working"
+    ? [el("p", "big", `Czytam formularz… ${seconds} s`),
+       el("p", "muted", "Modele czytają i planują formularz na serwerach Eden AI. Zwykle trwa to od 20 sekund do 2 minut, e-usługa pojawi się tutaj sama.")]
+    : [el("p", "big", "Plik czeka w kolejce"), el("p", "muted", "Zacznie się, gdy skończy się poprzedni plik.")]));
+}
+
+// Sends a failed or interrupted file once more.
+function retry(item) {
+  Object.assign(item, { status: "queued", error: "", started: 0 });
+  state.view = "preview";
+  persist(item);
+  select(item);
+  processQueue();
+}
+
+const MIME = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", jpe: "image/jpeg", png: "image/png" };
+const fileSize = (bytes) => (bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
+
+// PDF in an iframe, JPG/PNG as an image; DOC/DOCX/ODS/XLSX/XLS as the real document too: the PDF LibreOffice made
+// of it on the server (GET /api/history/{id}/pdf) in the same iframe. Only when there is none (not saved yet,
+// LibreOffice failed or lost text) the text read from the file by POST /api/forms/text (no model; the model reads page images).
+function showOriginal(item) {
+  if (state.originalUrl) URL.revokeObjectURL(state.originalUrl);
+  state.originalUrl = state.frameUrl = null;
+  const pane = $("#original");
+  if (!item || isJson(item.file)) return pane.replaceChildren(); // no paper behind it: the pane is hidden
+  const name = item.file.name;
+  const ext = name.split(".").pop().toLowerCase();
+  state.originalUrl = URL.createObjectURL(MIME[ext] ? new Blob([item.file], { type: MIME[ext] }) : item.file);
+  Object.assign($("#original-download"), { href: state.originalUrl, download: name, hidden: Boolean(MIME[ext]) }); // PDF and images are on screen already
+  if (ext === "pdf") {
+    showPdf(state.originalUrl, name);
+  } else if (MIME[ext]) {
+    const img = el("img");
+    img.alt = `Oryginał: ${name}`;
+    img.src = state.originalUrl;
+    pane.replaceChildren(img);
+  } else {
+    pane.replaceChildren(el("p", "note muted", "Otwieram dokument…"));
+    officePdf(item).then((url) => {
+      if (item !== state.selected) return;
+      if (url) return showPdf(url, name);
+      showText(item, "Tego dokumentu nie udało się pokazać tak, jak wygląda");
+    });
+  }
+}
+
+// The original pane shows the PDF at `url`, without the thumbnail column, the page fitted to the pane.
+function showPdf(url, name) {
+  const frame = el("iframe");
+  frame.title = `Oryginał: ${name}`;
+  frame.src = url + "#navpanes=0&view=FitH";
+  state.frameUrl = url;
+  $("#original").replaceChildren(frame);
+}
+
+// The text read from an office file, under a note that says why (the fallback of showOriginal); resolves when shown.
+async function showText(item, why) {
+  const text = await originalText(item);
+  if (item !== state.selected) return;
+  $("#original").replaceChildren(...(text
+    ? [el("p", "doc-note muted", `${why}, dlatego widzisz tekst odczytany z pliku: ten sam, który dostaje model.`), el("pre", "doc-text", text)]
+    : [el("p", "note muted", `${why}, a tekstu nie udało się odczytać. Pobierz plik i otwórz go w edytorze (${fileSize(item.file.size)}).`)]));
+}
+
+// Blob URL of the PDF the server made of a saved office file (cached on the item), null when there is none.
+async function officePdf(item) {
+  if (item.id === undefined) await item.saving; // a file just dropped: its history record is being created
+  if (item.id === undefined) return null;
+  if (item.pdfUrl === undefined) {
+    try {
+      const response = await fetch(`/api/history/${item.id}/pdf`, { headers: { Authorization: `Bearer ${state.token}` } });
+      item.pdfUrl = response.ok ? URL.createObjectURL(await response.blob()) : null;
+    } catch {
+      return null; // offline for a moment: ask again next time
+    }
+  }
+  return item.pdfUrl;
+}
+
+// "W dokumencie: <heading>, str. N" clicked in the preview: the original shows that place. A PDF opens again at page N
+// (a fresh frame: the viewer reads #page only on load; an office file's PDF takes N from "Źródło", its evidence has
+// none); the text of an office file (the fallback) gets the heading line marked and scrolled into view; an image
+// stays as it is. A collapsed original pane comes back first.
+function showPaper(heading, page) {
+  if ($("#panes").classList.contains("no-original")) $("#original-strip").click();
+  const norm = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  if (!$("#original iframe") && state.frameUrl) showPdf(state.frameUrl, state.selected.file.name); // back from "Źródło"
+  const pane = $("#original"), frame = pane.querySelector("iframe"), pre = pane.querySelector(".doc-text");
+  if (!page && frame && heading) {
+    const pages = Object.entries(state.docItem?.sources?.headings || {});
+    page = pages.find(([h]) => norm(h) === norm(heading))?.[1] || pages.find(([h]) => norm(h).startsWith(norm(heading).slice(0, 40)))?.[1] || 0;
+  }
+  if (frame && page && state.frameUrl) {
+    const fresh = frame.cloneNode();
+    fresh.src = `${state.frameUrl}#page=${page}&navpanes=0&view=FitH`;
+    frame.replaceWith(fresh);
+  }
+  if (!pre || !heading) return;
+  const key = norm(heading).slice(0, 40), lines = pre.textContent.split("\n");
+  // a long heading may be broken over lines: its first line is enough
+  const i = lines.findIndex((line) => { const n = norm(line); return n && (n.includes(key) || (n.length >= 12 && key.startsWith(n))); });
+  if (i >= 0) markLines(pre, i, i);
+}
+
+// Marks lines a..b (0-based, split on "\n") of the original's text and scrolls them into view.
+function markLines(pre, a, b) {
+  const text = pre.textContent, lines = text.split("\n");
+  pre.textContent = text; // drops the previous mark
+  if (a >= lines.length) return;
+  const start = lines.slice(0, a).reduce((n, line) => n + line.length + 1, 0);
+  const end = lines.slice(0, Math.min(b, lines.length - 1) + 1).reduce((n, line) => n + line.length + 1, 0) - 1;
+  const range = document.createRange();
+  range.setStart(pre.firstChild, start);
+  range.setEnd(pre.firstChild, end);
+  const mark = el("mark");
+  range.surroundContents(mark);
+  mark.scrollIntoView({ block: "center" });
+}
+
+// --- "Źródło": where on the paper each element came from (app/sources.py) ---
+
+// POST /api/history/{id}/sources with the JSON and evidence as they are now (edits included), then the page images it
+// points to, as blob URLs (fetched with the login, so it works with AUTH_ENABLED=1). The preview gets them as
+// {type: "coi-sources"} and never fetches anything itself. Nothing of it goes into history.
+async function sendSources(item, doc = state.doc) {
+  if (item.id === undefined || item.status !== "done") return;
+  const headers = { Authorization: `Bearer ${state.token}` };
+  let data;
+  try {
+    const response = await fetch(`/api/history/${item.id}/sources`, {
+      method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ coi: item.result, evidence: item.evidence || {} }),
+    });
+    if (!response.ok) throw new Error(String(response.status));
+    data = await response.json();
+    item.pageUrls ??= {};
+    const pages = new Set(Object.values(data.sources).flatMap((p) => [p?.page, p?.condition?.page]).filter(Boolean));
+    await Promise.all([...pages].filter((n) => !item.pageUrls[n]).map(async (n) => {
+      const r = await fetch(`/api/history/${item.id}/page/${n}.png`, { headers });
+      if (r.ok) item.pageUrls[n] = URL.createObjectURL(await r.blob());
+    }));
+    data.urls = item.pageUrls;
+  } catch {
+    data = { failed: true };
+  }
+  item.sources = data;
+  if (doc === state.doc && item === state.docItem)
+    $("#preview-frame").contentWindow.postMessage({ type: "coi-sources", doc, ...data }, location.origin);
+}
+
+// A crop clicked in the preview: the original pane shows the whole page with the quote framed, scrolled to it, under
+// a bar "Źródło: <label> · strona N z M · ✕ Wróć do oryginału"; for an office file the text lines get marked.
+function showSource(id, label) {
+  const item = state.docItem, place = item?.sources?.sources?.[id];
+  if (!place) return;
+  if ($("#panes").classList.contains("no-original")) $("#original-strip").click();
+  const pane = $("#original");
+  if (place.lines) {
+    const pre = pane.querySelector(".doc-text");
+    return pre && markLines(pre, place.lines[0], place.lines[1]);
+  }
+  const url = item.pageUrls?.[place.page];
+  if (!url) return;
+  const back = el("button", "small", "✕ Wróć do oryginału");
+  back.type = "button";
+  back.addEventListener("click", () => showOriginal(state.selected));
+  const bar = el("div", "src-bar");
+  const what = el("span", "", "Źródło: ");
+  what.append(el("strong", "", label), ` · strona ${place.page} z ${place.pages}`);
+  what.title = what.textContent;
+  bar.append(what, back);
+  const page = el("div", "src-page"), img = el("img");
+  img.alt = `Strona ${place.page} oryginału`;
+  img.src = url;
+  const frames = place.boxes.map(([x0, y0, x1, y1]) => {
+    const frame = el("i");
+    Object.assign(frame.style, { left: `${x0 * 100 - 0.4}%`, top: `${y0 * 100 - 0.3}%`, width: `${(x1 - x0) * 100 + 0.8}%`, height: `${(y1 - y0) * 100 + 0.6}%` });
+    return frame;
+  });
+  page.append(img, ...frames);
+  pane.replaceChildren(bar, page);
+  const scroll = () => frames[0]?.scrollIntoView({ block: "center" });
+  img.complete ? scroll() : img.addEventListener("load", scroll, { once: true });
+}
+
+// Text of the item's file (cached on the item), "" when the server could not read it.
+async function originalText(item) {
+  if (item.text === undefined) {
+    const body = new FormData();
+    body.append("file", item.file);
+    try {
+      const response = await fetch("/api/forms/text", { method: "POST", headers: { Authorization: `Bearer ${state.token}` }, body });
+      item.text = response.ok ? (await response.json()).text : "";
+    } catch {
+      return ""; // offline for a moment: ask again next time
+    }
+  }
+  return item.text;
+}
+
+function showView() {
+  const done = state.selected?.status === "done";
+  if (state.view === "dicts" && $("#dicts-tab").hidden) state.view = "preview"; // this file has no dictionary proposals
+  for (const button of document.querySelectorAll(".switch button")) button.setAttribute("aria-pressed", String(button.dataset.view === state.view));
+  $(".switch").hidden = $("#download").hidden = !done; // nothing to preview, edit or download yet: just the pane title
+  $("#output-title").hidden = done;
+  $("#preview-frame").hidden = !done || state.view !== "preview";
+  $("#json-view").hidden = !done || state.view !== "json";
+  $("#dicts-view").hidden = state.view !== "dicts";
+  layoutPanes();
+}
+
+// Who gets the room: the history column and the form never give way, the original pane does. It is a strip when
+// the clerk collapsed it, or when the open "Edycja" sidebar leaves it less than a readable width (a PDF page needs
+// about 400 px). The layout follows the sidebar only, the same in "Podgląd", "JSON" and "Słowniki". Below 1000 px
+// everything is stacked and nothing has to give way.
+const ORIGINAL_MIN = 400, STACKED = 1000;
+function originalRoom() {
+  const wide = state.sidebar && state.selected?.status === "done";
+  return { wide, tight: wide && $("#panes").clientWidth - 12 - 820 < ORIGINAL_MIN };  // tight: no room for both
+}
+function layoutPanes() {
+  const panes = $("#panes");
+  if (panes.hidden) return;
+  const { wide, tight } = originalRoom(), stacked = innerWidth <= STACKED;
+  panes.classList.toggle("wide", wide);
+  panes.classList.toggle("no-original", !stacked && (state.originalHidden || tight));
+  $("#original-strip").title = tight && state.view === "preview" ? "Rozwiń oryginał. Panel edycji się zwinie, bo oba się nie mieszczą." : "Rozwiń oryginał";
+}
+new ResizeObserver(layoutPanes).observe($("#panes"));
+$("#original-collapse").addEventListener("click", () => {
+  state.originalHidden = true;
+  layoutPanes();
+  $("#original-strip").focus();
+});
+// The strip brings the original back; when there is no room for it next to the open sidebar, the sidebar collapses.
+$("#original-strip").addEventListener("click", () => {
+  state.originalHidden = false;
+  if (originalRoom().tight) $("#preview-frame").contentWindow.postMessage({ type: "coi-close", doc: state.doc }, location.origin);
+  layoutPanes();
+  // focus goes to the control that is on screen once the sidebar has answered and the panes are laid out
+  setTimeout(() => $($("#panes").classList.contains("no-original") ? "#original-strip" : "#original-collapse").focus(), 150);
+});
+
+for (const button of document.querySelectorAll(".switch button")) {
+  button.addEventListener("click", () => {
+    state.view = button.dataset.view;
+    if (state.selected) renderNote(state.selected);
+    showView();
+    updateActions();
+    if (state.view === "json" && state.selected?.status === "done") renderTree(); // shows the edits too
+  });
+}
+
+// The embedded /preview?embed=1 rebuilds its whole form on every message, so switching items never shows a stale form.
+// The message carries the evidence (the paper quotes drawn under the fields); the frame's "Edycja" sidebar edits this
+// document from then on. Each message starts a new document (doc), and edits or checks of an older document are
+// ignored. The rules check runs right away, so a result whose last edit was never checked gets its answer.
+function sendPreview() {
+  const item = state.selected;
+  if (!state.previewReady || item?.status !== "done") return;
+  state.doc += 1;
+  state.docItem = item;
+  $("#preview-frame").contentWindow.postMessage(
+    { type: "coi-preview", json: selectedJson(), evidence: item.evidence || {}, doc: state.doc, key: docKey(item) }, location.origin);
+  checkRules(item, 0);
+  if (!isJson(item.file)) sendSources(item); // "Źródło" needs paper
+}
+
+// --- editor (the "Edycja" sidebar inside the preview frame): it sends every change, we save it and check it with the real COI rules ---
+
+// Ready to download: finished, the newest edit checked (item.checking; item.lastCheck = the check asked for last,
+// item.checkFailed = it did not get through), and no rules problems.
+function exportable(item) { return item.status === "done" && !item.checking && !item.checkFailed && !(item.problems?.length > 0); }
+
+// Download, copy and the status next to them follow the selected item; problems (or a check still running) block the export.
+function updateActions() {
+  const item = state.selected, done = item?.status === "done", bad = done && item.problems?.length > 0;
+  $("#download").disabled = $("#copy").disabled = !done || !exportable(item);
+  const status = $("#edit-status");
+  status.className = bad || item?.checkFailed ? "bad" : "muted";
+  // why "Pobierz JSON" is off; with the sidebar open, the sidebar already says it and lists the problems
+  status.textContent = !done || (state.sidebar && state.view === "preview") ? ""
+    : item.checkFailed ? "Nie udało się sprawdzić zmian"
+    : item.checking ? "Sprawdzam zmiany…"
+    : bad ? `Do poprawy: ${item.problems.length}` : "";
+  status.hidden = !status.textContent;
+  renderFiles();
+}
+
+let checkTimer;
+window.addEventListener("message", (event) => {
+  if (event.origin !== location.origin || event.source !== $("#preview-frame").contentWindow) return;
+  const data = event.data || {};
+  if (data.type === "coi-drop") return void addFiles([...data.files]); // a form dropped on the preview
+  if (data.type === "coi-paper") return showPaper(String(data.heading || ""), Number(data.page) || 0);
+  if (data.type === "coi-source") return showSource(String(data.id || ""), String(data.label || ""));
+  if (data.type === "coi-sidebar") { // the "Edycja" sidebar was opened or collapsed: the original pane gives it room or gets it back
+    state.sidebar = Boolean(data.open);
+    showView();
+    return updateActions();
+  }
+  const item = state.docItem;
+  if (data.doc !== state.doc || !item || item.deleted) return; // an edit of a document no longer shown
+  if (data.type === "coi-edit") {
+    Object.assign(item, { result: JSON.parse(data.json), evidence: data.evidence, edited: true, checking: true });
+    persist(item);
+    if (item === state.selected) updateActions(); // no download of a change the rules have not seen yet
+    clearTimeout(checkTimer);
+    const doc = state.doc; // the check belongs to this document even if another file is opened before it starts
+    checkTimer = setTimeout(() => { checkRules(item, data.version, doc); if (!isJson(item.file)) sendSources(item, doc); }, 250);
+  }
+});
+
+// POST /api/forms/check on the item's current JSON; the problems go to the editor and into history.
+async function checkRules(item, version, doc = state.doc) {
+  item.lastCheck = { doc, version };
+  let problems;
+  try {
+    const response = await fetch("/api/forms/check", {
+      method: "POST", headers: { Authorization: `Bearer ${state.token}`, "Content-Type": "application/json" }, body: JSON.stringify(item.result),
+    });
+    if (response.status === 401) return logout("Sesja wygasła. Zaloguj się ponownie.");
+    if (!response.ok) throw new Error();
+    problems = (await response.json()).problems;
+  } catch {
+    if (item.lastCheck.doc !== doc || item.lastCheck.version !== version) return; // a newer check has the say
+    item.checkFailed = true; // "Pobierz JSON" stays off; the sidebar (or the pane head while it is collapsed) says why
+    if (doc === state.doc) $("#preview-frame").contentWindow.postMessage({ type: "coi-problems", failed: true, version, doc }, location.origin);
+    if (item === state.selected) updateActions();
+    return;
+  }
+  if (item.lastCheck.doc !== doc || item.lastCheck.version !== version) return; // a newer edit is being checked
+  Object.assign(item, { problems, checking: false, checkFailed: false });
+  persist(item);
+  if (doc === state.doc) $("#preview-frame").contentWindow.postMessage({ type: "coi-problems", problems, version, doc }, location.origin);
+  if (item === state.selected) updateActions();
+}
+
+// "Do poprawy: N" (or a check that failed): the sidebar opens on the list of problems, in the preview.
+$("#edit-status").addEventListener("click", () => {
+  state.view = "preview";
+  showView();
+  $("#preview-frame").contentWindow.postMessage({ type: "coi-open", doc: state.doc }, location.origin);
+});
+
+// Ctrl+Z / Ctrl+Shift+Z while focus is outside the iframe still undo and redo in the editor.
+document.addEventListener("keydown", (event) => {
+  const key = event.key.toLowerCase();
+  if (state.view !== "preview" || state.selected?.status !== "done" || !(event.metaKey || event.ctrlKey) || (key !== "z" && key !== "y") || event.target.closest("input, textarea")) return;
+  event.preventDefault();
+  $("#preview-frame").contentWindow.postMessage({ type: key === "y" || event.shiftKey ? "coi-redo" : "coi-undo", doc: state.doc }, location.origin);
+});
+
+function renderTree() {
+  $("#tree").replaceChildren(treeNode(null, state.selected.result, 0));
+  search();
+}
+$("#preview-frame").addEventListener("load", () => { state.previewReady = true; sendPreview(); });
+
+function treeNode(key, value, depth) {
+  const keyLabel = key === null ? "" : `${key}: `;
+  if (value === null || typeof value !== "object") {
+    const leaf = el("div", "leaf");
+    leaf.setAttribute("role", "treeitem");
+    leaf.append(el("span", "k", keyLabel), el("span", `v ${value === null ? "null" : typeof value}`, JSON.stringify(value)));
+    return leaf;
+  }
+  const entries = Array.isArray(value) ? value.map((v, i) => [i, v]) : Object.entries(value);
+  const details = el("details");
+  details.open = depth < 2;
+  const summary = el("summary");
+  summary.setAttribute("role", "treeitem");
+  const size = Array.isArray(value) ? `[${entries.length}]` : `{${entries.length}}`;
+  summary.append(el("span", "k", keyLabel), el("span", "meta", size));
+  const kids = el("div", "kids");
+  kids.setAttribute("role", "group");
+  for (const [k, v] of entries) kids.append(treeNode(k, v, depth + 1));
+  details.append(summary, kids);
+  return details;
+}
+
+function search() {
+  const query = $("#search").value.trim().toLowerCase();
+  for (const node of state.hits) node.classList.remove("hit", "current");
+  state.hits = [];
+  state.hit = -1;
+  if (query) {
+    for (const node of $("#tree").querySelectorAll(".leaf, summary")) {
+      if (!node.textContent.toLowerCase().includes(query)) continue;
+      node.classList.add("hit");
+      state.hits.push(node);
+      for (let d = node.parentElement.closest("details"); d; d = d.parentElement.closest("details")) d.open = true;
+    }
+  }
+  $("#hits").textContent = query ? `Trafienia: ${state.hits.length}` : "";
+}
+
+function nextHit() {
+  if (!state.hits.length) return;
+  state.hits[state.hit]?.classList.remove("current");
+  state.hit = (state.hit + 1) % state.hits.length;
+  const node = state.hits[state.hit];
+  node.classList.add("current");
+  node.scrollIntoView({ block: "center" });
+  $("#hits").textContent = `${state.hit + 1} z ${state.hits.length}`;
+}
+
+let searchTimer;
+$("#search").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(search, 150); });
+$("#search").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); nextHit(); } });
+$("#expand").addEventListener("click", () => $("#tree").querySelectorAll("details").forEach((d) => (d.open = true)));
+$("#collapse").addEventListener("click", () => $("#tree").querySelectorAll("details").forEach((d, i) => (d.open = i === 0)));
+
+const selectedJson = () => JSON.stringify(state.selected.result, null, 2);
+
+const jsonName = (file) => file.name.replace(/\.[^.]+$/, "") + ".json";
+
+function saveBlob(blob, name) {
+  const link = el("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+$("#download").addEventListener("click", () => saveBlob(new Blob([selectedJson()], { type: "application/json" }), jsonName(state.selected.file)));
+
+// "Pobierz wszystkie": every finished result in history, in drop order, as one ZIP; equal names become "x (2).json".
+$("#zip").addEventListener("click", () => {
+  const used = new Set();
+  const files = state.items.filter(exportable).reverse().map((item) => { // results with rules problems wait for the editor
+    const base = jsonName(item.file).slice(0, -5);
+    let name = `${base}.json`;
+    for (let n = 2; used.has(name); n++) name = `${base} (${n}).json`;
+    used.add(name);
+    return { name, data: new TextEncoder().encode(JSON.stringify(item.result, null, 2)) };
+  });
+  saveBlob(zip(files), "formularze-json.zip");
+});
+
+// Minimal ZIP writer: STORE (no compression), CRC32, UTF-8 names (flag bit 11). zip([{name, data: Uint8Array}]) -> Blob.
+const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
+  for (let k = 0; k < 8; k++) n = n & 1 ? 0xedb88320 ^ (n >>> 1) : n >>> 1;
+  return n >>> 0;
+});
+function crc32(bytes) {
+  let c = ~0;
+  for (const b of bytes) c = CRC_TABLE[(c ^ b) & 255] ^ (c >>> 8);
+  return ~c >>> 0;
+}
+function zip(files) {
+  const now = new Date();
+  const time = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  const date = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  const parts = [], central = [];
+  let offset = 0;
+  for (const { name, data } of files) {
+    const nameBytes = new TextEncoder().encode(name);
+    const crc = crc32(data);
+    // the run of fields both headers share: version needed, flags, method, time, date, crc, sizes, name length
+    const shared = (view, at) => {
+      [20, 0x0800, 0, time, date].forEach((v, i) => view.setUint16(at + 2 * i, v, true));
+      [crc, data.length, data.length].forEach((v, i) => view.setUint32(at + 10 + 4 * i, v, true));
+      view.setUint16(at + 22, nameBytes.length, true);
+    };
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true);
+    shared(local, 4);
+    const entry = new DataView(new ArrayBuffer(46));
+    entry.setUint32(0, 0x02014b50, true);
+    entry.setUint16(4, 20, true); // version made by
+    shared(entry, 6);
+    entry.setUint32(42, offset, true);
+    parts.push(local, nameBytes, data);
+    central.push(entry, nameBytes);
+    offset += 30 + nameBytes.length + data.length;
+  }
+  const size = central.reduce((n, part) => n + part.byteLength, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(8, files.length, true);
+  end.setUint16(10, files.length, true);
+  end.setUint32(12, size, true);
+  end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, end], { type: "application/zip" });
+}
+
+$("#copy").addEventListener("click", async () => {
+  const button = $("#copy");
+  try {
+    await navigator.clipboard.writeText(selectedJson());
+  } catch { // no Clipboard API outside https/localhost: fall back to a hidden textarea
+    const area = el("textarea");
+    area.value = selectedJson();
+    document.body.append(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+  }
+  button.textContent = "Skopiowano";
+  setTimeout(() => (button.textContent = "Kopiuj"), 1500);
+});
+
+// --- model status ---
+
+// Asked on load and again after every file: "gotowy" = EDENAI_API_KEY set (Eden itself is not called).
+// The pill names the planner in short ("deepinfra/zai-org/GLM-5.2" -> "GLM-5.2"); the full id is in its title.
+function checkModel() {
+  fetch("/health").then((r) => r.json()).then((health) => {
+    const text = { ok: "gotowy", no_api_key: "brak klucza API" }[health.llm] ?? health.llm;
+    const [name, tag = ""] = String(health.llm_model || "").split("/").pop().split(":");
+    const size = tag.split("-")[0].replace(/b$/i, "B");
+    const model = [name, size].filter(Boolean).join(" ");
+    $("#llm").textContent = `Model AI: ${model ? `${model} · ` : ""}${text}`;
+    $("#llm").title = health.llm_model || "";
+  }).catch(() => ($("#llm").textContent = "Model AI: brak danych"));
+}
+checkModel();
+
+// --- Bonus II block (thread "propozycje słowników"): dictionary proposals next to the COI JSON ---
+// Wraps convert() and select() instead of editing them: every converted file also gets
+// POST /api/dictionaries/proposals (in parallel), the result lives in item.dicts and in
+// localStorage "coi-dicts-<history id>" so it survives a reload; select() renders the panel.
+const DICTS_KEY = (item) => `coi-dicts-${item.id}`;
+
+async function fetchDicts(item) {
+  item.dicts = { status: "working" };
+  if (item === state.selected) renderDicts(item);
+  try {
+    const body = new FormData();
+    body.append("file", item.file);
+    const response = await fetch("/api/dictionaries/proposals", { method: "POST", headers: { Authorization: `Bearer ${state.token}` }, body });
+    const data = await response.json().catch(() => ({}));
+    item.dicts = response.ok ? { status: "done", result: data } : { status: "error", error: detail(data, response) };
+  } catch {
+    item.dicts = { status: "error", error: "Brak połączenia z serwerem." };
+  }
+  if (item.id !== undefined && item.dicts.status === "done") localStorage.setItem(DICTS_KEY(item), JSON.stringify(item.dicts));
+  if (item === state.selected) renderDicts(item);
+}
+
+function renderDicts(item) {
+  if (item && !item.dicts && item.id !== undefined) {
+    const saved = localStorage.getItem(DICTS_KEY(item));
+    if (saved) item.dicts = JSON.parse(saved);
+  }
+  const d = item?.dicts;
+  $("#dicts").hidden = !d;
+  if (!d) return;
+  const proposals = d.result?.proposals ?? [];
+  const dropped = d.result?.dropped ?? [];
+  $("#dicts-download").disabled = !proposals.length;
+  $("#dicts-status").className = d.status === "error" ? "error" : "muted";
+  $("#dicts-status").textContent = d.status === "working" ? "Szukam kandydatów na nowe słowniki…"
+    : d.status === "error" ? `Błąd: ${d.error}`
+    : proposals.length ? `Model zaproponował, kod sprawdził: ${proposals.length} do rozważenia przez COI.`
+    : "Brak propozycji nowych słowników dla tego formularza.";
+  $("#dicts-list").replaceChildren(...proposals.map((p) => {
+    const li = el("li");
+    const head = el("h4", "", p.name);
+    const chip = el("span", p.items.length ? "chip" : "chip fill", p.items.length ? `${p.items.length} wartości z formularza` : "wartości do uzupełnienia przez urząd/COI");
+    head.append(chip);
+    const values = p.items.length ? p.items.slice(0, 12).map((i) => i.nazwa).join(", ") + (p.items.length > 12 ? `, … (+${p.items.length - 12})` : "") : p.note;
+    const download = el("button", "small", "Pobierz");
+    download.type = "button";
+    download.addEventListener("click", () => saveDicts(item, [p], p.code.toLowerCase()));
+    const field = el("p");
+    field.append(el("strong", "", "Pole: "), document.createTextNode(`${p.field.label} `), el("span", "muted", `(${p.field.types.join(" / ")})`));
+    const structure = el("p", "muted");
+    structure.append("Struktura: ", el("code", "", p.structure.map((c) => c.name).join(" + ")), ` · kod słownika: `, el("code", "", p.code));
+    li.append(head, field, el("p", "", `Wartości: ${values}`), el("p", "muted", p.reason), structure, dictActions(item, p, download));
+    return li;
+  }));
+  const box = $("#dicts-dropped");
+  box.hidden = !dropped.length;
+  box.querySelector("summary").textContent = `Odrzucone przez kod (${dropped.length})`;
+  box.querySelector("ul").replaceChildren(...dropped.map((text) => el("li", "", text)));
+}
+
+// File "<form>.slowniki.json": {source, proposals: [{name, code, reason, field, structure, status, note, items: [{kod, nazwa}]}]}.
+function saveDicts(item, proposals, suffix = "slowniki") {
+  const data = { source: item.dicts.result.source, proposals };
+  saveBlob(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }), jsonName(item.file).replace(/\.json$/, `.${suffix}.json`));
+}
+$("#dicts-download").addEventListener("click", () => saveDicts(state.selected, state.selected.dicts.result.proposals));
+
+{
+  const convertCoi = convert, selectItem = select;
+  convert = async (item) => { await Promise.all([convertCoi(item), fetchDicts(item)]); };
+  select = (item) => { selectItem(item); renderDicts(item); };
+}
+
+// View "Słowniki": the bonus II panel sits in the e-service pane behind its own tab; the tab shows the number
+// of proposals. Wraps renderDicts the way that block wraps convert and select, without editing it.
+{
+  const base = renderDicts;
+  renderDicts = (item) => {
+    base(item);
+    const d = item?.dicts, tab = $("#dicts-tab");
+    tab.hidden = !d || item.status !== "done"; // a failed or waiting file shows its own state, not proposals
+    tab.textContent = d?.status === "done" ? `Słowniki (${d.result?.proposals?.length ?? 0})` : d?.status === "working" ? "Słowniki…" : "Słowniki";
+    showView();
+    if (item) renderNote(item);
+  };
+}
+
+// "Dodaj" (dictionary catalog, app/catalog.py): a proposal goes into the catalog, as a new dictionary (default) or
+// into one already there (values merged without duplicates), and its field in THIS form reads that dictionary at once:
+// the editor in the preview frame makes the change ({type: "coi-bind-dict"}), so it is undoable, saved in history and
+// checked with the COI rules like every edit. The JSON gets only `dictionaryName` = the dictionary's code. The card then
+// says where it went (p.added = {code, name, id, label}, kept with the proposals) while the field still reads it.
+state.catalog = [];  // our dictionaries (GET /api/dictionaries without the COI ones), for the "Dodaj do" list
+const api = async (url, method = "GET", body) => {
+  const response = await fetch(url, { method, headers: { Authorization: `Bearer ${state.token}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+    body: body && JSON.stringify(body) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(detail(data, response));
+  return data;
+};
+async function loadCatalogList() {
+  try {
+    const ours = (await api("/api/dictionaries")).filter((d) => !d.builtin);
+    const changed = JSON.stringify(ours.map((d) => [d.code, d.name])) !== JSON.stringify(state.catalog.map((d) => [d.code, d.name]));
+    state.catalog = ours;
+    if (changed && state.selected?.dicts) renderDicts(state.selected);
+  } catch { /* the list just offers "Nowy słownik" */ }
+}
+addEventListener("focus", loadCatalogList);
+addEventListener("storage", (event) => { if (event.key === "coi-catalog") loadCatalogList(); });  // the "Słowniki" page saved a change
+$("#dicts-tab").addEventListener("click", () => state.selected && renderDicts(state.selected));  // an undo in the preview unbinds the field
+
+function fieldById(coi, id) {
+  for (const tab of coi?.tabs || []) for (const q of tab.questions || []) {
+    if (q.field.id === id) return q.field;
+    for (const c of q.field.repeatingSectionGrid || []) if (c.field.id === id) return c.field;
+  }
+  return null;
+}
+
+function dictActions(item, p, download) {
+  const box = el("div");
+  const bound = p.added && p.added.id && fieldById(item.result, p.added.id)?.dictionaryName === p.added.code;
+  const catalogLink = (code) => { const a = el("a", "", "katalogu"); a.href = `/slowniki?kod=${encodeURIComponent(code)}`; return a; };
+  if (bound) {
+    const done = el("p", "dict-done");
+    const empty = !state.catalog.find((d) => d.code === p.added.code)?.items.length;
+    done.append(`Dodano do słownika „${p.added.name}”, podpięte do pola „${p.added.label}”. ${empty ? "Słownik jest pusty, uzupełnij go w " : "Wartości są w "}`,
+      catalogLink(p.added.code), ".");
+    const look = el("button", "small primary", "Zobacz w podglądzie");
+    look.type = "button";
+    look.addEventListener("click", () => {
+      state.view = "preview";
+      showView();
+      updateActions();
+      setTimeout(() => $("#preview-frame").contentWindow.postMessage({ type: "coi-show", id: p.added.id }, location.origin), 60);
+    });
+    const actions = el("div", "dict-actions");
+    actions.append(look, download);
+    box.append(done, actions);
+    return box;
+  }
+  if (p.added && !p.added.id) {  // in the catalog, but the field is not bound (none matched, conditions read it, or the preview was not ready)
+    const note = el("p", "dict-done warn");
+    note.append(`Dodano do słownika „${p.added.name}” w `, catalogLink(p.added.code), p.added.stale
+      ? ". Podgląd nie był gotowy, więc pole nie jest podpięte: kliknij „Dodaj” jeszcze raz."
+      : ". Pola nie podpiąłem (nie znalazłem go albo zależą od niego warunki): zrób to w edycji („Skąd lista”).");
+    box.append(note);
+  }
+  const target = el("select");
+  target.setAttribute("aria-label", `Dokąd dodać: ${p.name}`);
+  target.append(new Option("Nowy słownik", ""), ...state.catalog.map((d) => new Option(`Do: ${d.name}`, d.code)));
+  const again = p.added?.code ?? p.code;  // the same dictionary again (also after an undo): merge, no "_2" twin
+  if (state.catalog.some((d) => d.code === again)) target.value = again;
+  const add = el("button", "small primary", "Dodaj");
+  add.type = "button";
+  add.title = "Dodaj do katalogu słowników i podepnij pole w tym formularzu";
+  add.addEventListener("click", () => addDict(item, p, target.value, add));
+  const actions = el("div", "dict-actions");
+  actions.append(target, add, download);
+  box.append(actions);
+  return box;
+}
+
+let bindReq = 0;
+const bindWaits = new Map();
+addEventListener("message", (event) => {
+  if (event.origin !== location.origin || event.data?.type !== "coi-bound") return;
+  bindWaits.get(event.data.req)?.(event.data);
+});
+
+async function addDict(item, p, code, button) {
+  button.disabled = true;
+  const source = { file: item.file.name, field: p.field.label };
+  let dict;
+  try {
+    dict = code ? await api(`/api/dictionaries/${encodeURIComponent(code)}/items`, "POST", { items: p.items, source })
+      : await api("/api/dictionaries", "POST", { name: p.name, code: p.code, source, items: p.items });
+  } catch (error) {
+    button.disabled = false;
+    $("#dicts-status").className = "error";
+    return ($("#dicts-status").textContent = `Nie udało się dodać słownika: ${error.message}`);
+  }
+  let bound = { id: null, label: "", stale: true };
+  if (state.docItem === item && item === state.selected) {
+    const req = ++bindReq;
+    bound = await new Promise((resolve) => {
+      bindWaits.set(req, resolve);
+      setTimeout(() => resolve({ id: null, label: "", stale: true }), 4000);
+      $("#preview-frame").contentWindow.postMessage({ type: "coi-bind-dict", doc: state.doc, req, code: dict.code, name: dict.name,
+        items: dict.items.map((i) => i.nazwa), quote: p.field.quote, label: p.field.label }, location.origin);
+    });
+    bindWaits.delete(req);
+  }
+  localStorage.setItem("coi-catalog", String(Date.now()));  // an open "Słowniki" page reads the catalog again
+  p.added = { code: dict.code, name: dict.name, id: bound.id, label: bound.label, stale: Boolean(bound.stale) };
+  if (item.id !== undefined) localStorage.setItem(DICTS_KEY(item), JSON.stringify(item.dicts));
+  await loadCatalogList();
+  if (item === state.selected) renderDicts(item);
+}
+{
+  const base = select;
+  select = (item) => { base(item); loadCatalogList(); };
+}
+
+// AUTH_ENABLED off on the server: no login form, requests go without a real token.
+// HISTORY_ENABLED off: no /api/history calls at all (the history is read only after this answer).
+fetch("/api/auth/config").then((r) => r.json()).then(({ enabled, history }) => {
+  if (!enabled) Object.assign(state, { open: true, token: "open" });
+  if (history === false) state.history = false;
+}).catch(() => {}).finally(() => {
+  showScreens();
+  loadHistory();
 });
 </script>
 </body>

@@ -46,6 +46,8 @@ class ChatResult:
     stats: dict = field(default_factory=dict)
 
 
+# Per-call log (model, seconds, tokens) the bench reads. Cleared by the caller.
+CALLS: list[dict] = []
 log = logging.getLogger(__name__)
 MAX_TRIES = 3  # per call, for 429 / 5xx / transport errors
 CONNECT_TRIES = 6  # a dropped connection (venue Wi-Fi, DNS) often comes back within a minute: waits 2+4+8+16+32 s
@@ -188,7 +190,7 @@ def chat_text(
 
 def _chat(system, user, model, max_tokens, seed, frequency_penalty, images, response_format, presence_penalty=0.0,
           timeout=None, tries=MAX_TRIES):
-    """One chat completion -> (answer text, seconds, stats)."""
+    """One chat completion -> (answer text, seconds, stats); logs the call in CALLS."""
     model = model or settings.llm_model
     content = user
     if images:
@@ -218,6 +220,7 @@ def _chat(system, user, model, max_tokens, seed, frequency_penalty, images, resp
         "output_tokens": usage.get("completion_tokens"),
         "finish_reason": choice.get("finish_reason"),
     }
+    CALLS.append({"model": model, "seconds": round(seconds, 2), **stats})
     return raw, seconds, stats
 
 

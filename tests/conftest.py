@@ -1,10 +1,15 @@
-"""No test reaches a model."""
+"""Tests run with auth on (AUTH_ENABLED=1) so the JWT checks stay covered; open mode has its own test in test_api.py."""
 
 import httpx
 import pytest
 
 from app.config import settings
 from app.llm import transcribe
+
+
+@pytest.fixture(autouse=True)
+def auth_on(monkeypatch):
+    monkeypatch.setattr(settings, "auth_enabled", True)
 
 
 @pytest.fixture(autouse=True)

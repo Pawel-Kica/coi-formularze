@@ -1,5 +1,5 @@
 # COI Cyfryzacja Formularzy API. Only the official python Alpine image (every locked dependency
-# has a musl wheel), dependencies from uv.lock, non-root.
+# has a musl wheel), dependencies from uv.lock, Tesseract with Polish data ("Źródło" on scans), non-root.
 # LibreOffice (DOC/DOCX/ODS/XLS/XLSX -> PDF -> page images for the vision model) is in by default;
 # LIBREOFFICE=0 builds a lighter image: PDF and images still become page images, office files are read as their own text.
 ARG PYTHON_VERSION=3.14.10
@@ -17,17 +17,18 @@ RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev --no-ins
 # --- runtime: venv + code, no build tools, no secrets ---
 FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION}
 ARG LIBREOFFICE=1
-RUN if [ "$LIBREOFFICE" = "1" ]; then \
+RUN apk add --no-cache tesseract-ocr tesseract-ocr-data-pol \
+    && if [ "$LIBREOFFICE" = "1" ]; then \
          apk add --no-cache libreoffice-writer libreoffice-calc font-liberation; \
        fi \
     && adduser -D -H -u 10001 app
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
 COPY app ./app
-# Code is root-owned and read-only for `app`. Every write goes to /tmp: LibreOffice temp files and
-# LibreOffice/fontconfig caches (HOME).
+# Code is root-owned and read-only for `app`. Every write goes to /tmp: Tesseract and LibreOffice
+# temp files, LibreOffice/fontconfig caches (HOME) and the upload page history (HISTORY_DB).
 ENV PATH="/app/.venv/bin:$PATH" PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
-    HOME=/tmp
+    HOME=/tmp HISTORY_DB=/tmp/history.sqlite3
 USER 10001:10001
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \

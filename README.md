@@ -1,8 +1,9 @@
 # eFormatka (minimal)
 
 A blank paper form in (PDF, scanned JPG/PNG, DOC, DOCX, ODS, XLS, XLSX), a COI e-service JSON ready to import out.
-This is the minimal core of the HackNation 2026 "Cyfryzacja Formularzy" solution: the conversion pipeline and a
-small REST API, without the clerk's editor, history, dictionary proposals, auth or benchmarks (those live on `main`).
+This is the HackNation 2026 "Cyfryzacja Formularzy" solution with every product feature (the conversion pipeline,
+the REST API, the clerk's web app) and without the research tooling of `main` (benchmarks, AI judges, docs, the
+deliverable JSONs, the dev-only review page).
 
 ## How it works
 
@@ -22,12 +23,22 @@ The model understands the paper; code owns the COI format.
 | Build | `app/builder/` | Plan → COI JSON: the standard COI pages (Dane, Kontakt i zgody, finish), address blocks, validators, registry links, flow. |
 | Check | `app/rules.py` | COI JSON Schema + technical rules; a JSON that breaks them is never returned (422). |
 
-The REST layer is `app/api.py` (+ `app/upload.py` for upload validation, `app/errors.py` for error mapping).
+Around the pipeline:
+
+| Feature | Module |
+|---|---|
+| REST API (convert, background jobs, check, blank form, office text) | `app/api.py`, `app/jobs.py`, `app/upload.py`, `app/errors.py`, `app/problems.py` |
+| Upload page: history, original next to the e-service, JSON view | `app/static/index.html`, `app/history.py` (SQLite) |
+| E-service preview with the clerk's editor sidebar | `app/static/preview.html`, `app/static/editor.js` |
+| "Źródło": the paper crop behind each element; "W dokumencie": its paper heading | `app/sources.py`, `app/headings.py` |
+| New dictionary proposals and the dictionary catalog | `app/dictionaries.py`, `app/llm/dictionaries.py`, `app/catalog.py`, `app/static/dictionaries.html` |
+| Optional JWT auth (`AUTH_ENABLED=1`) | `app/security.py` |
 
 ## Run locally
 
-Requires Python 3.14+, [uv](https://docs.astral.sh/uv/), an Eden AI key, and LibreOffice for office formats
-(`brew install --cask libreoffice`; PDF and images work without it).
+Requires Python 3.14+, [uv](https://docs.astral.sh/uv/), an Eden AI key, LibreOffice for office formats
+(`brew install --cask libreoffice`; PDF and images work without it) and Tesseract with Polish data for "Źródło" on
+scans (`brew install tesseract tesseract-lang`).
 
 ```sh
 cp .env.example .env        # set EDENAI_API_KEY
@@ -35,7 +46,7 @@ uv sync
 uv run uvicorn app.api:app --reload --port 8000
 ```
 
-Open http://localhost:8000 (upload page) or http://localhost:8000/docs.
+Open http://localhost:8000 (upload page) or http://localhost:8000/docs. Settings: `.env.example`.
 
 ```sh
 curl -F file=@wniosek.pdf http://localhost:8000/api/forms/convert > wniosek.json
@@ -51,7 +62,8 @@ Docker: `docker compose up -d --build` (API on :8000, reads `.env`).
 ## Tests
 
 ```sh
-uv run pytest
+uv run pytest            # fast, skips the Tesseract tests
+uv run pytest -m ""      # everything
 ```
 
 No test calls the network (`tests/conftest.py` clears the key and blocks `httpx.post`). `gold/plans/` holds
