@@ -21,9 +21,9 @@ Nie wymyślaj zależności, których papier nie uzasadnia. Gdy formularz nie ma 
 
 # Brakujące pytanie
 
-Jeśli papier mówi „wypełnić tylko, gdy…”, ale w planie nie ma pola wyboru, od którego to zależy (np. „dane opiekuna, wypełnić, jeśli wnioskodawca jest niepełnoletni”), dodaj w `new_questions` pytanie z odpowiedziami Tak/Nie:
+Jeśli papier mówi „wypełnić tylko, gdy…”, ale w planie nie ma pola wyboru, od którego to zależy (np. „adres do korespondencji, jeśli inny niż adres zameldowania”), dodaj w `new_questions` pytanie z odpowiedziami Tak/Nie:
 - `id`: „q1”, „q2”…,
-- `label`: krótkie pytanie prostym językiem, np. „Czy jesteś osobą niepełnoletnią?”,
+- `label`: krótkie pytanie prostym językiem, np. „Czy adres do korespondencji jest inny niż adres zameldowania?”,
 - `place_before`: identyfikator pola lub sekcji, przed którą pytanie ma stanąć (zwykle sam cel),
 - `quote`: zdanie z papieru, z którego wynika pytanie.
 Potem dodaj zależność z `field` = to `id` i `options` = ["Tak"].
