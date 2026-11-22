@@ -852,7 +852,7 @@ function ghostOf(f, kind) {
   const ct = condText(f);
   if (!ct || (kind === "field" && evidence[f.id]?.source === "code")) return null;
   const what = kind === "section" ? "Ukryta sekcja" : STATIC_TYPES.includes(f.type) ? "Ukryty tekst" : "Ukryte pole";
-  return h("p", {class: "ghost"}, h("strong", {}, `${what} „${nameOf(f)}”`), fixButton(f), ". ", condGone(f) ? COND_GONE : `Pokaże się, gdy ${ct}.`);
+  return h("p", {class: "ghost"}, h("strong", {}, `${what} „${nameOf(f)}”`), fixButton(f), " ", condGone(f) ? COND_GONE : `Pokaże się, gdy ${ct}.`);
 }
 
 // The one line under the heading of a standard page: code built it, and what on it (if anything) is from the paper.
