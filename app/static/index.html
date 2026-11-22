@@ -655,13 +655,13 @@ function renderNote(item) {
   note.hidden = item.status === "done";
   if (note.hidden) return;
   if (failed) {
-    if (note.dataset.for === `${item.id}-failed`) return; // keep the button (and focus) while nothing changed
+    if (note.dataset.for === `${docKey(item)}-failed`) return; // keep the button (and focus) while nothing changed
     const again = el("button", "primary", "Spróbuj ponownie");
     again.type = "button";
     again.addEventListener("click", () => retry(item));
     note.replaceChildren(el("p", "big error", item.status === "error" ? "Nie udało się przetworzyć pliku" : "Przetwarzanie przerwane"),
       el("p", "", item.error), again);
-    note.dataset.for = `${item.id}-failed`;
+    note.dataset.for = `${docKey(item)}-failed`;
     return;
   }
   note.dataset.for = "";

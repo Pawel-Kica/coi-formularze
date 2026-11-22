@@ -41,7 +41,7 @@ from app.extract import UnsupportedFile, extract
 from app.llm.transcribe import office_convert
 from app.quotes import normalize
 from app.security import current_user
-from app.upload import validate_upload
+from app.upload import check_name, validate_upload
 
 OFFICE_EXTS = ("doc", "docx", "odt", "ods", "xls", "xlsx")
 SHEET_EXTS = ("ods", "xls", "xlsx")
@@ -269,6 +269,7 @@ def create(file: UploadFile, record: Annotated[str, Form()]) -> dict:
     if len(data) > settings.max_file_size_bytes:
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Plik jest za duży.")
     if (file.filename or "").lower().endswith(".json"):  # a form started without paper (upload page: a COI JSON or the blank form)
+        check_name(file.filename)  # the same name rules as every upload
         try:
             coi = json.loads(data)
         except ValueError:

@@ -73,6 +73,8 @@ def test_coi_json_saved_without_paper(client):
     assert ok.status_code == 200
     for bad in (b'{"a": 1}', b"[1]", b"not json"):
         assert client.post("/api/history", data=record, files={"file": ("a.json", bad, "application/json")}).status_code == 415
+    good = b'{"tabs": []}'
+    assert client.post("/api/history", data=record, files={"file": ("a;b.json", good, "application/json")}).status_code == 400
     assert [r["file_name"] for r in client.get("/api/history").json()] == ["Nowy formularz.json"]
 
 

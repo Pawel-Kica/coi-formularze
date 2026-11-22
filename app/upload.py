@@ -116,12 +116,17 @@ async def read_single_file(request: Request, max_bytes: int) -> tuple[str, bytes
     return filename, data
 
 
-def check_filename(filename: str) -> str:
-    """Name rules from the COI spec; returns the lower-cased extension."""
+def check_name(filename: str) -> None:
+    """The COI spec's name rules alone: at most 250 characters, none of ; : > < / \\ | ' * % $."""
     if len(filename) > MAX_FILENAME_LENGTH:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Nazwa pliku jest dłuższa niż {MAX_FILENAME_LENGTH} znaków.")
     if bad := sorted(FORBIDDEN_FILENAME_CHARS.intersection(filename)):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Nazwa pliku zawiera niedozwolone znaki: {' '.join(bad)}")
+
+
+def check_filename(filename: str) -> str:
+    """Name rules from the COI spec plus a supported extension; returns the lower-cased extension."""
+    check_name(filename)
     extension = PurePath(filename).suffix.lower()
     if extension not in MIME_BY_EXTENSION:
         allowed = ", ".join(sorted(MIME_BY_EXTENSION))

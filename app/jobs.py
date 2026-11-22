@@ -5,9 +5,10 @@ with `result_url` and `status_url`. `GET result_url` is 404 while the form is be
 200 with the bare COI JSON, or the sync endpoint's error code and `{"detail"}` if it failed: poll
 until it stops being 404. `GET status_url` says `pending`, `done` or `error` (404 = unknown job).
 
-Everything lives in this process's memory: the file only until its job ends (never on disk), the
-result for JOB_TTL after it ends; a restart forgets every job. Jobs run on their own pool of
-JOB_WORKERS threads (the local model serves 2 requests at a time), at most MAX_PENDING waiting.
+Everything lives in this process's memory: the upload only until its job ends (the conversion's own
+temporary OCR/LibreOffice files last as long as in the sync call), the result for JOB_TTL after it
+ends; a restart forgets every job. Jobs run on their own pool of JOB_WORKERS threads (the local
+model serves 2 requests at a time), at most MAX_PENDING not finished (running + queued).
 """
 
 import time
@@ -49,7 +50,6 @@ _FILE_BODY = {
 
 @dataclass
 class Job:
-    future: Future
     finished: float | None = None  # time.monotonic() when it ended; None = still running
     result: dict | None = None
     error: HTTPException | None = field(default=None, repr=False)
@@ -67,11 +67,13 @@ def _run(data: bytes, filename: str) -> dict:
 
 
 def _finish(job: Job, future: Future) -> None:
-    """Done callback: keep the result or the mapped error; the file bytes go with the future's call."""
+    """Done callback: keep the result or the mapped error. Nothing keeps the future, and the error drops its
+    traceback (whose frames hold the upload), so the file bytes are freed as soon as the job ends."""
     try:
         job.result = future.result()
     except Exception as error:  # every failure ends the job, so polling never hangs on 404
         job.error = conversion_error(error)
+        job.error.__traceback__ = None
     job.finished = time.monotonic()
 
 
@@ -101,9 +103,9 @@ async def create_job(request: Request, response: Response) -> dict:
         if sum(job.finished is None for job in _jobs.values()) >= MAX_PENDING:
             raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Za dużo zadań w kolejce. Spróbuj za chwilę.")
         job_id = uuid.uuid4().hex
-        job = Job(_executor.submit(_run, data, filename))
-        _jobs[job_id] = job
-    job.future.add_done_callback(lambda future: _finish(job, future))
+        job = _jobs[job_id] = Job()
+        future = _executor.submit(_run, data, filename)
+    future.add_done_callback(lambda done: _finish(job, done))
     urls = {"status_url": f"/api/forms/jobs/{job_id}", "result_url": f"/api/forms/jobs/{job_id}/result"}
     response.headers["Location"] = urls["result_url"]
     return {"id": job_id, **urls}

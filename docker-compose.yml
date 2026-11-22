@@ -1,5 +1,5 @@
 # COI API in Docker. Settings and secrets come from .env (copy .env.example) at runtime only.
-# Three ways to reach the model (README, "Uruchomienie w Dockerze"):
+# Three ways to reach the model (README, "Uruchomienie aplikacji"):
 #   Ollama on the host (default):  docker compose up -d --build
 #   Ollama in a container:         LLM_BASE_URL=http://ollama:11434/v1 in .env, then
 #                                  docker compose --profile ollama up -d --build
