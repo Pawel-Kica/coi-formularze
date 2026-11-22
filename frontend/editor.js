@@ -2,9 +2,8 @@
 /* Click editor: the "Edycja" sidebar of /preview?embed=1, driven by the upload page (index.html).
    One view, no edit mode: the preview stays what it is (steps, answers, conditions) and the sidebar sits to its
    right. The pencil next to an element's name (preview.html's fixLink: every field, section, page heading, the title and the
-   dashed line of a hidden element) opens the sidebar on that element; one click collapses it to a slim strip and the
-   state is remembered. Every change is checked by the server with the real COI rules (POST /api/forms/check,
-   called by the parent).
+   dashed line of a hidden element) opens the sidebar on that element; one click collapses it to a slim strip.
+   Every change is checked by the server with the real COI rules (POST /api/forms/check, called by the parent).
 
    Protocol (same-origin postMessage):
    - parent -> here {type: "coi-preview", json, evidence, doc, key}: preview.html loads the JSON and its evidence,
@@ -29,7 +28,27 @@
    Evidence (preview.html's `evidence`, drawn under every element by its notesOf) = {elementId: {source: "paper" |
    "model" | "code" | "clerk", quote, page, condition_quote?, consent_quotes?}} from POST /api/forms/convert?evidence=1;
    what the clerk adds gets source "clerk".
-   Uses the globals of preview.html (cfg, pages, pageIdx, evidence, renderPage, h, parseQuery...): both are classic scripts. */
+   Uses the globals of preview.html (cfg, pages, pageIdx, evidence, renderPage, h, parseQuery...): both are classic
+   scripts sharing one global scope. Styles: ED_CSS (section 11), added to the page when the sidebar is built.
+
+   Contents (search for "== N."):
+      1. State and constants                    panel options, the state `ed`
+      2. Where things are                       an element's tab, section, cell
+      3. Text helpers                           slugs and techNames (as the backend)
+      4. JSONata conditions                     SHOW conditions (as the builder)
+      5. Changes, undo, sync with the parent    snapshots, undo/redo, sync
+      6. Edits: structure                       add, move, remove pages/sections/fields
+      7. Edits: one element                     type, dictionary, options, condition
+      8. The sidebar shell                      open/collapse, status, selection, inputs
+      9. The sidebar's controls per element     content per selected element
+     10. Start, messages, keys                  the only section that runs code at load
+     11. Styles                                 the sidebar's CSS, injected by edEnsurePanel
+   */
+
+/* ============================================================================================================
+   == 1. State and constants
+   Types, formats and dictionaries the panel offers; the editor's state `ed`.
+   ============================================================================================================ */
 
 const ED_TYPES = [["TEXT_FIELD", "Tekst (krótki)"], ["TEXTAREA", "Tekst (długi)"], ["NUMBER", "Liczba"], ["DATEPICKER", "Data"],
   ["RADIO", "Wybór jednej opcji"], ["CHECKBOX", "Wybór wielu opcji"], ["SELECT", "Lista rozwijana"], ["FILE_UPLOADER", "Załącznik"],
@@ -55,7 +74,11 @@ const ED_EMPTY_HTML = "<html><head></head><body></body></html>";
 const ed = {on: false, open: false, failed: false, doc: 0, key: undefined, sel: null, version: 0, checked: -1, problems: [], undo: [], redo: [],
   pending: null, timer: 0, note: "", focusLabel: false};
 
-/* ---------- where things are ---------- */
+/* ============================================================================================================
+   == 2. Where things are
+   An element's tab, section and cell in the COI JSON.
+   ============================================================================================================ */
+
 // Location of an element id: {kind: "title" | "tab" | "section" | "field", el, tab, section}.
 function edFind(id) {
   if (id === "__title") return {kind: "title", el: null, tab: null};
@@ -102,7 +125,11 @@ function edDependents(fields) {
   return out;
 }
 
-/* ---------- text helpers (mirror backend/app/core/text.py) ---------- */
+/* ============================================================================================================
+   == 3. Text helpers
+   Slugs and techNames, the same rules as backend/app/core/text.py.
+   ============================================================================================================ */
+
 function edSlug(text, fallback = "pole", max = 60) {
   let s = String(text).replace(/ł/g, "l").replace(/Ł/g, "L").normalize("NFKD").replace(/[̀-ͯ]/g, "")
     .toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
@@ -135,7 +162,11 @@ function edTech(label, exceptId) {
   return name;
 }
 
-/* ---------- JSONata conditions (same shapes as app/builder/core.py) ---------- */
+/* ============================================================================================================
+   == 4. JSONata conditions
+   Build and read SHOW conditions, the same shapes as backend/app/coi/builder/core.py.
+   ============================================================================================================ */
+
 const edQ = (text, quote) => String(text).replace(/\\/g, "\\\\").split(quote).join("\\" + quote);
 const edAnswerPath = (tab, sec, fld) =>
   `tabs['${edQ(tab, "'")}' in title].questions['${sec}' in field.techName].field.repeatingSectionGrid['${fld}' in field.techName].field.__userAnswer`;
@@ -185,7 +216,11 @@ function edSingleCondition(f) {
   return trig ? {field: trig, option: a.l.v} : null;
 }
 
-/* ---------- changes, undo, sync with the parent ---------- */
+/* ============================================================================================================
+   == 5. Changes, undo, sync with the parent
+   Snapshots, undo and redo, every change sent to the parent page.
+   ============================================================================================================ */
+
 function edSnapshot() {
   return {json: JSON.stringify(cfg), evidence: JSON.stringify(evidence), sel: ed.sel, page: pageIdx};
 }
@@ -269,7 +304,11 @@ function edRerender() {
   renderPage();
 }
 
-/* ---------- edits ---------- */
+/* ============================================================================================================
+   == 6. Edits: structure
+   Add, move and remove pages, sections and fields.
+   ============================================================================================================ */
+
 // Grid positions like the builder: one column, sections stacked, a section spans its fields + 1 rows.
 function edLayoutSection(sec) {
   sec.repeatingSectionGrid = sortCells(sec.repeatingSectionGrid);
@@ -408,6 +447,11 @@ function edShow(id, block = "nearest") {
   document.querySelector(`[data-fid="${CSS.escape(id)}"]`)?.scrollIntoView({block});
 }
 
+/* ============================================================================================================
+   == 7. Edits: one element
+   Type, dictionary, validation, options, renames and the SHOW condition of one element.
+   ============================================================================================================ */
+
 // Type change: keeps label, description and REQUIRED; drops what the new type cannot have.
 function edSetType(f, type) {
   const required = validators(f).includes("REQUIRED") && type !== "TEXT_BLOCK";
@@ -543,7 +587,11 @@ function edRemoveTab(tab) {
   if (prev && next) cfg.flow.links.push({id: edNewId(), source: prev.id, target: next.id});
 }
 
-/* ---------- the form in edit mode ---------- */
+/* ============================================================================================================
+   == 8. The sidebar shell
+   The form in edit mode; sidebar open and collapse, status line, selection, form controls.
+   ============================================================================================================ */
+
 const edProblemsOf = id => ed.problems.filter(p => p.id === id);
 
 // After every render: the selected element and the problems are marked on the form. Nothing else changes in it:
@@ -573,7 +621,7 @@ function edDecorate() {
 /* ---------- side panel ---------- */
 function edEnsurePanel() {
   if ($("#edPanel")) return;
-  document.head.append(h("style", {}, ED_CSS));
+  document.head.append(h("style", {}, ED_CSS));  // section 11
   document.body.append(h("aside", {id: "edPanel", "aria-label": "Edycja formularza"},
     // collapsed: one slim strip, a click opens the sidebar
     h("button", {type: "button", id: "edStrip", title: "Rozwiń panel edycji", onclick: () => edSetOpen(true)},
@@ -697,6 +745,11 @@ function edSelectBox(options, value, key, onChange) {
 const edBtn = (text, key, onclick, opts = {}) =>
   h("button", {type: "button", class: "ed-btn" + (opts.danger ? " danger" : ""), "data-k": key, disabled: opts.disabled,
     "aria-label": opts.label, title: opts.label, onclick}, text);
+
+/* ============================================================================================================
+   == 9. The sidebar's controls per element
+   The sidebar's content for the selected element: evidence, page, section, field, options, condition.
+   ============================================================================================================ */
 
 function edPanel() {
   const body = $("#edBody");
@@ -941,7 +994,11 @@ function edConditionControls(loc) {
   return box;
 }
 
-/* ---------- start, messages, keys ---------- */
+/* ============================================================================================================
+   == 10. Start, messages, keys
+   Start, messages from the parent page, keys; the only section that runs code at load.
+   ============================================================================================================ */
+
 // A document arrived (preview.html has loaded it): it becomes editable. `key` names the file: the same file
 // again keeps undo, redo, the selection and the sidebar as it was; another document (or a reload) opens with the
 // sidebar collapsed, so the original next to the form is what the clerk sees first (Paweł 22.11).
@@ -1014,6 +1071,11 @@ document.addEventListener("keydown", e => {
     if (key === "y" || e.shiftKey) edRedo(); else edUndo();
   } else if (e.key === "Escape" && !inText && ed.sel) edSelect(null);
 });
+
+/* ============================================================================================================
+   == 11. Styles
+   The sidebar's CSS, injected by edEnsurePanel (section 8) the first time the sidebar is built.
+   ============================================================================================================ */
 
 const ED_CSS = `
 body.ed-on{padding-right:40px}
