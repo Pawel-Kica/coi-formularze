@@ -1,6 +1,6 @@
 # Jak doszliśmy do tej architektury
 
-Szczegóły do skrótu w README („Jak doszliśmy do tej architektury”). Dziś każdy plik czyta Qwen3.5-397B-A17B (obraz strony → Markdown), a plan formularza pisze GLM-5.2. Oba modele mają otwarte wagi i działają na Eden AI. Każdy krok niżej rozstrzygnął pomiar na 9 formularzach COI z zadania, w kilku formatach (PDF, skan, Word). Notatki robocze z pomiarów są w `bench/MODELS.md`.
+Szczegóły do skrótu w README („Jak doszliśmy do tej architektury”). Dziś każdy plik czyta Qwen3.5-397B-A17B (obraz strony → Markdown), a plan formularza pisze GLM-5.2. Oba modele mają otwarte wagi i działają na Eden AI. Każdy krok niżej rozstrzygnął pomiar na formularzach COI z zadania, w kilku formatach (PDF, skan, Word); przy każdym kroku piszemy, na których. Notatki robocze z pomiarów są w `bench/MODELS.md`.
 
 ## Jak mierzyliśmy
 
@@ -108,7 +108,7 @@ Poprawka (jeden akapit promptu: rola składającego i rodzaj wniosku to dane spr
 | Przed | 0,933 | 0,954 | 0,704 | 0,640 | 0,808 |
 | Po | 0,933 | 0,937 | 0,764 | 0,732 | **0,842** |
 
-Rola składającego na formularzu 8 i rodzaj wniosku na formularzu 9 pojawiły się w 6 z 6 przebiegów, wcześniej w 2 z 4.
+Rola składającego na formularzu 8 i rodzaj wniosku na formularzu 9 pojawiły się w 6 z 6 przebiegów, wcześniej w 2 z 4. Wiersz „Przed” różni się od tabeli wyżej, bo to średnia z 2 nowych przebiegów, policzona już poprawioną oceną.
 
 ## 6. Od pliku do JSON-a przez działające API
 
