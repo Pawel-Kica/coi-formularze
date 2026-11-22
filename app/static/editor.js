@@ -52,7 +52,6 @@ const edCatalogDicts = () => Object.entries(CATALOG_NAMES).map(([code, name]) =>
 const ED_CATALOG_EXTRA = {multiLevelTree: false, searchEnabled: true, defaultValue: []};
 const ED_EMPTY_HTML = "<html><head></head><body></body></html>";
 
-const ED_OPEN_KEY = "coi-sidebar";  // localStorage: "1" = the sidebar was left open
 const ed = {on: false, open: false, failed: false, doc: 0, key: undefined, sel: null, version: 0, checked: -1, problems: [], undo: [], redo: [],
   pending: null, timer: 0, note: "", focusLabel: false};
 
@@ -588,7 +587,7 @@ function edEnsurePanel() {
     h("div", {id: "edBody"})));
 }
 
-// Opens or collapses the sidebar (remembered). `pin` = the element that must stay where it is on screen while
+// Opens or collapses the sidebar. `pin` = the element that must stay where it is on screen while
 // the layout changes around it (the parent makes room, the form gets narrower or wider); default: the selected
 // element if it is in view, else the first one in view.
 function edSetOpen(open, pin) {
@@ -598,7 +597,6 @@ function edSetOpen(open, pin) {
     || [...$("#page").querySelectorAll("[data-fid]")].find(inView) || $("#pageHeading");
   const top = el.getBoundingClientRect().top;
   ed.open = open;
-  try { localStorage.setItem(ED_OPEN_KEY, open ? "1" : ""); } catch (e) { /* private mode: the state just is not remembered */ }
   document.body.classList.toggle("sidebar", open);
   if (open && !($("#notesToggle").checked && $("#condsToggle").checked)) { $("#notesToggle").checked = $("#condsToggle").checked = true; applyModes(); }  // editing works on the annotated form
   parent.postMessage({type: "coi-sidebar", open, doc: ed.doc}, location.origin);
@@ -945,7 +943,8 @@ function edConditionControls(loc) {
 
 /* ---------- start, messages, keys ---------- */
 // A document arrived (preview.html has loaded it): it becomes editable. `key` names the file: the same file
-// again keeps undo, redo and the selection. The sidebar comes back the way it was left (open or collapsed).
+// again keeps undo, redo, the selection and the sidebar as it was; another document (or a reload) opens with the
+// sidebar collapsed, so the original next to the form is what the clerk sees first (Paweł 22.11).
 function edStart(doc, key) {
   ed.on = Boolean(cfg) && !$("#app").hidden;  // a JSON that did not load: preview shows the error, nothing to edit
   document.body.classList.toggle("ed-on", ed.on);
@@ -953,12 +952,12 @@ function edStart(doc, key) {
     parent.postMessage({type: "coi-sidebar", open: false, doc}, location.origin);
     return;
   }
-  if (key === undefined || key !== ed.key) Object.assign(ed, {undo: [], redo: [], sel: null});
+  const same = key !== undefined && key === ed.key;
+  if (!same) Object.assign(ed, {undo: [], redo: [], sel: null});
   Object.assign(ed, {failed: false, doc, key, version: 0, checked: -1, problems: [], pending: null, note: ""});
   if (ed.sel && !edFind(ed.sel)) ed.sel = null;
   edEnsurePanel();
-  let open = false;
-  try { open = localStorage.getItem(ED_OPEN_KEY) === "1"; } catch (e) { /* private mode */ }
+  const open = same && ed.open;
   ed.open = !open;  // so that edSetOpen applies the state and tells the parent, also for a new document
   edSetOpen(open);
   renderPage();

@@ -285,10 +285,10 @@ const $ = (selector) => document.querySelector(selector);
 const state = {
   token: sessionStorage.getItem("token"), items: [], selected: null, busy: false, hits: [], hit: -1,
   view: "preview", // e-service view: preview | json | dicts; a new file always opens in the preview
-  // the "Edycja" sidebar of the preview is open: the frame says so (message "coi-sidebar"); it starts from what the
-  // frame itself remembers, so a reload lays the panes out right at once
-  sidebar: localStorage.getItem("coi-sidebar") === "1",
-  originalHidden: localStorage.getItem("coi-original") === "0", // the original pane was collapsed to its strip by hand
+  // the "Edycja" sidebar of the preview is open: the frame says so (message "coi-sidebar"); every document opens
+  // with it collapsed and the original pane shown (Paweł 22.11: the original is always there first)
+  sidebar: false,
+  originalHidden: false, // the original pane was collapsed to its strip by hand, for the document on screen only
   history: true, // HISTORY_ENABLED on the server (GET /api/auth/config); off = nothing saved, the list lives until reload
   originalUrl: null, frameUrl: null, previewReady: false,
   doc: 0, docItem: null, // editor: which document the iframe shows (and whose edits it sends)
@@ -633,6 +633,7 @@ window.addEventListener("drop", (event) => {
 function select(item) {
   const changed = item !== state.selected;
   state.selected = item;
+  if (changed) state.originalHidden = false; // a new document shows its original again
   if (changed && item?.status !== "done") state.view = "preview"; // a file still in the works opens in the preview when it is ready
   renderFiles();
   $("#result-empty").hidden = Boolean(item);
@@ -899,14 +900,12 @@ function layoutPanes() {
 new ResizeObserver(layoutPanes).observe($("#panes"));
 $("#original-collapse").addEventListener("click", () => {
   state.originalHidden = true;
-  localStorage.setItem("coi-original", "0");
   layoutPanes();
   $("#original-strip").focus();
 });
 // The strip brings the original back; when there is no room for it next to the open sidebar, the sidebar collapses.
 $("#original-strip").addEventListener("click", () => {
   state.originalHidden = false;
-  localStorage.setItem("coi-original", "1");
   if (originalRoom().tight) $("#preview-frame").contentWindow.postMessage({ type: "coi-close", doc: state.doc }, location.origin);
   layoutPanes();
   // focus goes to the control that is on screen once the sidebar has answered and the panes are laid out
