@@ -27,7 +27,7 @@ Zaczęliśmy od modelu na laptopie: `qwen3:30b-a3b-instruct-2507-q4_K_M` w Ollam
 
 - Długie formularze 8 i 9 (do 16 stron) zajmowały 285-422 s na plik.
 - Lokalny model wizyjny `qwen3-vl:30b-a3b-instruct` przegrał na formularzach 1, 4, 5 i 7: średnio 0,77 z obrazami stron wobec 0,84 modelu tekstowego. Wymyślał pola i zamieniał wybór na pytania Tak/Nie.
-- Reguły po modelu (filtr warunków, naprawy w `app/repair.py`) sprawdziliśmy na 18 prawdziwych pustych formularzach urzędowych spoza zadania. Dwóch sędziów AI porównywało wynik bez reguł i z regułami w losowej kolejności, nie wiedząc, która wersja jest która: z regułami wygrywa 9 razy, bez nich 1 raz, 8 remisów. Błędy do poprawienia przez urzędnika: 70 → 56 (-20%). Na tym zestawie reguły też rozwijaliśmy, więc to nie jest zestaw kontrolny.
+- Reguły po modelu (filtr warunków, naprawy w `backend/app/grounding/repair.py`) sprawdziliśmy na 18 prawdziwych pustych formularzach urzędowych spoza zadania. Dwóch sędziów AI porównywało wynik bez reguł i z regułami w losowej kolejności, nie wiedząc, która wersja jest która: z regułami wygrywa 9 razy, bez nich 1 raz, 8 remisów. Błędy do poprawienia przez urzędnika: 70 → 56 (-20%). Na tym zestawie reguły też rozwijaliśmy, więc to nie jest zestaw kontrolny.
 
 Gdzie był sufit? Ten sam tekst i te same prompty, ale plan pisał mocniejszy model zamknięty (pomiar diagnostyczny, nie produkt; ten model pomagał też pisać wzorce, więc jego wynik jest raczej zawyżony):
 

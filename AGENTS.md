@@ -4,7 +4,7 @@ Paweł's HackNation 2026 solution to the COI "Cyfryzacja Formularzy" task: a RES
 
 ## Hard rules
 - **Eden calls cost money.** For development: up to 2 files per task through the app without asking (one file = one conversion); more only on Paweł's word. `pytest` never calls the network (`backend/tests/conftest.py` clears the key and blocks `httpx.post`). `.env` (repo root) holds `EDENAI_API_KEY`; never open, print, log or commit it.
-- Commits: author Paweł Kica only, no AI co-author lines (the local `.git/hooks/commit-msg` strips them). Push to `main`.
+- New commits: author Paweł Kica only, no AI co-author lines (the local `.git/hooks/commit-msg` strips them; the 8 commits that brought this layout from branch `minimal` are a teammate's). Push to `main`.
 - Never delete files: `mv <path> /tmp/`.
 - Prompts and code target a strong model: no workarounds for one model's weak spots.
 - Don't edit `backend/app/llm/prompts/*.md` unless prompt work is your task.
@@ -22,6 +22,7 @@ Paweł's HackNation 2026 solution to the COI "Cyfryzacja Formularzy" task: a RES
 ## Commands
 - Tests: `cd backend && uv run pytest` (fast, skips the Tesseract tests marked `slow`); everything `uv run pytest -m ""`.
 - Run: `cd backend && uv run uvicorn app.main:app --port 8000` (reads `.env` from the repo root). Docker: `docker compose up -d --build --wait`.
+- Dev server: launchd agent `com.pawel.coi-api` keeps it on http://localhost:8010 (`app.main:app --reload` from `backend/`, history in `backend/history.sqlite3` + `backend/history-pdf/`), log `~/Library/Logs/coi-api.log`. Restart: `launchctl kickstart -k gui/$(id -u)/com.pawel.coi-api`; after a plist change `launchctl bootout gui/$(id -u)/com.pawel.coi-api`, then `bootstrap gui/$(id -u) <plist>`. Never put `--` inside an XML comment in its plist.
 
 ## Where decisions live
 - Project decisions: `~/hacknation-2026/repo/CONTEXT.md`, details in `~/hacknation-2026/repo/docs/decisions/`.

@@ -35,7 +35,7 @@ from rapidfuzz import fuzz, process
 
 from app.core.plan import FieldType, Plan, Section
 
-# Calibrated in bench/run_models.py (see bench/MODELS.md).
+# Calibrated in bench/run_models.py (see bench/MODELS.md; both on branch badania).
 THRESHOLD = 90.0
 THRESHOLD_OCR = 85.0
 MIN_QUOTE_CHARS = 3  # after normalization; shorter quotes ("a", "1)") prove nothing

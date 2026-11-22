@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # Upload
     max_file_size_mb: float = 10
-    # Upload page history (app/history.py): SQLite file with every processed file and its result.
+    # Upload page history (app/storage/history.py): SQLite file with every processed file and its result.
     history_db: Path = BACKEND_DIR / "history.sqlite3"
     # 0 = the server keeps no uploaded file or result after the request (/api/history answers 404, the
     # page keeps its list only until reload); the dictionary catalog stays, it holds names and values only.
