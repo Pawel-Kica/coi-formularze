@@ -2,6 +2,8 @@
 
 Projekt na HackNation 2026, zadanie COI „Cyfryzacja Formularzy”.
 
+**Prezentacja:** [docs/prezentacja.pdf](docs/prezentacja.pdf)
+
 Wgrywasz pusty formularz urzędowy w dowolnym formacie (PDF, skan JPG/PNG, DOC, DOCX, ODS, XLS, XLSX), a REST API zwraca JSON e-usługi COI gotowy do importu. Urzędnik widzi go obok oryginału i poprawia w edytorze: pod polem jest cytat z dokumentu, z którego pole powstało, i „Źródło”, czyli wycinek oryginału z zaznaczonym miejscem. Dlatego model nie musi trafić wszystkiego za pierwszym razem.
 
 ![Strona dla urzędnika: z lewej skan formularza 7, z prawej e-usługa z krokami u góry, pod polem cytat z dokumentu i „Źródło”, czyli wycinek skanu z ramką na tym cytacie](docs/img/aplikacja.png)
@@ -381,7 +383,7 @@ Tabele, czasy, koszty i odrzucone pomysły są w [docs/historia.md](docs/histori
 
 ## Licencje
 
-Kod i zależności to wyłącznie open source bez licencji copyleft, które wymagałyby upublicznienia naszego kodu (pkt 5 zadania).
+Nasz kod jest na licencji MIT ([LICENSE](LICENSE)). Kod i zależności to wyłącznie open source bez licencji copyleft, które wymagałyby upublicznienia naszego kodu (pkt 5 zadania).
 - Zależności Pythona: MIT, BSD, Apache-2.0, PSF i MIT-CMU (Pillow). `certifi` (zależność `httpx`) ma MPL-2.0, która obejmuje tylko jego własne pliki i nie wymaga publikacji naszego kodu.
 - Tesseract: Apache-2.0. LibreOffice: MPL-2.0, uruchamiany jako osobny program, bez linkowania z naszym kodem.
 - Modele: GLM-5.2 (planer) na licencji MIT, Qwen3.5-397B-A17B (odczyt stron) na Apache-2.0. Oba mają otwarte wagi.
