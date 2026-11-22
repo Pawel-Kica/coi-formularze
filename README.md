@@ -123,7 +123,7 @@ Do tego:
 | 3.3.VI Walidacje i UX (w kryteriach oceny punkt V) | walidatory COI z etykiet (PESEL, NIP, REGON, kod pocztowy, e-mail, ePUAP, ADE, dowód osobisty), „wymagane”, przy telefonie numer kierunkowy i podpowiedź formatu; batch i ZIP | `backend/app/coi/builder/` |
 | 5. Formaty, MIME z zawartości, nazwa pliku, limit rozmiaru | wszystko z listy zadania plus `.xls` i `.jpe` | [Walidacja i limity](#walidacja-i-limity) |
 | 5. Tylko tymczasowe przetwarzanie | `convert` trzyma plik tylko w pamięci. Historia strony jest domyślnie włączona; `HISTORY_ENABLED=0` ją wyłącza, kosztem „Źródła” | [Przechowywanie plików](#przechowywanie-plików) |
-| 5. Docker, konfiguracja, README | Alpine, wersje przypięte, użytkownik bez uprawnień, sekrety tylko przy starcie | [Budowanie obrazu Docker](#budowanie-obrazu-docker), [Konfiguracja](#konfiguracja) |
+| 5. Docker, konfiguracja, README | lekki Debian slim, wersje przypięte, użytkownik bez uprawnień, sekrety tylko przy starcie | [Budowanie obrazu Docker](#budowanie-obrazu-docker), [Konfiguracja](#konfiguracja) |
 | 5. Python 3.14+, open source bez copyleft, bez zewnętrznych API i modeli dostępnych tylko przez API | GLM-5.2 (MIT) i Qwen3.5 (Apache-2.0) mają otwarte wagi. Na hackathonie wołamy je przez Eden AI, czyli zewnętrzne API, na tokenach od organizatorów zadania (pkt 7). Wdrożenie bez zewnętrznego API to własny serwer z tymi samymi wagami, ustawiany w konfiguracji (tej drogi nie testowaliśmy) | [Znane ograniczenia](#znane-ograniczenia), [Licencje](#licencje) |
 
 ## Architektura
@@ -195,17 +195,17 @@ Zależności idą w jedną stronę, bez cykli: `api` → `services` → `llm`, `
 ## Budowanie obrazu Docker
 
 ```bash
-docker build -t coi-formularze:0.1.0 .
+docker build -t coi-formularze:0.2.0 .
 ```
 
 Obraz buduje też `docker compose build`. Potrzebny jest Docker 23+, bo `Dockerfile` używa `RUN --mount=type=cache` (BuildKit).
 
-- Oficjalny obraz `python:3.14.10-alpine3.24` w obu etapach budowy. `uv==0.13.9` instaluje zależności dokładnie z `backend/uv.lock` (z hashami), a do obrazu końcowego trafia tylko środowisko, kod `backend/app/` i strony `frontend/`.
+- Oficjalny obraz `python:3.14.10-slim-trixie` (Debian slim) w obu etapach budowy. Nie Alpine, bo LibreOffice z Alpine ciągnie Qt, GTK i Mesa (około 1 GB więcej); na Debianie są pakiety bez interfejsu (`-nogui`), więc cały obraz ma 972 MB zamiast 1,76 GB. `uv==0.13.9` instaluje zależności dokładnie z `backend/uv.lock` (z hashami), a do obrazu końcowego trafia tylko środowisko, kod `backend/app/` i strony `frontend/`.
 - LibreOffice Writer i Calc z fontami Liberation zamieniają pliki biurowe na obrazy stron. Lżejszy obraz bez nich (`--build-arg LIBREOFFICE=0`) czyta jako obrazy stron tylko PDF, JPG i PNG. Plik biurowy planer dostaje wtedy jako sam tekst pliku, bez obrazów stron, a plik bez tekstu kończy się błędem 422.
 - Tesseract z danymi `pol`, tylko do ramek słów na skanach.
 - Proces działa jako użytkownik bez uprawnień (UID 10001), wystawia tylko port 8000 i ma `HEALTHCHECK` na `/health`.
 - Sekrety przychodzą tylko przy uruchomieniu, z `.env`. `.dockerignore` wyklucza `.env`, więc plik nie trafia do obrazu.
-- Nigdzie `latest`. Pakiety systemowe pochodzą ze stabilnej gałęzi Alpine 3.24 bez numerów rewizji, bo Alpine usuwa stare rewizje i przypięty build przestałby się budować.
+- Nigdzie `latest`. Obraz ma wersję z `backend/pyproject.toml` (tag `coi-formularze:0.2.0` i etykieta `org.opencontainers.image.version`; test pilnuje, żeby compose mówił to samo). Pakiety systemowe pochodzą ze stabilnego Debiana 13 (trixie) bez numerów wydań, bo stare wydania znikają z repozytorium i przypięty build przestałby się budować.
 
 ## Uruchomienie aplikacji
 
@@ -222,7 +222,7 @@ docker compose up -d --build  # strona http://localhost:8000, OpenAPI /docs, sta
 
 ```bash
 docker run --rm -p 8000:8000 --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
-  --env-file .env coi-formularze:0.1.0
+  --env-file .env coi-formularze:0.2.0
 ```
 
 ### Natywnie (macOS, Linux)
@@ -284,7 +284,7 @@ Przy `AUTH_ENABLED=1` każda trasa `/api/...` poza `/api/auth/*` wymaga nagłów
 | `GET/POST/DELETE /api/history`, `PUT/DELETE /api/history/{id}`, `GET /api/history/{id}/file`, `GET /api/history/{id}/pdf` | Historia strony: wpisy, oryginał pliku, plik biurowy jako PDF z LibreOffice. 404 przy `HISTORY_ENABLED=0` |
 | `POST /api/history/{id}/sources`, `GET /api/history/{id}/page/{n}.png` | „Źródło”: miejsce każdego elementu w oryginale i strona oryginału jako PNG |
 | `POST /api/auth/token`, `GET /api/auth/config` | Token JWT za login i hasło. Czy token jest potrzebny i czy serwer prowadzi historię |
-| `GET /health` | `{"status", "llm": "ok" \| "no_api_key", "llm_model", "transcribe_model"}`. Sprawdza tylko, czy jest klucz, nie woła Edenu |
+| `GET /health` | `{"status", "version", "llm": "ok" \| "no_api_key", "llm_model", "transcribe_model"}`. Sprawdza tylko, czy jest klucz, nie woła Edenu |
 
 Strony: `/` (urzędnik), `/preview` (sam podgląd), `/slowniki` (katalog słowników), `/docs` (OpenAPI).
 
@@ -362,7 +362,7 @@ Tabele, czasy, koszty i odrzucone pomysły są w [docs/historia.md](docs/histori
 
 ## Wdrożenie
 
-- Jeden obraz Docker: Alpine, proces bez uprawnień, system plików tylko do odczytu, jedyny wymagany sekret to klucz do modeli. Baza danych nie jest potrzebna: SQLite trzyma tylko historię strony i katalog słowników (na trwałym woluminie przetrwają restart).
+- Jeden obraz Docker: Debian slim, proces bez uprawnień, system plików tylko do odczytu, jedyny wymagany sekret to klucz do modeli. Baza danych nie jest potrzebna: SQLite trzyma tylko historię strony i katalog słowników (na trwałym woluminie przetrwają restart).
 - Logowanie przez JWT: własny login albo tokeny z serwera tożsamości urzędu (np. Keycloak) przez `JWT_JWKS_URL`. Domyślnie API jest otwarte (`AUTH_ENABLED=0`), we wdrożeniu trzeba ustawić `1`.
 - Do modeli idą tylko strony pustego formularza, bez danych obywateli.
 - Koszt płaci się raz na formularz, przy cyfryzacji, a nie przy każdym wniosku obywatela: średnio 0,025 $ za formularz, około 0,05 $ za najdłuższe formularze z zadania.
