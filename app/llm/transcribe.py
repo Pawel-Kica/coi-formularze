@@ -110,19 +110,25 @@ def pdf_pages(data: bytes) -> list[Image.Image]:
 
 
 def office_to_pdf(data: bytes, filename: str) -> bytes:
-    """DOC/DOCX/ODS/ODT/XLS/XLSX bytes -> PDF bytes with LibreOffice headless, in a temp dir with
+    """DOC/DOCX/ODS/ODT/XLS/XLSX bytes -> PDF bytes with LibreOffice headless."""
+    return office_convert(data, filename, "pdf")
+
+
+def office_convert(data: bytes, filename: str, to: str) -> bytes:
+    """Office file bytes -> bytes of format `to` ("pdf", "ods", ...) with LibreOffice headless, in a temp dir with
     its own LibreOffice profile (parallel conversions do not lock each other out)."""
     soffice = shutil.which(settings.soffice) or (MAC_SOFFICE if Path(MAC_SOFFICE).exists() else None)
     if not soffice:
         raise UnsupportedFile("LibreOffice (soffice) is not installed: office files cannot become page images")
     suffix = Path(filename).suffix.lower() or ".bin"
     with tempfile.TemporaryDirectory(prefix="coi-lo-") as tmp:
-        src = Path(tmp) / f"form{suffix}"
+        src = Path(tmp) / "in" / f"form{suffix}"  # own folder: an ODS converted to ODS must not overwrite itself
+        src.parent.mkdir()
         src.write_bytes(data)
         cmd = [soffice, f"-env:UserInstallation=file://{tmp}/profile", "--headless", "--norestore",
-               "--convert-to", "pdf", "--outdir", tmp, str(src)]
+               "--convert-to", to, "--outdir", tmp, str(src)]
         subprocess.run(cmd, capture_output=True, timeout=120, check=False)
-        out = Path(tmp) / "form.pdf"
+        out = Path(tmp) / f"form.{to}"
         if not out.exists():
-            raise UnsupportedFile(f"LibreOffice could not convert {filename or 'file'} to PDF")
+            raise UnsupportedFile(f"LibreOffice could not convert {filename or 'file'} to {to.upper()}")
         return out.read_bytes()

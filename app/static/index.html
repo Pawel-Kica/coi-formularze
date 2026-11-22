@@ -293,7 +293,7 @@ const state = {
   sidebar: localStorage.getItem("coi-sidebar") === "1",
   originalHidden: localStorage.getItem("coi-original") === "0", // the original pane was collapsed to its strip by hand
   history: true, // HISTORY_ENABLED on the server (GET /api/auth/config); off = nothing saved, the list lives until reload
-  originalUrl: null, previewReady: false,
+  originalUrl: null, frameUrl: null, previewReady: false,
   doc: 0, docItem: null, // editor: which document the iframe shows (and whose edits it sends)
 };
 const STATUS = { queued: "Czeka", working: "W trakcie", done: "Gotowe", error: "Błąd", interrupted: "Przerwane" };
@@ -684,11 +684,12 @@ function retry(item) {
 const MIME = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", jpe: "image/jpeg", png: "image/png" };
 const fileSize = (bytes) => (bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
 
-// PDF in an iframe, JPG/PNG as an image; DOC/DOCX/ODS/XLSX/XLS (browsers cannot render them) as the text
-// read from the file by POST /api/forms/text, the same text the model gets.
+// PDF in an iframe, JPG/PNG as an image; DOC/DOCX/ODS/XLSX/XLS as the real document too: the PDF LibreOffice made
+// of it on the server (GET /api/history/{id}/pdf) in the same iframe. Only when there is none (not saved yet,
+// LibreOffice failed or lost text) the text read from the file by POST /api/forms/text, the same text the model gets.
 function showOriginal(item) {
   if (state.originalUrl) URL.revokeObjectURL(state.originalUrl);
-  state.originalUrl = null;
+  state.originalUrl = state.frameUrl = null;
   const pane = $("#original");
   if (!item || isJson(item.file)) return pane.replaceChildren(); // no paper behind it: the pane is hidden
   const name = item.file.name;
@@ -696,40 +697,74 @@ function showOriginal(item) {
   state.originalUrl = URL.createObjectURL(MIME[ext] ? new Blob([item.file], { type: MIME[ext] }) : item.file);
   Object.assign($("#original-download"), { href: state.originalUrl, download: name, hidden: Boolean(MIME[ext]) }); // PDF and images are on screen already
   if (ext === "pdf") {
-    const frame = el("iframe");
-    frame.title = `Oryginał: ${name}`;
-    frame.src = state.originalUrl + "#navpanes=0&view=FitH"; // no thumbnail column, page fitted to the pane
-    pane.replaceChildren(frame);
+    showPdf(state.originalUrl, name);
   } else if (MIME[ext]) {
     const img = el("img");
     img.alt = `Oryginał: ${name}`;
     img.src = state.originalUrl;
     pane.replaceChildren(img);
   } else {
-    pane.replaceChildren(el("p", "note muted", "Czytam tekst z pliku…"));
-    originalText(item).then((text) => {
+    pane.replaceChildren(el("p", "note muted", "Otwieram dokument…"));
+    officePdf(item).then((url) => {
       if (item !== state.selected) return;
-      const why = `Przeglądarka nie wyświetla plików ${ext.toUpperCase()}`;
-      pane.replaceChildren(...(text
-        ? [el("p", "doc-note muted", `${why}, dlatego widzisz tekst odczytany z pliku: ten sam, który dostaje model.`), el("pre", "doc-text", text)]
-        : [el("p", "note muted", `${why}, a tekstu nie udało się odczytać. Pobierz plik i otwórz go w edytorze (${fileSize(item.file.size)}).`)]));
+      if (url) return showPdf(url, name);
+      showText(item, "Tego dokumentu nie udało się pokazać tak, jak wygląda");
     });
   }
 }
 
+// The original pane shows the PDF at `url`, without the thumbnail column, the page fitted to the pane.
+function showPdf(url, name) {
+  const frame = el("iframe");
+  frame.title = `Oryginał: ${name}`;
+  frame.src = url + "#navpanes=0&view=FitH";
+  state.frameUrl = url;
+  $("#original").replaceChildren(frame);
+}
+
+// The text read from an office file, under a note that says why (the fallback of showOriginal); resolves when shown.
+async function showText(item, why) {
+  const text = await originalText(item);
+  if (item !== state.selected) return;
+  $("#original").replaceChildren(...(text
+    ? [el("p", "doc-note muted", `${why}, dlatego widzisz tekst odczytany z pliku: ten sam, który dostaje model.`), el("pre", "doc-text", text)]
+    : [el("p", "note muted", `${why}, a tekstu nie udało się odczytać. Pobierz plik i otwórz go w edytorze (${fileSize(item.file.size)}).`)]));
+}
+
+// Blob URL of the PDF the server made of a saved office file (cached on the item), null when there is none.
+async function officePdf(item) {
+  if (item.id === undefined) await item.saving; // a file just dropped: its history record is being created
+  if (item.id === undefined) return null;
+  if (item.pdfUrl === undefined) {
+    try {
+      const response = await fetch(`/api/history/${item.id}/pdf`, { headers: { Authorization: `Bearer ${state.token}` } });
+      item.pdfUrl = response.ok ? URL.createObjectURL(await response.blob()) : null;
+    } catch {
+      return null; // offline for a moment: ask again next time
+    }
+  }
+  return item.pdfUrl;
+}
+
 // "W dokumencie: <heading>, str. N" clicked in the preview: the original shows that place. A PDF opens again at page N
-// (a fresh frame: the viewer reads #page only on load); the text of a DOC/DOCX/ODS/XLSX/XLS gets the heading line
-// marked and scrolled into view; an image stays as it is. A collapsed original pane comes back first.
+// (a fresh frame: the viewer reads #page only on load; an office file's PDF takes N from "Źródło", its evidence has
+// none); the text of an office file (the fallback) gets the heading line marked and scrolled into view; an image
+// stays as it is. A collapsed original pane comes back first.
 function showPaper(heading, page) {
   if ($("#panes").classList.contains("no-original")) $("#original-strip").click();
+  const norm = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  if (!$("#original iframe") && state.frameUrl) showPdf(state.frameUrl, state.selected.file.name); // back from "Źródło"
   const pane = $("#original"), frame = pane.querySelector("iframe"), pre = pane.querySelector(".doc-text");
-  if (frame && page && state.originalUrl) {
+  if (!page && frame && heading) {
+    const pages = Object.entries(state.docItem?.sources?.headings || {});
+    page = pages.find(([h]) => norm(h) === norm(heading))?.[1] || pages.find(([h]) => norm(h).startsWith(norm(heading).slice(0, 40)))?.[1] || 0;
+  }
+  if (frame && page && state.frameUrl) {
     const fresh = frame.cloneNode();
-    fresh.src = `${state.originalUrl}#page=${page}&navpanes=0&view=FitH`;
+    fresh.src = `${state.frameUrl}#page=${page}&navpanes=0&view=FitH`;
     frame.replaceWith(fresh);
   }
   if (!pre || !heading) return;
-  const norm = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   const key = norm(heading).slice(0, 40), lines = pre.textContent.split("\n");
   // a long heading may be broken over lines: its first line is enough
   const i = lines.findIndex((line) => { const n = norm(line); return n && (n.includes(key) || (n.length >= 12 && key.startsWith(n))); });

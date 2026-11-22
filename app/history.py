@@ -10,11 +10,23 @@ with whatever else the page keeps per file: status, error, the COI JSON with the
 "Źródło" (`app.sources`) reads a record's file: `POST /{id}/sources` places the quotes of the evidence the page
 holds now (edits included) on the paper, `GET /{id}/page/{n}.png` is the page the boxes are drawn on. The paper's
 word boxes are cached per record (the file never changes), so only the first request of a scan waits for OCR.
+
+An office file (DOC/DOCX/ODS/XLS/XLSX) is shown as the real document: `GET /{id}/pdf` is its PDF made by LibreOffice
+headless once (cached on disk by the file's sha256 next to HISTORY_DB), and "Źródło" reads that PDF too, so office
+files get framed crops like a PDF. When LibreOffice fails or is missing, the page and "Źródło" use the text read
+from the file instead.
 """
 
+import hashlib
+import io
 import json
+import logging
+import re
 import sqlite3
+import subprocess
+import threading
 import time
+import zipfile
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
 from functools import lru_cache
@@ -23,9 +35,20 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Depends, Form, HTTPException, Response, UploadFile, status
 
 from app import sources
+from app.headings import section_headings
 from app.config import settings
+from app.extract import UnsupportedFile, extract
+from app.llm.transcribe import office_convert
+from app.quotes import normalize
 from app.security import current_user
 from app.upload import validate_upload
+
+OFFICE_EXTS = ("doc", "docx", "odt", "ods", "xls", "xlsx")
+SHEET_EXTS = ("ods", "xls", "xlsx")
+_SOFFICE = threading.Lock()  # one LibreOffice at a time: it is heavy and the Mac is at its memory limit
+MIN_RECALL = 0.95  # share of the file's words the PDF must hold; LibreOffice loses text boxes of some DOCX (measured
+                   # on 72 office forms: form 2 DOCX 0.55 and form 8 DOCX 0.80, the rest 0.98 or more)
+log = logging.getLogger(__name__)
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS uploads (  -- not "history": that name had per-field columns in the first version
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,19 +128,101 @@ def _file(item_id: int) -> tuple[str, bytes]:
     return row["name"], row["file"]
 
 
+def office_pdf(name: str, data: bytes) -> bytes | None:
+    """The PDF of an office file (LibreOffice, cached on disk by sha256), None for other formats or when it fails."""
+    if name.lower().rsplit(".", 1)[-1] not in OFFICE_EXTS:
+        return None
+    sha = hashlib.sha256(data).hexdigest()
+    cached = settings.history_db.with_name(f"{settings.history_db.stem}-pdf") / f"{sha}.pdf"
+    failed = cached.with_suffix(".failed")  # LibreOffice failed or lost text once: don't wait for it again
+    with _SOFFICE:  # also makes a second request wait for the first conversion instead of starting its own
+        if cached.exists():
+            return cached.read_bytes()
+        if failed.exists():
+            return None
+        cached.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            pdf = _to_pdf(data, name)
+            recall = _recall(data, name, pdf)
+        except (UnsupportedFile, OSError, subprocess.SubprocessError) as e:
+            log.warning("office file %s not shown as PDF: %s", name, e)
+            failed.write_text(str(e))
+            return None
+        if recall < MIN_RECALL:
+            log.warning("office file %s not shown as PDF: it holds %.0f%% of the file's words", name, recall * 100)
+            failed.write_text(f"recall {recall:.3f}")
+            return None
+        cached.write_bytes(pdf)
+        return pdf
+
+
+def _to_pdf(data: bytes, name: str) -> bytes:
+    """LibreOffice PDF of an office file. A sheet is printed one page wide (LibreOffice's default cuts a form wider
+    than A4 into column strips on separate pages): any sheet -> ODS, its page styles get "fit to 1 page wide"."""
+    ext = name.lower().rsplit(".", 1)[-1]
+    if ext in SHEET_EXTS:
+        data, name = _fit_width(data if ext == "ods" else office_convert(data, name, "ods")), "form.ods"
+    return office_convert(data, name, "pdf")
+
+
+def _fit_width(ods: bytes) -> bytes:
+    """The ODS with every page style scaled to 1 page wide, any number of pages tall."""
+    def fit(m: re.Match) -> str:
+        tag = re.sub(r'\s(?:style|loext):scale-to(?:-pages|-X|-Y)?="[^"]*"', "", m.group(0))
+        return tag.replace("<style:page-layout-properties", '<style:page-layout-properties loext:scale-to-X="1" loext:scale-to-Y="0"', 1)
+    src, out = zipfile.ZipFile(io.BytesIO(ods)), io.BytesIO()
+    with zipfile.ZipFile(out, "w") as dst:
+        for item in src.infolist():  # same order and compression: "mimetype" stays first and stored
+            body = src.read(item.filename)
+            if item.filename == "styles.xml":
+                if b"xmlns:loext=" not in body:
+                    body = body.replace(b"<office:document-styles ", b'<office:document-styles xmlns:loext="urn:org:documentfoundation:names:experimental:office:xmlns:loext:1.0" ', 1)
+                body = re.sub(r"<style:page-layout-properties[^>]*>", fit, body.decode()).encode()
+            dst.writestr(item, body, compress_type=item.compress_type)
+    return out.getvalue()
+
+
+def _recall(data: bytes, name: str, pdf: bytes) -> float:
+    """Share of the file's words (3+ letters, as `/api/forms/text` reads them) that the PDF's paper holds."""
+    def words(text: str) -> list[str]:
+        return [w for w in normalize(text).split() if len(w) >= 3]
+    src, got = words(extract(data, name).text), set(words(sources.read_paper(pdf, f"{name}.pdf").text))
+    return sum(w in got for w in src) / len(src) if src else 1.0
+
+
+def _shown(item_id: int) -> tuple[str, bytes]:
+    """The file as the original pane shows it: an office file's PDF when there is one, else the file itself."""
+    name, data = _file(item_id)
+    pdf = office_pdf(name, data)
+    return (f"{name}.pdf", pdf) if pdf else (name, data)
+
+
 @lru_cache(maxsize=16)
 def _paper(db: str, item_id: int) -> sources.Paper:
     """Cached per database and record: ids are never reused (AUTOINCREMENT), and tests swap databases."""
-    name, data = _file(item_id)
+    name, data = _shown(item_id)
     return sources.read_paper(data, name)
+
+
+@router.get("/{item_id}/pdf")
+def history_pdf(item_id: int) -> Response:
+    """An office record as PDF (the original pane shows it like a PDF), 404 for other formats, 422 when it fails."""
+    name, data = _file(item_id)
+    if name.lower().rsplit(".", 1)[-1] not in OFFICE_EXTS:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ten plik nie jest dokumentem biurowym.")
+    pdf = office_pdf(name, data)
+    if pdf is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Nie udało się pokazać dokumentu.")
+    return Response(pdf, media_type="application/pdf", headers={"Cache-Control": "private, max-age=86400, immutable"})
 
 
 @router.post("/{item_id}/sources")
 def paper_sources(item_id: int, body: Annotated[dict, Body()]) -> dict:
     """Where on the paper each element came from ("Źródło" in the preview). Body: `{"coi", "evidence"}` as the page
-    holds them now. -> `{"pages": [{"aspect": height / width}], "sources": {element id: place or null}}`, a place
-    being `{page, pages, boxes}` (boxes as fractions of the page image) or `{lines, text}` for office formats,
-    see `app.sources.locate`."""
+    holds them now. -> `{"pages": [{"aspect": height / width}], "sources": {element id: place or null},
+    "headings": {paper heading: page}}`, a place
+    being `{page, pages, boxes}` (boxes as fractions of the page image; office files through their PDF) or
+    `{lines, text}` for an office file LibreOffice could not convert, see `app.sources.locate`."""
     try:
         paper = _paper(str(settings.history_db), item_id)
     except HTTPException:
@@ -129,20 +234,23 @@ def paper_sources(item_id: int, body: Annotated[dict, Body()]) -> dict:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Oczekuję {coi, evidence}.")
     try:
         found = sources.locate(paper, coi, evidence)
+        headings = section_headings(paper, coi, evidence) if coi and paper.aspects else {}
     except (KeyError, TypeError):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Pole coi nie jest JSON-em e-usługi COI.")
-    return {"pages": [{"aspect": round(a, 4)} for a in paper.aspects], "sources": found}
+    # paper heading -> its page: "W dokumencie: ..." of an office file (no page in its evidence) jumps the PDF there
+    pages = {h: paper.lines[line].page + 1 for h, line in headings.values() if paper.lines[line].page is not None}
+    return {"pages": [{"aspect": round(a, 4)} for a in paper.aspects], "sources": found, "headings": pages}
 
 
 @lru_cache(maxsize=32)
 def _page_png(db: str, item_id: int, n: int) -> bytes | None:
-    name, data = _file(item_id)
+    name, data = _shown(item_id)
     return sources.page_png(data, name, n)
 
 
 @router.get("/{item_id}/page/{n}.png")
 def page_image(item_id: int, n: int) -> Response:
-    """Page `n` (1-based) of a record's PDF or JPG/PNG as a PNG about 1600 px wide, for "Źródło"."""
+    """Page `n` (1-based) of a record's PDF, JPG/PNG or office file's PDF as a PNG about 1600 px wide, for "Źródło"."""
     try:
         png = _page_png(str(settings.history_db), item_id, n)
     except HTTPException:

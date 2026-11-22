@@ -8,7 +8,8 @@ under the element. Code only, no model.
 The paper is the file's own lines, each with the boxes of its words: the PDF text layer (pypdfium2), Tesseract on PDF
 pages without a usable layer (the check of `app.extract.pdf`) and on JPG/PNG pages (cut by `split_pages`; plain
 grayscale, no upscale or deskew, so the boxes fit the served page image), and for DOC/DOCX/ODS/XLSX/XLS the text
-`/api/forms/text` shows (no pages, a place is a range of its lines). Quotes are placed by `app.quotes.place_quotes`,
+`/api/forms/text` shows (no pages, a place is a range of its lines); `app.history` hands in an office file's
+LibreOffice PDF instead when it has one, so office files get pages and boxes too. Quotes are placed by `app.quotes.place_quotes`,
 the same walk as the paper headings (`app.headings`), so "W dokumencie: ..., str. N" and the crop never disagree.
 """
 
