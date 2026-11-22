@@ -3,7 +3,18 @@
 import pytest
 
 from app.plan import Condition, FieldType, Page, Plan, PlanField, Section, Statement
-from app.quotes import _elided_span, _paper_lines, filter_plan, normalize, place_quotes, quote_found, span_lines
+from app.quotes import (
+    THRESHOLD,
+    THRESHOLD_OCR,
+    _elided_span,
+    _paper_lines,
+    filter_plan,
+    normalize,
+    place_quotes,
+    quote_found,
+    span_lines,
+    threshold_for,
+)
 
 TEXT = """Wnioskodawca:
 ................................................................
@@ -262,3 +273,8 @@ def test_elided_quote_follows_the_cursor():
     assert span_lines(_elided_span("Imię i nazwisko ... Adres zamieszkania", joined, after_first), text) == (2, 3)
     assert span_lines(_elided_span("Imię i nazwisko ... Adres zamieszkania", joined, len(joined)), text) == (2, 3)
     assert span_lines(_elided_span("Imię i nazwisko ... Adres zamieszkania", joined, 0), text) == (0, 1)
+
+
+def test_quote_threshold_follows_the_reading_method():
+    assert threshold_for("vlm-md") == threshold_for("pdf-text") == THRESHOLD
+    assert threshold_for("pdf-ocr") == threshold_for("ocr") == THRESHOLD_OCR  # cached texts of earlier bench runs

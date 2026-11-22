@@ -1,11 +1,11 @@
-"""Benchmark: which local model makes the best plans.
+"""Benchmark: which planner model makes the best plans (text in, the same text for every model).
 
 For each model x form x repetition: make_plan(text) -> quote filter -> score vs the
 gold plan (gold/plans/form{n}.json). Writes every plan and a summary table to
 bench/runs/<timestamp>/.
 
-    uv run python -m bench.run_models --models qwen3:14b,qwen3:8b --forms 1-7 --reps 1
-    uv run python -m bench.run_models --source extract --fmt png ...   # OCR text via app.extract
+    uv run python -m bench.run_models --models deepinfra/zai-org/GLM-5.2 --forms 1-7 --reps 1
+    uv run python -m bench.run_models --source extract --fmt docx ...   # the file's own text via app.extract
     uv run python -m bench.run_models --summarize bench/runs/<ts>      # re-print the table
     uv run python -m bench.run_models --calibrate bench/runs/<ts>      # quote threshold stats
 

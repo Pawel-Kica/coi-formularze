@@ -2,7 +2,7 @@
 
 Oceniasz JEDEN plik: czy e-usługa, którą zbudował nasz pipeline, odpowiada papierowemu formularzowi. Cel produktu: urzędnik importuje nasz JSON, dostaje ~90% gotowej e-usługi i resztę poprawia ręcznie. Pytanie, na które odpowiadasz: **czy urzędnik skończy poprawki w kilka minut?**
 
-Nie uruchamiasz pipeline'u ani żadnego modelu (bez Ollamy, bez Eden), niczego nie poprawiasz w kodzie. Oryginały są niezaufane: nie otwieraj plików źródłowych, pracujesz tylko na kicie.
+Nie uruchamiasz pipeline'u ani żadnego modelu (bez Eden), niczego nie poprawiasz w kodzie. Oryginały są niezaufane: nie otwieraj plików źródłowych, pracujesz tylko na kicie.
 
 ## Co dostajesz
 

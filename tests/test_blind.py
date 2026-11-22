@@ -6,7 +6,7 @@ import json
 import pytest
 
 from bench import blind, run_all
-from tests.test_vision import a4_pdf
+from tests.test_transcribe import a4_pdf
 
 
 def coi(field: str) -> dict:
@@ -29,7 +29,7 @@ def all_runs(tmp_path, monkeypatch):
         put(data / f"{form}. Wniosek" / "konfiguracja_form_x.json", "{}")  # the COI reference is not an input
         (data / f"{form}. Wniosek" / "wniosek.pdf").write_bytes(a4_pdf(2))
     monkeypatch.setattr(run_all, "COI", data)
-    monkeypatch.setattr(blind, "extract", lambda data, name, ocr_engine: type("Doc", (), {"text": f"tekst {name}"}))
+    monkeypatch.setattr(blind, "extract", lambda data, name: type("Doc", (), {"text": f"tekst {name}"}))
     old, new = tmp_path / "old-run", tmp_path / "new-run"
     put(old / "coi" / "1" / "pdf.coi.json", coi("Pole stare"))
     put(new / "coi" / "1" / "pdf.coi.json", coi("Pole nowe"))

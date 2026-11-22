@@ -2,6 +2,17 @@
 
 ## Decision
 
+Now (Paweł 22.11, Eden only): every file goes page images -> Markdown by `deepinfra/Qwen/Qwen3.5-397B-A17B` -> planner `deepinfra/zai-org/GLM-5.2` (thinking off), both on Eden AI; Ollama and the text/Tesseract reading path are out of the code. Everything below "Eden results" is local Ollama history (qwen3 30B), kept as the record of how we got here.
+
+## Eden results (22.11; numbers from `~/hacknation-2026/resources/eden-only/NUMBERS.md`)
+
+- A (text/Tesseract) vs B (page images), Qwen3.5 reader + planner, 2 rounds on forms 3 and 7 (PDF, PNG): gold= mean A 0.610 (61 s/file) vs B 0.744 (75 s/file); B wins on scans (7 PNG 0.579 -> 0.891, 3 PNG 0.555 -> 0.675), ties on text PDFs (3 PDF 0.693 vs 0.696). All 16 JSONs pass the COI rules. Form 8 PDF, 1 run: A 0.64 268 s $0.055, B 0.65 279 s $0.084. Decision: B only.
+- Planners on form 3, path B, same Markdown, thinking off, mean of 2 runs (PDF / JPEG / DOCX -> mean, s/plan, $ per 3 files): GLM-5.2 0.967 / 0.950 / 0.933 -> 0.950, 12 s, $0.028; DeepSeek V4 Pro 0.928, 15 s, $0.046; Mistral Large 3 0.684, 12 s, $0.020; Qwen3.5 0.478, 123 s, $0.028. Reading the 3 files: $0.006. gpt-oss-120b: no result (deepinfra 503, groq 400). Decision: GLM-5.2.
+- GLM-5.2 on forms 7/8/9, path B (gold= / fields F1 / options / cond R/P / statements): 7 JPG 0.846 / 0.82 / 0.50 / 1.00/0.67 / 0.67; 8 PDF 0.737 / 0.81 / 0.67 / 0.27/0.33 / 0.00 (Qwen3.5 B 0.650); 9 DOCX 0.578 / 0.57 / 0.66 / 0.00/0.00 / 0.00. Opus with our prompts (path A text) as the ceiling: 7 0.968, 8 0.845, 9 PDF 0.858. GLM-5.2: read 28/65/43 s + plan 41/41/43 s, $0.119 for the 3 (~$0.04/file).
+- E2E smoke 22.11 ~01:30 (planner Qwen3.5, not GLM): 13/14 files, 0 COI rule problems; the one failure was a scanned Drive PDF (504 at 363 s). No GLM E2E smoke yet. Caveats: Opus/gold written by Claude, single samples.
+
+## History: local Ollama (qwen3 30B), 21.11
+
 No model benchmarking (Paweł 21.11); local default `qwen3:30b-a3b-instruct-2507-q4_K_M`; later a stronger open-weights model via an OpenAI-compatible API (Eden AI). OCR: Tesseract with preprocessing (~97% on scans); vision models dropped (qwen2.5vl slow and drops content, qwen3-vl:8b empty output).
 
 External model APIs (Eden included) are called only with Paweł's explicit approval for that specific run. All measurements below are local Ollama runs.
@@ -11,8 +22,6 @@ Prompts and code target a strong model: no prompt hacks or task splitting for a 
 ## How to measure
 
     uv run python -m bench.run_all --forms 1,2,3,4,5,6,7 --formats pdf --out bench/runs/<name>
-
-Input questions (text vs page images, grayscale, VL instead of Tesseract on scans): `uv run python -m bench.matrix --screen`, then the full 9 forms on the arms that survive; arms in `bench/matrix_arms.json`, table in `bench/runs/matrix-<time>/matrix.md`.
 
 Columns: JSON ok (definition-of-done point 1), COI rules problems (point 2), quote-filter drops, `gold` = `score_plan` against `gold/plans/formN.json`, `ref` = `score_coi` recall against the COI reference JSON (forms 1 and 5, point 3), seconds per form (Ollama shared with other threads, so times are indicative). Drops include fields the filter removes because they belong to the pages code builds from the Standards (applicant, proxy, contact data); those are expected, not hallucinations.
 

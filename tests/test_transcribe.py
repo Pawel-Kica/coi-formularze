@@ -1,11 +1,13 @@
-"""app/llm/transcribe.py (PIPELINE=images) without a network: chat_text is faked."""
+"""app/llm/transcribe.py, the only reading path, without a network: chat_text is faked."""
 
+import base64
 import io
 import shutil
 import threading
 import time
 from pathlib import Path
 
+import pypdfium2 as pdfium
 import pytest
 from PIL import Image
 
@@ -14,7 +16,26 @@ from app.config import settings
 from app.extract import Document, UnsupportedFile
 from app.llm import transcribe as tr
 from app.llm.client import ChatResult, LLMError
-from tests.test_vision import a4_pdf, png
+
+
+def a4_pdf(pages: int) -> bytes:
+    pdf = pdfium.PdfDocument.new()
+    for _ in range(pages):
+        pdf.new_page(595, 842)
+    buf = io.BytesIO()
+    pdf.save(buf)
+    return buf.getvalue()
+
+
+def png(img: Image.Image) -> bytes:
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def decoded(url: str) -> Image.Image:
+    assert url.startswith("data:image/jpeg;base64,")
+    return Image.open(io.BytesIO(base64.b64decode(url.split(",", 1)[1])))
 
 
 def fake_chat(calls, delays=None):
@@ -37,6 +58,7 @@ def test_pdf_pages_in_order_one_call_each(monkeypatch):
     monkeypatch.setattr(tr, "chat_text", fake_chat(calls, {1: 0.2, 2: 0.1}))
     monkeypatch.setattr(settings, "transcribe_workers", 3)
     monkeypatch.setattr(settings, "transcribe_model", "vlm-x")
+    monkeypatch.setattr(settings, "llm_model", "planner-y")  # the planner reads no images: never its model
     doc = tr.transcribe(a4_pdf(3), "form.pdf")
     assert doc.method == "vlm-md"
     assert doc.text == "## page 1\n\n## page 2\n\n## page 3"
@@ -50,9 +72,13 @@ def test_page_is_shrunk_to_transcribe_side(monkeypatch):
     monkeypatch.setattr(tr, "chat_text", fake_chat(calls))
     monkeypatch.setattr(settings, "transcribe_side", 700)
     tr.transcribe(png(Image.new("RGB", (1240, 1754), "white")), "scan.png")
-    import base64
-    img = Image.open(io.BytesIO(base64.b64decode(calls[0]["images"][0].split(",", 1)[1])))
-    assert max(img.size) == 700
+    assert max(decoded(calls[0]["images"][0]).size) == 700
+
+
+def test_data_url_keeps_gray_and_never_upscales():
+    gray = Image.new("L", (600, 800), 255)
+    assert decoded(tr.data_url(gray, 400)).mode == "L" and gray.size == (600, 800)  # the caller's image untouched
+    assert decoded(tr.data_url(Image.new("RGB", (300, 400), "red"), 1024)).size == (300, 400)
 
 
 def test_stacked_scan_is_cut_into_pages(monkeypatch):
@@ -98,16 +124,18 @@ def test_docx_goes_through_libreoffice(monkeypatch):
     assert calls and doc.text.startswith("## page 1")
 
 
-def test_pipeline_switch(monkeypatch):
+def test_pipeline_always_transcribes(monkeypatch):
     seen = []
-    monkeypatch.setattr(pipeline, "transcribe", lambda d, f: seen.append("images") or Document("md", "vlm-md"))
-    monkeypatch.setattr(pipeline, "extract", lambda d, f: seen.append("text") or Document("txt", "pdf-text"))
-    monkeypatch.setattr(settings, "pipeline", "images")
-    doc, pages = pipeline.read(b"%PDF-", "f.pdf")
-    assert (doc.text, list(pages)) == ("md", [])
-    monkeypatch.setattr(settings, "pipeline", "text")
-    assert pipeline.read(b"%PDF-", "f.pdf")[0].text == "txt"
-    assert seen == ["images", "text"]
+    monkeypatch.setattr(pipeline, "transcribe", lambda d, f: seen.append(f) or Document("md", "vlm-md", pages=["md"]))
+
+    def plan(text):
+        seen.append(text)
+        raise RuntimeError("stop")
+
+    monkeypatch.setattr(pipeline, "make_plan", plan)
+    with pytest.raises(RuntimeError, match="stop"):
+        pipeline.convert(b"%PDF-", "f.pdf")
+    assert seen == ["f.pdf", "md"]
 
 
 def test_fill_in_runs_collapse_and_presence_penalty_sent(monkeypatch):

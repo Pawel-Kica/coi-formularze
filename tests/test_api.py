@@ -258,11 +258,12 @@ def test_real_samples_sniffed(extension, mime):
 # --- health and page ---
 
 
-def test_health_without_llm(client, monkeypatch):
-    monkeypatch.setattr(settings, "llm_base_url", "http://127.0.0.1:9/v1")
+def test_health_says_whether_the_key_is_set(client, monkeypatch):
+    monkeypatch.setattr(settings, "edenai_api_key", None)
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json()["llm"] == "unreachable"
+    assert response.json() == {"status": "ok", "llm": "no_api_key", "llm_model": settings.llm_model,
+                               "transcribe_model": settings.transcribe_model}
 
 
 def test_form_text_reads_a_real_docx_without_the_model(client, auth):

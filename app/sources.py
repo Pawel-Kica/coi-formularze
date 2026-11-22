@@ -85,7 +85,7 @@ def read_paper(data: bytes, filename: str) -> Paper:
 
 
 def _image_pages(data: bytes) -> list[Image.Image]:
-    """The pages of a JPG/PNG as the OCR of `app.extract` sees them: EXIF rotation applied, stacked pages cut."""
+    """The pages of a JPG/PNG as the transcription sees them: EXIF rotation applied, stacked pages cut."""
     return split_pages(ImageOps.exif_transpose(Image.open(io.BytesIO(data))))
 
 
@@ -115,7 +115,7 @@ def _pdf_paper_locked(data: bytes) -> Paper:
 
 
 def _pdf_lines(page, tp) -> list[tuple[str, list[tuple[str, Box]]]]:
-    """The text layer as lines (pdfium's own line breaks, the same lines the text pipeline reads) of words with
+    """The text layer as lines (pdfium's own line breaks, the same lines `app.extract` reads) of words with
     boxes normalized to the page as shown: CropBox, y from the top, /Rotate applied."""
     left, bottom, right, top = page.get_cropbox()
     rot = page.get_rotation() % 360

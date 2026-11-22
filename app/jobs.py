@@ -7,8 +7,8 @@ until it stops being 404. `GET status_url` says `pending`, `done` or `error` (40
 
 Everything lives in this process's memory: the upload only until its job ends (the conversion's own
 temporary OCR/LibreOffice files last as long as in the sync call), the result for JOB_TTL after it
-ends; a restart forgets every job. Jobs run on their own pool of JOB_WORKERS threads (the local
-model serves 2 requests at a time), at most MAX_PENDING not finished (running + queued).
+ends; a restart forgets every job. Jobs run on their own pool of JOB_WORKERS threads, at most
+MAX_PENDING not finished (running + queued).
 """
 
 import time

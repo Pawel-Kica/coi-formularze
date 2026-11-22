@@ -1,11 +1,11 @@
 """Bonus II benchmark: new dictionary proposals vs the hand-written key in `gold/dictionaries/`.
 
-Runs the real step (extract -> model candidates -> code filter) on one file per gold
-form, saves `<out>/<id>.json` (raw candidates + kept + dropped), prints the table
+Runs the real step (page images -> Markdown -> model candidates -> code filter) on one file per gold
+form, saves `<out>/<id>.json` (Markdown, raw candidates + kept + dropped), prints the table
 form / expected / found / junk, and checks the bar: >= 80% of expected found overall
 and <= 1 junk proposal per form.
 
-    uv run python -m bench.dictionaries                      # all gold forms, local model
+    uv run python -m bench.dictionaries                      # all gold forms, Eden models
     uv run python -m bench.dictionaries --only form7,bip22
     uv run python -m bench.dictionaries --rescore bench/runs/dict-...   # re-score saved runs, no model
 
@@ -27,6 +27,7 @@ from pathlib import Path
 from app.dictionaries import filter_candidates
 from app.extract import extract
 from app.llm.dictionaries import ask_candidates
+from app.llm.transcribe import transcribe
 from app.quotes import THRESHOLD, THRESHOLD_OCR, normalize
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -77,12 +78,11 @@ def score(g: dict, proposals: list[dict]) -> dict:
 def run_one(g: dict, out: Path) -> dict:
     path = form_file(g)
     t0 = time.monotonic()
-    doc = extract(path.read_bytes(), path.name)
-    th = THRESHOLD_OCR if "ocr" in doc.method else THRESHOLD
+    doc = transcribe(path.read_bytes(), path.name)
     candidates = ask_candidates(doc.text)
-    kept, dropped = filter_candidates(candidates, doc.text, th)
+    kept, dropped = filter_candidates(candidates, doc.text)
     rec = {"id": g["id"], "file": str(path), "method": doc.method, "seconds": round(time.monotonic() - t0, 1),
-           "candidates": candidates, "proposals": kept, "dropped": dropped}
+           "text": doc.text, "candidates": candidates, "proposals": kept, "dropped": dropped}
     (out / f"{g['id']}.json").write_text(json.dumps(rec, ensure_ascii=False, indent=1))
     return rec
 
@@ -124,10 +124,13 @@ def main() -> int:
             p = Path(a.rescore) / f"{g['id']}.json"
             if p.exists():
                 rec = json.loads(p.read_text())
-                path = Path(rec["file"])
-                doc = extract(path.read_bytes(), path.name)
-                th = THRESHOLD_OCR if "ocr" in doc.method else THRESHOLD
-                rec["proposals"], rec["dropped"] = filter_candidates(rec["candidates"], doc.text, th)
+                if "text" in rec:  # the Markdown the model read
+                    text, th = rec["text"], THRESHOLD
+                else:  # an older run read the file's own text (OCR for scans): office/PDF text only now
+                    path = Path(rec["file"])
+                    text = extract(path.read_bytes(), path.name).text
+                    th = THRESHOLD_OCR if "ocr" in rec.get("method", "") else THRESHOLD
+                rec["proposals"], rec["dropped"] = filter_candidates(rec["candidates"], text, th)
                 rows.append((g, rec))
     else:
         out = Path(a.out)

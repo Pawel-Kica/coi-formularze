@@ -1,7 +1,7 @@
 """End-to-end run of the real pipeline over form files: the definition-of-done table.
 
-For every file: read (extract, or PIPELINE=images: page Markdown) -> make_plan -> filter_plan -> build -> check. Saves
-`<out>/<set>/<form>/<ext>.plan.json` and `.coi.json`, then prints per file:
+For every file: transcribe (page images -> Markdown) -> make_plan -> filter_plan -> build -> check. Saves
+`<out>/<set>/<form>/<ext>.text.md` (what the planner read), `.plan.json` and `.coi.json`, then prints per file:
 JSON produced (1), COI rules problems (2), quote-filter drops (hallucination
 proxy), score vs the gold plan, for forms 1 and 5 score vs the COI reference (3)
 plus `walid=` (validator F1 vs gold/coi/formN.json, the reference with hand-added
@@ -13,7 +13,6 @@ the F1), and per form the consistency of plans across formats vs the PDF plan (4
     uv run python -m bench.run_all --bip                 # gmina BIP black-box set
     uv run python -m bench.run_all --out bench/runs/e2e  # reuse: files already done are skipped
     uv run python -m bench.run_all --out bench/runs/e2e --rebuild  # cached plans, fresh build (no LLM)
-    LLM_VISION=1 uv run python -m bench.run_all --out bench/runs/<new>  # page images too: always a fresh --out
 """
 
 import argparse
@@ -25,10 +24,9 @@ from pathlib import Path
 from app.builder import build
 from app.config import settings
 from app.llm.planner import make_plan
-from app.llm.vision import images_only, setup
-from app.pipeline import read
+from app.llm.transcribe import transcribe
 from app.plan import Plan
-from app.quotes import filter_plan, threshold_for
+from app.quotes import filter_plan
 from app.rules import check
 from bench.score import score_coi, score_plan
 
@@ -69,14 +67,15 @@ def reference(form: str) -> dict | None:
     return json.loads(ref.read_text()) if ref else None
 
 
-def input_kind(pages: list) -> str:
-    """What the model got: "text", "img+text" or "img" (LLM_VISION_TEXT=0 and every page has an image)."""
-    return "text" if not pages else "img" if images_only(pages) else "img+text"
+def setup() -> dict:
+    """Models and page size, for bench logs (tells runs apart)."""
+    return {"model": settings.llm_model, "transcribe_model": settings.transcribe_model,
+            "transcribe_side": settings.transcribe_side}
 
 
 def run_file(form: str, path: Path, out: Path, rebuild: bool = False) -> dict:
     """One file through the pipeline, or from its cached plan/COI. `<ext>.meta.json` keeps the
-    quote drops, seconds and input kind of the model run, so a cached row still has them."""
+    quote drops and seconds of the model run, so a cached row still has them."""
     ext = path.suffix.lower().lstrip(".")
     plan_path, coi_path = out / form / f"{ext}.plan.json", out / form / f"{ext}.coi.json"
     meta_path = out / form / f"{ext}.meta.json"
@@ -97,18 +96,17 @@ def run_file(form: str, path: Path, out: Path, rebuild: bool = False) -> dict:
         t = time.time()
         try:
             data = path.read_bytes()
-            doc, pages = read(data, path.name)
+            doc = transcribe(data, path.name)
             (out / form).mkdir(parents=True, exist_ok=True)
             (out / form / f"{ext}.text.md").write_text(doc.text)  # what the planner read
-            plan, dropped = filter_plan(make_plan(doc.text, pages), doc.text,
-                                        threshold_for(doc.method, images_only(pages)))
+            plan, dropped = filter_plan(make_plan(doc.text), doc.text)
             coi = build(plan)
         except Exception as e:  # noqa: BLE001 - a benchmark records every failure
             return row | {"ok": False, "error": f"{type(e).__name__}: {e}"[:300], "s": round(time.time() - t)}
         plan_path.parent.mkdir(parents=True, exist_ok=True)
         plan_path.write_text(plan.model_dump_json(indent=1))
         coi_path.write_text(json.dumps(coi, ensure_ascii=False, indent=1))
-        meta = {"dropped": dropped, "s": round(time.time() - t), "input": input_kind(pages)}
+        meta = {"dropped": dropped, "s": round(time.time() - t)}
         meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=1))
         row |= meta
     row |= {"ok": True, "problems": check(coi), "fields": sum(len(s.fields) for p in plan.pages for s in p.sections)}
@@ -155,9 +153,6 @@ def main() -> int:
     files = bip_files() if a.bip else coi_files(set(a.forms.split(",")) if a.forms else None,
                                                 set(a.formats.split(",")) if a.formats else None)
     llm = setup()
-    if settings.pipeline == "images":  # tells an images run apart from a text run in the log
-        llm |= {"pipeline": "images", "transcribe_model": settings.transcribe_model or settings.llm_model,
-                "transcribe_side": settings.transcribe_side}
     print("llm:", json.dumps(llm), flush=True)
     rows = []
     for form, path in files:

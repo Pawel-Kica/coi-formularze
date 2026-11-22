@@ -1,17 +1,15 @@
-"""Which page size does the transcription model need? (PIPELINE=images, `app/llm/transcribe.py`)
+"""Which page size does the transcription model need? (`app/llm/transcribe.py`)
 
     uv run python -m bench.transcribe_sides --form 8 --ext pdf --pages 1,2 --sides 1024,1400,1800 [--gray 1400] [--out DIR]
 
-Transcribes the chosen pages of one COI form file at each long side (TRANSCRIBE_MODEL / LLM_MODEL,
-real API calls: one per page per side) and scores every transcription by recall of the gold quotes
-(`gold/plans/formN.json`, every `quote` string). A quote belongs to a page when it is found (rapidfuzz
-partial_ratio >= 90 on `app.quotes.normalize`d text) in that page's own extracted text or in any of its
-transcriptions; recall = share of those found in one transcription. Prints side, prompt tokens per page
+Transcribes the chosen pages of one COI form file at each long side (TRANSCRIBE_MODEL, real API calls:
+one per page per side) and scores every transcription by recall of the gold quotes (`gold/plans/formN.json`,
+every `quote` string). A quote belongs to a page when it is found (rapidfuzz partial_ratio >= 90 on
+`app.quotes.normalize`d text) in any of its transcriptions; recall = share of those found in one transcription. Prints side, prompt tokens per page
 and recall; saves each Markdown to `<out>/<side>/p<N>.md` and the table to `<out>/sides.json`.
 """
 
 import argparse
-import io
 import json
 import time
 from pathlib import Path
@@ -19,7 +17,6 @@ from pathlib import Path
 from rapidfuzz import fuzz
 
 from app.config import settings
-from app.extract import extract
 from app.llm import client
 from app.llm.transcribe import render_pages, transcribe_page
 from app.quotes import normalize
@@ -50,13 +47,6 @@ def found(quote: str, text: str) -> bool:
     return fuzz.partial_ratio(normalize(quote), normalize(text)) >= MATCH
 
 
-def page_text(img) -> str:
-    """Our own extraction of one page image (OCR), the reference reading next to the transcriptions."""
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return extract(buf.getvalue(), "page.png").text
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--form", required=True)
@@ -85,8 +75,7 @@ def main() -> int:
     quotes = gold_quotes(a.form)
     rows = []
     for n in nums:
-        own = page_text(pages[n - 1])
-        mine = [q for q in quotes if found(q, own) or any(found(q, texts[name, n]) for name, _, _ in arms)]
+        mine = [q for q in quotes if any(found(q, texts[name, n]) for name, _, _ in arms)]
         for name, _, _ in arms:
             hit = [q for q in mine if found(q, texts[name, n])]
             rows.append({"side": name, "page": n, "prompt_tokens": tokens[name, n], "quotes": len(mine),
@@ -98,7 +87,7 @@ def main() -> int:
         table.append({"side": name, "tokens_per_page": round(sum(x["prompt_tokens"] for x in r) / len(r)),
                       "recall": round(f / q, 3) if q else None, "found": f, "quotes": q})
         print(f"{name:>6}  tokens/page={table[-1]['tokens_per_page']:5}  recall={table[-1]['recall']}  ({f}/{q})")
-    (out / "sides.json").write_text(json.dumps({"model": settings.transcribe_model or settings.llm_model,
+    (out / "sides.json").write_text(json.dumps({"model": settings.transcribe_model,
                                                 "file": path.name, "table": table, "rows": rows},
                                                ensure_ascii=False, indent=1))
     print("saved", out)

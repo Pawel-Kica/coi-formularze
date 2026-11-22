@@ -1,39 +1,33 @@
-"""PDF -> raw text with pypdfium2 (Apache-2.0/BSD): the text layer page by page, and OCR for
-pages whose text layer is missing or garbage (scanned PDFs, broken font encodings, including
-fonts without a Unicode map whose text layer is a shifted cipher)."""
+"""PDF -> raw text with pypdfium2 (Apache-2.0/BSD): the text layer page by page. Pages whose layer is missing or
+garbage (scans, broken font encodings, including fonts without a Unicode map whose layer is a shifted cipher) are left
+out: the pipeline reads every page as an image (`app.llm.transcribe`) and "Źródło" OCRs them (`app.sources`)."""
 
 import re
 
 import pypdfium2 as pdfium
 
-from app.extract.ocr import ocr_pages
-
 POLISH = set("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ")
 VOWELS = set("aeiouyąęó")
-OCR_DPI = 300
+OCR_DPI = 300  # page render for Tesseract in `app.sources`
 # What a font without a Unicode map gives instead of words: control characters, and letters glued
 # together by symbols real words never hold inside (gov.pl "Zgłoszenie pobytu" -> `=JÊRV]HQLHSRE\WX`).
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 _GLUED = re.compile(r"[^\W\d_][;|=\[\]\\<>{}^~][^\W\d_]")
 
 
-def read_pdf(data: bytes, warnings: list[str], engine: str) -> tuple[str, bool]:
-    """Returns (text, used_ocr)."""
+def read_pdf(data: bytes, warnings: list[str]) -> str:
+    """The text layer of every page that has a usable one."""
     pdf = pdfium.PdfDocument(data)
     try:
-        texts: list[str | None] = []
+        texts = []
         for page in pdf:
             textpage = page.get_textpage()
-            text = textpage.get_text_range()
+            texts.append(textpage.get_text_range())
             textpage.close()
-            texts.append(text if _looks_like_text(text) else None)
-        bad = [i for i, t in enumerate(texts) if t is None]
-        if bad:
-            images = [pdf[i].render(scale=OCR_DPI / 72, grayscale=True).to_pil() for i in bad]
-            for i, text in zip(bad, ocr_pages(images, engine)):
-                texts[i] = text
-            warnings.append(f"OCR used for {len(bad)} of {len(texts)} PDF pages without a usable text layer")
-        return "\n".join(t or "" for t in texts), bool(bad)
+        good = [t for t in texts if _looks_like_text(t)]
+        if len(good) < len(texts):
+            warnings.append(f"{len(texts) - len(good)} of {len(texts)} PDF pages have no usable text layer, left out")
+        return "\n".join(good)
     finally:
         pdf.close()
 

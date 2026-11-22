@@ -1,4 +1,4 @@
-"""app.extract: every format on the real COI forms, normalization rules, bad input."""
+"""app.extract: every text format on the real COI forms (office text, PDF text layer), normalization rules, bad input."""
 
 import io
 import zipfile
@@ -8,13 +8,11 @@ import pytest
 from PIL import Image
 from rapidfuzz import fuzz
 
-from app.extract import Document, OcrError, UnsupportedFile, extract
+from app.extract import Document, UnsupportedFile, extract
 from app.extract.normalize import normalize
 
 DATA = Path(__file__).resolve().parents[1] / "data" / "coi"
-FORMATS = {"pdf", "doc", "docx", "ods", "xlsx", "jpg", "jpeg", "jpe", "png"}
-IMAGES = {"jpg", "jpeg", "jpe", "png"}
-IMAGE_FORMS = {"1", "5", "7"}  # OCR is ~1-3 s per file; these cover 2-page, small grayscale, .JPE
+FORMATS = {"pdf", "doc", "docx", "ods", "xlsx", "png"}  # png: only for the scan-in-a-PDF test
 
 
 def _form_files() -> dict[str, dict[str, Path]]:
@@ -33,12 +31,7 @@ def _form_files() -> dict[str, dict[str, Path]]:
 
 
 FILES = _form_files()
-CASES = [
-    pytest.param(form, ext, marks=pytest.mark.slow) if ext in IMAGES else (form, ext)
-    for form, files in FILES.items()
-    for ext in files
-    if ext != "pdf" and (ext not in IMAGES or form in IMAGE_FORMS)
-]
+CASES = [(form, ext) for form, files in FILES.items() for ext in files if ext not in ("pdf", "png")]
 needs_data = pytest.mark.skipif(not FILES, reason="data/coi missing")
 
 
@@ -57,7 +50,7 @@ def test_format_matches_pdf_text(form, ext, pdf_texts):
     # The same form in another format gives nearly the same text (measured 92-100).
     assert fuzz.ratio(pdf_texts[form], doc.text) >= 88, (form, ext)
     expected = {"doc": {"doc", "docx"}, "docx": {"docx"}, "ods": {"ods"}, "xlsx": {"xlsx"}}
-    assert doc.method in expected.get(ext, {"ocr"})
+    assert doc.method in expected[ext]
 
 
 @needs_data
@@ -137,75 +130,34 @@ def test_garbled_text_layer_is_not_text():
     from app.extract.pdf import _looks_like_text
 
     assert _looks_like_text(GOOD_PAGE * 3)  # e-mail and URL symbols do not count as garbage
-    assert not _looks_like_text(GOOD_PAGE * 3 + CIPHER)  # a half-garbled page goes to OCR too
+    assert not _looks_like_text(GOOD_PAGE * 3 + CIPHER)  # a half-garbled page is left out too
     caesar = "".join(chr((ord(c) - 94) % 26 + 97) if "a" <= c <= "z" else c for c in GOOD_PAGE * 8)
     assert not _looks_like_text(caesar)  # a cipher of letters only: too few vowels
 
 
-@pytest.mark.slow
 @needs_drive
-def test_garbled_pdf_pages_go_through_ocr():
-    """Drive 01: pages 1-2 have a cipher text layer, page 3 is a scan; all three are OCRed."""
+def test_garbled_pdf_pages_are_left_out():
+    """Drive 01: pages 1-2 have a cipher text layer, page 3 is a scan; none has text to give (the pipeline reads
+    page images, "Źródło" OCRs them)."""
     path = DRIVE / "01_zgloszenie_pobytu_stalego_gov.pdf"
     doc = extract(path.read_bytes(), path.name)
-    assert doc.method == "pdf-ocr" and "3 of 3" in doc.warnings[0]
-    assert "Zgłoszenie pobytu stałego" in doc.text and "JÊRV" not in doc.text
+    assert doc.method == "pdf-text" and "3 of 3" in doc.warnings[0] and "JÊRV" not in doc.text
 
 
-@pytest.mark.slow
 @needs_data
-def test_scanned_pdf_goes_through_ocr(pdf_texts):
-    """A PDF made of page images (no text layer) is OCRed page by page."""
-    img = Image.open(FILES["5"]["png"])
+def test_scanned_pdf_has_no_text():
+    """A PDF made of page images (no text layer): empty text and warnings, no error."""
     buf = io.BytesIO()
-    img.convert("RGB").save(buf, format="PDF", resolution=137)
+    Image.open(FILES["5"]["png"]).convert("RGB").save(buf, format="PDF", resolution=137)
     doc = extract(buf.getvalue(), "scan.pdf")
-    assert doc.method == "pdf-ocr"
-    assert fuzz.ratio(pdf_texts["5"], doc.text) >= 90
+    assert doc.text == "" and doc.warnings == ["1 of 1 PDF pages have no usable text layer, left out", "no text found"]
 
 
-@pytest.mark.slow
-@needs_data
-def test_rotated_scan(pdf_texts):
-    img = Image.open(FILES["5"]["png"]).rotate(2.5, expand=True, fillcolor="white")
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    assert fuzz.ratio(pdf_texts["5"], extract(buf.getvalue(), "skew.png").text) >= 90
-
-
-@pytest.mark.slow
-@needs_data
-def test_upside_down_scan(pdf_texts):
-    img = Image.open(FILES["3"]["png"]).rotate(180)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    assert fuzz.ratio(pdf_texts["3"], extract(buf.getvalue(), "flipped.png").text) >= 88
-
-
-@pytest.mark.slow
-@needs_data
-def test_scan_checkboxes_and_fill_lines():
-    """Form 9 scan: drawn checkboxes come out as [ ] and dotted lines as ____, like the PDF."""
-    path = FILES["9"]["png"]
-    text = extract(path.read_bytes(), path.name).text
-    assert "[ ] Dane pełnomocnika klubu sportowego" in text
-    assert text.count("[ ]") >= 10
-    assert "Imię ____" in text
-
-
-@pytest.mark.slow
-def test_blank_scan_gives_empty_text_and_warning():
-    buf = io.BytesIO()
-    Image.new("L", (800, 1100), 255).save(buf, format="PNG")
-    doc = extract(buf.getvalue(), "blank.png")
-    assert doc.text == "" and doc.method == "ocr" and doc.warnings == ["no text found"]
-
-
-def test_unknown_ocr_engine_is_not_a_file_error():
+def test_image_is_unsupported():
     buf = io.BytesIO()
     Image.new("L", (200, 200), 255).save(buf, format="PNG")
-    with pytest.raises(OcrError):
-        extract(buf.getvalue(), "x.png", ocr_engine="nope")
+    with pytest.raises(UnsupportedFile, match="vision model"):
+        extract(buf.getvalue(), "x.png")
 
 
 # --- normalization ----------------------------------------------------------------------

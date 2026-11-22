@@ -1,27 +1,20 @@
-"""LLM client: one OpenAI-compatible chat call whose answer must match a JSON Schema.
+"""LLM client: one OpenAI-compatible chat call to Eden AI, optionally constrained to a JSON Schema.
 
-Both backends speak the same protocol (`POST {LLM_BASE_URL}/chat/completions` with
-`response_format: {type: json_schema, ...}`); Ollama honours the schema on its `/v1`
-endpoint, so there is no separate native path.
+`POST {LLM_BASE_URL}/chat/completions` with `response_format: {type: json_schema, ...}` (`chat_json`) or free
+text (`chat_text`, the page transcription).
 
 Config (`app.config.settings`, from env or `.env`):
-- LLM_BACKEND   "ollama" (local, no key; "/v1" is appended to the URL if missing) or
-                "openai" (any OpenAI-compatible API, e.g. Eden AI; Bearer EDENAI_API_KEY)
-- LLM_BASE_URL  e.g. http://localhost:11434/v1 or https://api.edenai.run/v3 (LLM_URL is an alias)
-- LLM_MODEL, LLM_TIMEOUT_S, EDENAI_API_KEY (SecretStr; read at call time, never logged)
-  Eden AI example: LLM_MODEL=deepinfra/google/gemma-4-31B-it (fallback deepinfra/Qwen/Qwen3.8-27B).
+- LLM_BASE_URL  https://api.edenai.run/v3 by default (LLM_URL is an alias)
+- LLM_MODEL (the planner, deepinfra/zai-org/GLM-5.2), TRANSCRIBE_MODEL (the page reader), LLM_TIMEOUT_S
+- EDENAI_API_KEY (SecretStr; read at call time, never logged)
 
-Per-model request params (`model_params`): Eden routes reject or ignore some OpenAI params, so
-`seed` goes only to Ollama and Mistral, `reasoning_effort: "none"` (thinking off) only to remote
-Qwen and Mistral. Rate limits and provider hiccups (429, 5xx, timeouts) are retried.
+Per-model request params (`model_params`): Eden routes reject or ignore some OpenAI params, so `seed` goes
+only to Mistral and `reasoning_effort: "none"` (thinking off, as benchmarked) to the models in THINKING_OFF.
+Rate limits and provider hiccups (429, 5xx, timeouts) are retried.
 
-Ollama's context window is set on the server (OLLAMA_CONTEXT_LENGTH, 32768 is enough
-for the longest form), not per request.
-
-Images (`images=`, data URLs from `app.llm.vision`) go as standard OpenAI content parts
-`{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}}` before the text;
-Ollama's /v1 takes them (base64 only, no remote URLs) and still honours `response_format`.
-Without images the user message stays a plain string, so text-only requests do not change.
+Images (`images=` of `chat_text`, data URLs from `app.llm.transcribe.data_url`) go as standard OpenAI content
+parts `{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}}` before the text. Without
+images the user message stays a plain string.
 """
 
 import copy
@@ -53,33 +46,26 @@ CALLS: list[dict] = []
 MAX_TRIES = 3  # per call, for 429 / 5xx / transport errors
 
 
+# Model name parts whose routes get `reasoning_effort: "none"`: thinking off, as every Eden number was measured.
+THINKING_OFF = ("qwen", "mistral", "glm")
+
+
 def model_params(model: str, seed: int) -> dict:
     """Extra request params the model's route accepts (see module docstring)."""
     name = model.lower()
-    if settings.llm_backend == "ollama":
-        return {"seed": seed}
     out = {}
     if "mistral" in name:
         out["seed"] = seed
-    if "qwen" in name or "mistral" in name:
+    if any(part in name for part in THINKING_OFF):
         out["reasoning_effort"] = "none"
     return out
 
 
-def base_url() -> str:
-    url = settings.llm_base_url.rstrip("/")
-    if settings.llm_backend == "ollama" and not url.endswith("/v1"):
-        url += "/v1"
-    return url
-
-
 def _headers() -> dict:
     """Auth header built at call time; the key never leaves this dict (not logged, not in errors)."""
-    if settings.llm_backend == "ollama":
-        return {}
     key = settings.edenai_api_key
     if key is None or not key.get_secret_value():
-        raise LLMError("LLM_BACKEND needs an API key: set EDENAI_API_KEY in .env")
+        raise LLMError("no model API key: set EDENAI_API_KEY in .env")
     return {"Authorization": f"Bearer {key.get_secret_value()}"}
 
 
@@ -143,10 +129,8 @@ def chat_json(
     seed: int = 42,
     frequency_penalty: float = 0.0,
     name: str = "answer",
-    images: list[str] | None = None,
 ) -> ChatResult:
     """One deterministic call (temperature 0, fixed seed where the route takes one) constrained to `schema`.
-    `images`: data URLs sent before `user` in the same message (vision models only).
 
     Raises LLMError when the answer is not valid JSON, httpx errors on HTTP failures.
     """
@@ -154,7 +138,7 @@ def chat_json(
         "type": "json_schema",
         "json_schema": {"name": name, "schema": strict_schema(schema), "strict": True},
     }
-    raw, seconds, stats = _chat(system, user, model, max_tokens, seed, frequency_penalty, images, response_format)
+    raw, seconds, stats = _chat(system, user, model, max_tokens, seed, frequency_penalty, None, response_format)
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as e:
@@ -207,7 +191,7 @@ def _chat(system, user, model, max_tokens, seed, frequency_penalty, images, resp
     if presence_penalty:
         body["presence_penalty"] = presence_penalty
     t0 = time.monotonic()
-    out = _post(f"{base_url()}/chat/completions", body, timeout, tries).json()
+    out = _post(f"{settings.llm_base_url.rstrip('/')}/chat/completions", body, timeout, tries).json()
     seconds = time.monotonic() - t0
     choice = (out.get("choices") or [{}])[0]
     raw = (choice.get("message") or {}).get("content") or ""
@@ -221,25 +205,7 @@ def _chat(system, user, model, max_tokens, seed, frequency_penalty, images, resp
     return raw, seconds, stats
 
 
-async def health() -> str:
-    """"ok" | "model_missing" | "busy" | "unreachable" for Ollama (lists its models, 2 s timeout, one retry);
-    "ok" | "no_api_key" for a remote API (not called: health checks must not cost money).
-    "busy" = Ollama is up but its answer failed or came late: while it generates, /v1/models
-    now and then returns 500, which is not "unreachable". Only a refused connection is."""
-    if settings.llm_backend != "ollama":
-        key = settings.edenai_api_key
-        return "ok" if key is not None and key.get_secret_value() else "no_api_key"
-    want = settings.llm_model if ":" in settings.llm_model else f"{settings.llm_model}:latest"
-    status = "unreachable"
-    async with httpx.AsyncClient(timeout=2) as client:
-        for _ in range(2):
-            try:
-                r = await client.get(f"{base_url()}/models")
-                r.raise_for_status()
-                have = {m["id"] for m in r.json()["data"]}
-                return "ok" if want in have else "model_missing"
-            except httpx.ConnectError:
-                return "unreachable"
-            except (httpx.HTTPError, ValueError, KeyError, TypeError):
-                status = "busy"
-    return status
+def health() -> str:
+    """"ok" when EDENAI_API_KEY is set, else "no_api_key". The API is not called: health checks must not cost money."""
+    key = settings.edenai_api_key
+    return "ok" if key is not None and key.get_secret_value() else "no_api_key"

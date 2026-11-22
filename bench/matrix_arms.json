@@ -1,7 +1,0 @@
-{
- "t30-text": {"LLM_MODEL": "qwen3:30b-a3b-instruct-2507-q4_K_M", "LLM_VISION": "0"},
- "vl-text": {"LLM_MODEL": "qwen3-vl:30b-a3b-instruct", "LLM_VISION": "0"},
- "vl-img+text": {"LLM_MODEL": "qwen3-vl:30b-a3b-instruct", "LLM_VISION": "1"},
- "vl-img": {"LLM_MODEL": "qwen3-vl:30b-a3b-instruct", "LLM_VISION": "1", "LLM_VISION_TEXT": "0"},
- "vl-img-gray": {"LLM_MODEL": "qwen3-vl:30b-a3b-instruct", "LLM_VISION": "1", "LLM_VISION_TEXT": "0", "LLM_VISION_GRAY": "1"}
-}

@@ -1,29 +1,18 @@
 """One blank form in, one COI JSON out. Glue between the stages.
 
-read (PIPELINE=text: extract file -> text; PIPELINE=images: file -> page images -> Markdown) ->
-llm planner (text -> Plan; with LLM_VISION=1 also page images) -> quotes (drop items not backed by
-the paper) -> builder (Plan -> COI JSON; with evidence also the paper heading of each page and section,
-`app.headings`, read from the file's real lines, `app.sources`) -> rules (technical checks).
+read (file -> page images -> Markdown by a vision model, `app.llm.transcribe`) -> llm planner (Markdown -> Plan) ->
+quotes (drop items not backed by the paper) -> builder (Plan -> COI JSON; with evidence also the paper heading of each
+page and section, `app.headings`, read from the file's real lines, `app.sources`) -> rules (technical checks).
 """
 
 from app.builder import build_with_evidence
-from app.config import settings
-from app.extract import Document, extract
+from app.extract import Document
 from app.headings import add_headings
 from app.llm.planner import make_plan
 from app.llm.transcribe import transcribe
-from app.llm.vision import Pages, images_only, page_images
-from app.quotes import filter_plan, threshold_for
+from app.quotes import filter_plan
 from app.rules import check
 from app.sources import Paper, read_paper
-
-
-def read(data: bytes, filename: str) -> tuple[Document, Pages]:
-    """The text the planner reads, plus page images for it (LLM_VISION=1, text pipeline only).
-    PIPELINE=images: the Markdown a vision model wrote page by page (`app.llm.transcribe`)."""
-    if settings.pipeline == "images":
-        return transcribe(data, filename), Pages()
-    return extract(data, filename), page_images(data, filename)
 
 
 def convert(data: bytes, filename: str) -> dict:
@@ -35,9 +24,9 @@ def convert_with_evidence(data: bytes, filename: str) -> tuple[dict, dict]:
     """The same conversion, plus the evidence map (COI element id -> paper quote, see
     `app.builder.build_with_evidence`; pages and sections also get their paper heading, `app.headings`)
     for the upload page's editor."""
-    doc, pages = read(data, filename)
-    plan = make_plan(doc.text, pages)
-    plan, _dropped = filter_plan(plan, doc.text, threshold_for(doc.method, images_only(pages)))
+    doc = transcribe(data, filename)
+    plan = make_plan(doc.text)
+    plan, _dropped = filter_plan(plan, doc.text)  # THRESHOLD: the Markdown is one reading
     coi, evidence = build_with_evidence(plan)
     add_headings(evidence, coi, paper(data, filename, doc))
     problems = check(coi)
@@ -47,8 +36,8 @@ def convert_with_evidence(data: bytes, filename: str) -> tuple[dict, dict]:
 
 
 def paper(data: bytes, filename: str, doc: Document) -> Paper:
-    """The file's real lines for the paper headings (`app.sources`: PDF text layer, OCR, office text); the text the
-    planner read (per page when it has pages) only when the file gives none."""
+    """The file's real lines for the paper headings (`app.sources`: PDF text layer, OCR, office text); the Markdown the
+    planner read (per page) only when the file gives none."""
     try:
         found = read_paper(data, filename)
     except Exception:

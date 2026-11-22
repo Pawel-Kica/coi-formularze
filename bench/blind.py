@@ -10,7 +10,7 @@ and `bench.run_dir` (`<run>/<file>.coi.json`, originals in the folder named in `
 id = file name). For every file with a result in both runs it writes `<dir>/<id>/`:
   page-01.png ...   the original as images (as in `bench/judge_kit.py`)
   original.txt      DOC/DOCX/ODT/RTF only: macOS `textutil` text
-  extracted.txt     our extractor's text; `extracted-X.txt` + `extracted-Y.txt` when the runs saved different texts
+  extracted.txt     the text the model read; `extracted-X.txt` + `extracted-Y.txt` when the runs saved different texts
   X.md, Y.md        the COI outline of each run, sides assigned at random per file
   info.md           what is in the kit
 `<dir>/key.json` holds the seed and which run is X and which is Y; judges must never read it.
@@ -69,7 +69,7 @@ def run_items(run: Path) -> dict[str, Item]:
             ext = src.suffix.lower().lstrip(".")
             coi = base / form / f"{ext}{COI_SUFFIX}"
             if coi.exists():
-                items[f"{form}-{ext}"] = Item(f"{form}/{ext}", src, coi=coi)
+                items[f"{form}-{ext}"] = Item(f"{form}/{ext}", src, coi=coi, text=base / form / f"{ext}.text.md")
             elif (form, ext) in errors:
                 items[f"{form}-{ext}"] = Item(f"{form}/{ext}", src, error=errors[form, ext])
     elif (run / "source.txt").exists():  # bench.run_dir
@@ -108,9 +108,9 @@ def _saved_text(item: Item) -> str | None:
 
 
 def write_texts(kit: Path, sides: dict[str, Item]) -> str:
-    """Our extractor's text into the kit; returns the info.md line. Runs that saved different
-    texts get one file per side; a run without a saved text (run_all) is extracted now (Tesseract
-    for scans, never the model)."""
+    """The text the model read into the kit; returns the info.md line. Runs that saved different
+    texts get one file per side; a run without a saved text (older run_all runs) gets the file's own
+    text now (`app.extract`: office text, PDF text layer; never the model, none for images)."""
     saved = {side: _saved_text(item) for side, item in sides.items()}
     if saved["X"] is not None and saved["Y"] is not None and saved["X"] != saved["Y"]:
         for side, text in saved.items():
@@ -122,7 +122,7 @@ def write_texts(kit: Path, sides: dict[str, Item]) -> str:
         src = sides["X"].src
         note = "extracted.txt (dzisiejsza ekstrakcja; przebiegi nie zapisały swojego tekstu)"
         try:
-            text = extract(src.read_bytes(), src.name, ocr_engine="tesseract").text
+            text = extract(src.read_bytes(), src.name).text
         except Exception as e:  # noqa: BLE001 - a kit without text is still a kit
             text = f"(brak: ekstrakcja tekstu nie powiodła się: {e})\n"
     (kit / "extracted.txt").write_text(text)

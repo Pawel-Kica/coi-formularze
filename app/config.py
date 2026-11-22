@@ -8,7 +8,7 @@ runtime, nothing secret has a default.
 import logging
 import secrets
 from pathlib import Path
-from typing import Literal, Self
+from typing import Self
 
 from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -41,32 +41,15 @@ class Settings(BaseSettings):
     auth_username: str = "admin"
     auth_password: SecretStr | None = None
 
-    # Model that plans the form (app/llm/client.py), any OpenAI-compatible chat API:
-    # "ollama" = local Ollama (its /v1 endpoint, no key), "openai" = remote API with a key.
-    llm_backend: Literal["ollama", "openai"] = "ollama"
-    llm_base_url: str = Field("http://localhost:11434/v1", validation_alias=AliasChoices("LLM_BASE_URL", "LLM_URL"))
-    llm_model: str = "qwen3:30b-a3b-instruct-2507-q4_K_M"
+    # Models on Eden AI (app/llm/client.py), an OpenAI-compatible chat API; EDENAI_API_KEY is the only
+    # setting that must be set. The planner reads text only (the Markdown of the pages), so the page
+    # images are transcribed by a vision model of its own (app/llm/transcribe.py), never by LLM_MODEL.
+    llm_base_url: str = Field("https://api.edenai.run/v3", validation_alias=AliasChoices("LLM_BASE_URL", "LLM_URL"))
+    llm_model: str = "deepinfra/zai-org/GLM-5.2"
     llm_timeout_s: float = 1200  # one call; form 9 (16 pages) is the longest
-    edenai_api_key: SecretStr | None = None  # Bearer key for LLM_BACKEND=openai (Eden AI)
-    # Vision (app/llm/vision.py): PDF pages and JPG/PNG also go to the planner as page images,
-    # next to the text (needs a vision model in LLM_MODEL). Qwen3-VL spends ~1 token per 32x32 px:
-    # an A4 page at 1400 px is ~1.4k tokens, 8 of them keep pass 1 of a long form near 22k of 32k.
-    llm_vision: bool = False
-    llm_vision_max_side: int = 1400  # long side of a page image in pass 1 (structure), px
-    llm_vision_max_pages: int = 8  # only the first N pages get an image, the rest is text only
-    llm_vision_conditions_side: int = 1024  # long side in pass 2 (conditions), px; 0 = text only
-    # 0 = images only, no extracted text, when every page of the file has an image (a longer file
-    # keeps the text); quotes then come from the model's own reading, checked at THRESHOLD_OCR.
-    llm_vision_text: bool = True
-    llm_vision_gray: bool = False  # 1 = page images in grayscale
-    # OCR
-    ocr_engine: str = "tesseract"  # "tesseract" or "vlm" (vision model in Ollama)
-    ocr_vlm_model: str | None = None  # model for OCR_ENGINE=vlm; unset = LLM_MODEL (must read images)
-
-    # PIPELINE=images (app/llm/transcribe.py): every file -> page images -> Markdown, one vision call
-    # per page -> the planner reads the Markdown instead of our extracted text. "text" = extraction.
-    pipeline: Literal["text", "images"] = "text"
-    transcribe_model: str | None = None  # unset = LLM_MODEL (must read images)
+    edenai_api_key: SecretStr | None = None  # Bearer key for every model call; secret, never logged
+    # Every file -> page images -> Markdown, one vision call per page -> the planner reads the Markdown.
+    transcribe_model: str = "deepinfra/Qwen/Qwen3.5-397B-A17B"
     transcribe_side: int = 1024  # long side of a page image sent for transcription, px (1024 reads form 8 fine)
     transcribe_workers: int = 4  # pages transcribed at the same time
     transcribe_timeout_s: float = 180  # per page call; one more try after a timeout, so a stuck page costs <= 6 min

@@ -105,6 +105,7 @@ from pydantic import SecretStr  # noqa: E402
 from app import dictionaries  # noqa: E402
 from app.api import app  # noqa: E402
 from app.config import settings  # noqa: E402
+from app.extract import extract  # noqa: E402
 
 FORM_7 = next((Path(__file__).parent.parent / "data/coi").glob("7. */*.PDF"), None)
 
@@ -123,6 +124,7 @@ def test_endpoint_needs_a_token(client):
 
 @pytest.mark.skipif(FORM_7 is None, reason="COI form packs not present (data/coi)")
 def test_endpoint_returns_filtered_proposals_for_a_real_form(client, monkeypatch):
+    monkeypatch.setattr(dictionaries, "transcribe", extract)  # the PDF's own text stands in for the Markdown
     monkeypatch.setattr(dictionaries, "ask_candidates", lambda text: [
         cand("Rasy psów", "Rasa psa", "Rasa psa:"),
         cand("Rasy psów (z wiedzy)", "Rasa", "Rasa psa:", ["amstaff", "pitbull"]),

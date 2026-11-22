@@ -8,7 +8,8 @@ shows what new rules drop or repair (it cannot bring back what the old filter dr
     uv run python -m bench.refilter gold                                    # gold plans must pass untouched
 
 `coi` prints per file gold=, conditions_precision and required_agreement before -> after and the notes;
-`--out` also writes the new plan and COI JSON there. Paper texts are cached in bench/runs/_texts.
+`--out` also writes the new plan and COI JSON there. The paper text is the one the run saved (`<ext>.text.md`,
+the Markdown the planner read), else the file's own text (`app.extract`, cached in bench/runs/_texts).
 """
 
 import argparse
@@ -61,7 +62,8 @@ def run_coi(run: Path, out: Path | None, quiet: bool) -> int:
         plan_path = run / "coi" / form / f"{ext}.plan.json"
         if not plan_path.exists():
             continue
-        text, method = paper_text(form, path)
+        saved = plan_path.with_name(f"{ext}.text.md")
+        text, method = (saved.read_text(), "vlm-md") if saved.exists() else paper_text(form, path)
         old = Plan.model_validate_json(plan_path.read_text())
         new, notes = filter_plan(old, text, threshold_for(method))
         gold = Plan.model_validate_json((GOLD / f"form{form}.json").read_text())

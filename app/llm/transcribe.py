@@ -1,20 +1,21 @@
-"""PIPELINE=images: any form file -> page images -> Markdown, one vision-model call per page.
+"""The only reading path: any form file -> page images -> Markdown, one vision-model call per page.
 
     from app.llm.transcribe import transcribe
     doc = transcribe(data, filename)   # Document(text=<Markdown of all pages>, method="vlm-md", pages=<per page>)
-    plan = make_plan(doc.text)         # the planner reads the Markdown instead of extracted text
+    plan = make_plan(doc.text)         # the planner (text only) reads the Markdown
 
 Every format becomes page images with open-source tools only: PDF via pypdfium2 (PDFium, BSD/Apache),
 JPG/PNG as they are (a tall image of stacked A4 pages is cut into pages, as for OCR), DOC/DOCX/ODS/
 XLS/XLSX first to PDF with LibreOffice headless (MPL-2.0). Each page is shrunk to TRANSCRIBE_SIDE px (1024)
 on its long side (tokens grow with pixels; Qwen-family encoders spend ~1 token per 32x32 px) and goes
-alone to TRANSCRIBE_MODEL (unset = LLM_MODEL) with `prompts/transcribe.md` as the system prompt.
+alone to TRANSCRIBE_MODEL (Qwen3.5 on Eden; the planner reads no images) with `prompts/transcribe.md` as the system prompt.
 One page per call keeps every answer short (nothing cut off by max_tokens, nothing skipped in a long
 answer); TRANSCRIBE_WORKERS pages run at once, each call capped at TRANSCRIBE_TIMEOUT_S with one more
 try. presence_penalty 1.5 stops Qwen copying a dotted fill-in line forever; runs of dots/underscores
 are collapsed to `______`. Pages are joined in order with a blank line.
 """
 
+import base64
 import io
 import logging
 import re
@@ -32,7 +33,6 @@ from app.config import settings
 from app.extract import Document, UnsupportedFile
 from app.extract.scan import split_pages
 from app.llm.client import LLMError, chat_text
-from app.llm.vision import data_url
 
 log = logging.getLogger(__name__)
 
@@ -67,9 +67,8 @@ def transcribe_page(img: Image.Image, n: int = 1, total: int = 1, side: int | No
     """One page image -> its Markdown (fill-in runs collapsed to `______`). Retried once with more
     room when the answer is empty or cut off."""
     url = data_url(img, side or settings.transcribe_side)
-    model = settings.transcribe_model or settings.llm_model
     note = PAGE_NOTE.format(n=n, total=total)
-    call = dict(model=model, images=[url], presence_penalty=PRESENCE_PENALTY,
+    call = dict(model=settings.transcribe_model, images=[url], presence_penalty=PRESENCE_PENALTY,
                 timeout=settings.transcribe_timeout_s, tries=2)
     try:
         raw = chat_text(system_prompt(), note, **call).raw
@@ -77,6 +76,17 @@ def transcribe_page(img: Image.Image, n: int = 1, total: int = 1, side: int | No
         log.warning("page %d transcription failed (%s), retrying", n, e)
         raw = chat_text(system_prompt(), note, max_tokens=16000, **call).raw
     return FILL_RUN.sub("______", raw).strip()
+
+
+def data_url(img: Image.Image, side: int | None = None) -> str:
+    """`data:image/jpeg;base64,...` of the page (grayscale stays grayscale), long side shrunk to `side` px first
+    (never upscaled). JPEG keeps the request small; tokens depend only on the pixel size."""
+    if side:
+        img = img.convert("L" if img.mode == "L" else "RGB")
+        img.thumbnail((side, side), Image.Resampling.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=90)
+    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
 
 
 def render_pages(data: bytes, filename: str = "") -> list[Image.Image]:

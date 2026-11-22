@@ -1,7 +1,7 @@
 # COI Cyfryzacja Formularzy API. Only the official python Alpine image (every locked dependency
-# has a musl wheel), dependencies from uv.lock, Tesseract OCR with Polish and OSD data, non-root.
-# Build arg LIBREOFFICE=1 adds LibreOffice (DOC/DOCX/ODS/XLS/XLSX -> PDF), needed only by
-# PIPELINE=images; the default image reads those formats with Python libraries and stays light.
+# has a musl wheel), dependencies from uv.lock, Tesseract with Polish data ("Źródło" on scans), non-root.
+# LibreOffice (DOC/DOCX/ODS/XLS/XLSX -> PDF -> page images for the vision model) is in by default;
+# LIBREOFFICE=0 builds a lighter image that converts only PDF and image files.
 ARG PYTHON_VERSION=3.14.10
 ARG ALPINE_VERSION=3.24
 
@@ -16,8 +16,8 @@ RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev --no-ins
 
 # --- runtime: venv + code, no build tools, no secrets ---
 FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION}
-ARG LIBREOFFICE=0
-RUN apk add --no-cache tesseract-ocr tesseract-ocr-data-pol tesseract-ocr-data-osd \
+ARG LIBREOFFICE=1
+RUN apk add --no-cache tesseract-ocr tesseract-ocr-data-pol \
     && if [ "$LIBREOFFICE" = "1" ]; then \
          apk add --no-cache libreoffice-writer libreoffice-calc font-liberation; \
        fi \

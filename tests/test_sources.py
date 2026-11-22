@@ -21,7 +21,7 @@ ROOT = Path(__file__).parent.parent
 COI = ROOT / "data" / "coi"
 FORM8 = next(COI.glob("8.*/*.pdf"), None)
 needs_data = pytest.mark.skipif(FORM8 is None, reason="data/coi missing")
-REAL = json.loads((ROOT / "tests" / "fixtures" / "sources-f8-images.json").read_text())  # history record of form 8 (PIPELINE=images)
+REAL = json.loads((ROOT / "tests" / "fixtures" / "sources-f8-images.json").read_text())  # history record of form 8 (read from page images)
 
 
 def gold(n: int) -> tuple[dict, dict]:

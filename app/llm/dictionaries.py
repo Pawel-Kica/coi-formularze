@@ -3,7 +3,7 @@
 A separate model call after the planner, on the same text. It asks only one question:
 which choice lists or closed-set blanks on this form deserve a dictionary that many
 offices could share. The answer first reviews every choice list and blank field
-(`fields`, so none is skipped), then lists `proposals`. Ollama emits keys in alphabetical
+(`fields`, so none is skipped), then lists `proposals`. A provider may emit keys in alphabetical
 order, so the names keep the review first ("fields" < "proposals", "field" < "kind" < "shared"). The model proposes;
 `app.dictionaries.filter_candidates` decides.
 

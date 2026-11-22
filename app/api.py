@@ -128,9 +128,9 @@ async def convert(
 
 @app.post("/api/forms/text", openapi_extra=_FILE_BODY, tags=["forms"], response_description="Tekst odczytany z formularza")
 async def form_text(request: Request, _user: Annotated[str, Depends(current_user)]) -> dict:
-    """The text read from one form (multipart field `file`), the same text the model gets:
-    `{"text", "method"}`. No model call. The upload page shows it as the original for formats a
-    browser cannot display (DOC, DOCX, ODS, XLSX, XLS)."""
+    """The text of an office form (multipart field `file`): `{"text", "method"}`. No model call. The upload
+    page shows it as the original of formats a browser cannot display (DOC, DOCX, ODS, XLSX, XLS) when their
+    LibreOffice PDF fails. A PDF gives its text layer; images have no text to read here (422)."""
     filename, data = await read_single_file(request, settings.max_file_size_bytes)
     validate_upload(filename, data)
     try:
@@ -180,10 +180,10 @@ async def dictionary_proposals(request: Request, _user: Annotated[str, Depends(c
 
 @app.get("/health", tags=["ops"])
 async def health() -> dict:
-    """Liveness (always 200 while the API runs) plus whether the model is usable:
-    Ollama up and LLM_MODEL pulled, or for a remote API whether its key is set."""
-    llm = await llm_health()
-    return {"status": "ok", "llm": llm, "llm_backend": settings.llm_backend, "llm_model": settings.llm_model}
+    """Liveness (always 200 while the API runs) plus whether the models are usable: EDENAI_API_KEY set
+    ("ok" | "no_api_key"; Eden is not called)."""
+    return {"status": "ok", "llm": llm_health(), "llm_model": settings.llm_model,
+            "transcribe_model": settings.transcribe_model}
 
 
 @app.get("/", include_in_schema=False)

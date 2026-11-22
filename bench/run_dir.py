@@ -1,14 +1,13 @@
 """Run the real pipeline over every file in a folder, for black-box sets without gold.
 
-For every file: extract -> make_plan -> filter_plan -> build -> check, 2 files at a time
-(Ollama has 2 slots). Saves `<out>/<file name>.txt` (extracted text), `.plan.json`,
+For every file: transcribe (page images -> Markdown) -> make_plan -> filter_plan -> build -> check,
+2 files at a time. Saves `<out>/<file name>.txt` (the Markdown the planner read), `.plan.json`,
 `.coi.json`, `<out>/source.txt` (the source folder, for the review page `/review`) and
 `<out>/summary.json` (per file: ok/error, seconds, fields, rules problems, quote-filter drops).
 A Claude judge then compares each original with its output.
 
     uv run python -m bench.run_dir ~/hacknation-2026/resources/drive-formularze --out bench/runs/drive-baseline
     uv run python -m bench.run_dir <folder> --out <earlier run>   # files already done are skipped
-    LLM_VISION=1 uv run python -m bench.run_dir <folder> --out bench/runs/<new>  # page images too
 """
 
 import argparse
@@ -18,11 +17,11 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from app.builder import build
-from app.extract import extract
 from app.llm.planner import make_plan
-from app.llm.vision import images_only, page_images, setup
-from app.quotes import filter_plan, threshold_for
+from app.llm.transcribe import transcribe
+from app.quotes import filter_plan
 from app.rules import check
+from bench.run_all import setup
 
 SKIP_NAMES = {"README.md", "source.md", ".DS_Store"}
 
@@ -35,10 +34,9 @@ def run_file(path: Path, out: Path) -> dict:
     t = time.time()
     try:
         data = path.read_bytes()
-        doc = extract(data, path.name)
+        doc = transcribe(data, path.name)
         (out / f"{path.name}.txt").write_text(doc.text)
-        pages = page_images(data, path.name)
-        plan, dropped = filter_plan(make_plan(doc.text, pages), doc.text, threshold_for(doc.method, images_only(pages)))
+        plan, dropped = filter_plan(make_plan(doc.text), doc.text)
         coi = build(plan)
     except Exception as e:  # noqa: BLE001 - a benchmark records every failure
         return row | {"ok": False, "error": f"{type(e).__name__}: {e}"[:300], "s": round(time.time() - t)}
