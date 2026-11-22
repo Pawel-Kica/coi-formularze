@@ -317,7 +317,7 @@ Uruchomienie: `uv run python -m bench.run_all` (woła modele na Edenie, więc ko
 - `ref` to odzysk elementów z wzorcowych JSON-ów COI (formularze 1 i 5).
 - Do tego: czy JSON powstał, ile problemów z regułami COI, czas i koszt.
 
-Zastrzeżenie: wzorcowe plany pisał Claude. Model Claude Opus, który niżej służy za sufit, dzieli więc ich konwencje.
+Zastrzeżenie: to nasze wzorce, przygotowane przez zespół, więc mierzą zgodność z naszymi decyzjami projektowymi.
 
 ### 1. Start: lokalny qwen3 30B w Ollamie (porzucony)
 
@@ -339,11 +339,11 @@ Zaczęliśmy od modelu na laptopie: `qwen3:30b-a3b-instruct-2507-q4_K_M` w Ollam
 
 - Długie formularze 8 i 9 (do 16 stron) zajmowały 285-422 s na plik.
 - Model wizyjny `qwen3-vl:30b-a3b-instruct` przegrał sito na formularzach 1, 4, 5 i 7: średnio 0,77 z obrazami stron wobec 0,84 modelu tekstowego. Wymyślał pola i zamieniał wybór na pytania tak/nie.
-- Reguły po modelu (filtr warunków, naprawy w `app/repair.py`) przetestowaliśmy na ślepo na 18 prawdziwych pustych formularzach urzędowych spoza zadania. Dwóch sędziów Claude Opus porównywało wynik bez reguł i z regułami w losowej kolejności. Z regułami wygrywa 9 razy, bez nich 1 raz, 8 remisów. Błędy do poprawienia przez urzędnika: 70 → 56 (-20%). To zestaw, na którym reguły rozwijaliśmy, nie zestaw kontrolny.
+- Reguły po modelu (filtr warunków, naprawy w `app/repair.py`) przetestowaliśmy na ślepo na 18 prawdziwych pustych formularzach urzędowych spoza zadania. Dwóch sędziów (silny model zamknięty) porównywało wynik bez reguł i z regułami w losowej kolejności. Z regułami wygrywa 9 razy, bez nich 1 raz, 8 remisów. Błędy do poprawienia przez urzędnika: 70 → 56 (-20%). To zestaw, na którym reguły rozwijaliśmy, nie zestaw kontrolny.
 
-Gdzie był sufit? Ten sam tekst i te same prompty, ale plan pisał Claude Opus (pomiar diagnostyczny, nie produkt):
+Gdzie był sufit? Ten sam tekst i te same prompty, ale plan pisał silny model zamknięty (górna granica, pomiar diagnostyczny, nie produkt):
 
-| Przypadek | qwen3 30B | Opus |
+| Przypadek | qwen3 30B | Górna granica |
 |---|---|---|
 | Formularz 7, skan (tekst z OCR) | 0,563 | 0,968 |
 | Formularz 8, PDF | 0,587 | 0,845 |
@@ -416,22 +416,22 @@ Decyzja: GLM-5.2 planuje, Qwen3.5 czyta. GLM-5.2 nie czyta obrazów, więc podzi
 
 ### 5. GLM-5.2 na najtrudniejszych formularzach
 
-Formularz 7 to skan z sekcją powtarzaną dla każdego psa, 8 to wniosek z tabelą wyliczeń, a 9 to 16-stronicowy formularz „3 w 1”. Sufitem jest znów Claude Opus z naszymi promptami (na tekście z ekstrakcji, formularz 7 jako skan PNG, formularz 9 jako PDF).
+Formularz 7 to skan z sekcją powtarzaną dla każdego psa, 8 to wniosek z tabelą wyliczeń, a 9 to 16-stronicowy formularz „3 w 1”. Górną granicą jest znów silny model zamknięty z tym samym promptem (na tekście z ekstrakcji, formularz 7 jako skan PNG, formularz 9 jako PDF).
 
 | Przypadek | `gold=` | F1 pól | Opcje | Warunki odzysk / precyzja | Oświadczenia |
 |---|---|---|---|---|---|
 | 7 JPG, GLM-5.2 | 0,846 | 0,82 | 0,50 | 1,00 / 0,67 | 0,67 |
-| 7, Opus | 0,968 | 0,96 | 0,92 | 1,00 / 1,00 | - |
+| 7, górna granica | 0,968 | 0,96 | 0,92 | 1,00 / 1,00 | - |
 | 8 PDF, GLM-5.2 | 0,737 | 0,81 | 0,67 | 0,27 / 0,33 | 0,00 |
 | 8 PDF, Qwen3.5 jako planer | 0,650 | - | 0,45 | 0,13 / - | 0,00 |
-| 8 PDF, Opus | 0,845 | 0,87 | 0,86 | 0,53 / 0,53 | - |
+| 8 PDF, górna granica | 0,845 | 0,87 | 0,86 | 0,53 / 0,53 | - |
 | 9 DOCX, GLM-5.2 | 0,578 | 0,57 | 0,66 | 0,00 / 0,00 | 0,00 |
-| 9 PDF, Opus | 0,858 | 0,68 | 0,86 | 0,80 / 0,47 | - |
+| 9 PDF, górna granica | 0,858 | 0,68 | 0,86 | 0,80 / 0,47 | - |
 
 ```mermaid
 xychart-beta
-  title "GLM-5.2 wobec sufitu (Opus), gold="
-  x-axis ["7 GLM-5.2", "7 Opus", "8 GLM-5.2", "8 Opus", "9 GLM-5.2", "9 Opus"]
+  title "GLM-5.2 wobec górnej granicy, gold="
+  x-axis ["7 GLM-5.2", "7 granica", "8 GLM-5.2", "8 granica", "9 GLM-5.2", "9 granica"]
   y-axis "gold=" 0 --> 1
   bar [0.846, 0.968, 0.737, 0.845, 0.578, 0.858]
 ```
@@ -439,11 +439,12 @@ xychart-beta
 - Odczyt trwał 28 / 65 / 43 s, plan 41 / 41 / 43 s. Trzy formularze kosztowały razem 0,119 $, około 0,04 $ za plik.
 - Na formularzu 8 GLM-5.2 bije Qwen3.5 w roli planera (0,737 wobec 0,650).
 - Najwięcej brakuje w warunkach i oświadczeniach długich formularzy. Na formularzu 9 GLM-5.2 nie trafił żadnego warunku z wzorca. To dziś główne pole do poprawy.
+- Tryb myślenia nie pomógł. GLM-5.2 z myśleniem na formularzu 9 (ten sam Markdown z Qwen3.5) nie oddał planu: rozumowanie zużyło cały limit 16 000 tokenów odpowiedzi już w przebiegu 1 (`finish_reason=length`), ponowna próba tak samo. Myślenie zostaje wyłączone (`reasoning_effort: "none"`), a formularz 9 ma 0,578.
 
 ### 6. Dowód od pliku do JSON-a
 
 <!-- E2E-GLM -->
-Tu będzie świeży przebieg formularza 7 przez API z GLM-5.2 jako planerem i wynik formularza 9 z trybem myślenia.
+Tu będzie świeży przebieg formularza 7 przez API z GLM-5.2 jako planerem.
 
 Wcześniejszy test przez API (22.11, planerem był jeszcze Qwen3.5, nie GLM-5.2): 13 z 14 plików dało JSON bez żadnego problemu z regułami COI, w tym DOC, DOCX, XLS, XLSX, ODS, JPG, PNG i PDF, także w Dockerze. Czasy od 27 s (DOC) do 267 s (formularz 8 jako PNG). Jedyny błąd to zeskanowany PDF spoza zadania, który przekroczył limit czasu (504 po 363 s).
 
