@@ -239,6 +239,22 @@ def test_correspondence_address_without_a_rule_on_paper_is_dropped_but_not_a_thi
     assert len(out.pages[0].sections) == 2
 
 
+def test_a_condition_over_every_option_of_a_required_single_choice_is_cleared():
+    # "Opinia klubu" printed in every part of a paper joining request kinds: shown for each kind = always shown
+    every = Condition(field="f5", options=["Budowa nowej sieci", "Roboty inne niż wymienione"], quote="3. Rodzaj robót")
+    some = Condition(field="f5", options=["Budowa nowej sieci"], quote="jeżeli wnioskodawca nie jest właścicielem terenu")
+    p = plan(sec("s1", [WORKS]), sec("s2", [f("f4", "Nazwa inwestycji", "4. Nazwa inwestycji")], show_if=every),
+             sec("s3", [f("f6", "Źródło dochodu", "źródło dochodu")], show_if=some))
+    out, notes = filter_plan(p, PAPER)
+    s1, s2, s3 = out.pages[0].sections
+    assert s2.show_if is None and fields_of(out)["f4"].required and any("always shown" in n for n in notes)
+    assert s3.show_if is not None
+    # an optional trigger may stay unanswered: the condition still hides the section then, so it stays
+    loose = WORKS.model_copy(update={"required": False})
+    out, _ = filter_plan(plan(sec("s1", [loose]), sec("s2", [f("f4", "Nazwa inwestycji", "4. Nazwa inwestycji")], show_if=every)), PAPER)
+    assert out.pages[0].sections[1].show_if is not None
+
+
 def test_a_field_shown_by_its_own_condition_is_required_unless_the_paper_says_optional():
     # "[ ] tablica ____": the number is asked only for the chosen option, so it must be filled then
     cond = Condition(field="f2", options=["Tablica"], quote="2. Sposób oznakowania:")

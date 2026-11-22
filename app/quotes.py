@@ -7,7 +7,8 @@
   paper fills only in some case ("wypełnić jeżeli ...") are case data and stay even under
   such a page or section title;
 - a negated condition over every option of its trigger (never shown once answered) is
-  cleared before the repairs, so they see the section as ungated;
+  cleared before the repairs, so they see the section as ungated; so is a plain condition over
+  every option of a required single-choice trigger that is always shown (always true);
 - every field / section / statement whose `quote` is not found in the paper text
   is dropped (proxy for "the model made it up"); sections and pages left empty go too;
 - an addressee whose quote is not on paper is cleared (empty name, the office fills it in);
@@ -295,15 +296,24 @@ def _targets(plan: Plan) -> list[tuple]:
 
 
 def _drop_vacuous(plan: Plan, dropped: list[str]) -> None:
-    """A negated condition over every option of its trigger hides the target for every answer: clear it."""
-    fields = {f.id: f for _, f, is_sec in _targets(plan) if not is_sec}
+    """A negated condition over every option of its trigger hides the target for every answer: clear it. A plain one
+    over every option of a required RADIO/SELECT that is always shown holds for every answer ("Opinia klubu" shown
+    for each of the three request kinds): clear it too, the target keeps its flags."""
+    fields = {f.id: (s, f) for s, f, is_sec in _targets(plan) if not is_sec}
     for _, t, is_sec in _targets(plan):
-        c, trig = t.show_if, fields.get(t.show_if.field) if t.show_if else None
-        if c and c.negate and trig and trig.options and set(_fix_options(c.options, trig.options)) == set(trig.options):
+        c = t.show_if
+        home, trig = fields.get(c.field, (None, None)) if c else (None, None)
+        if not (c and trig and trig.options and set(_fix_options(c.options, trig.options)) == set(trig.options)):
+            continue
+        if c.negate:
             dropped.append(f"condition on {t.id}: negated over every option of {c.field}, never shown")
             t.show_if = None
             if not is_sec:
                 t.required = False
+        elif (trig.type in (FieldType.RADIO, FieldType.SELECT) and trig.required and trig.show_if is None
+              and home.show_if is None and not home.repeating):
+            dropped.append(f"condition on {t.id}: every option of {c.field}, always shown")
+            t.show_if = None
 
 
 def _hoist_triggers(plan: Plan, ok, dropped: list[str]) -> None:
