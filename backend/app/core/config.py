@@ -6,6 +6,7 @@ runtime, nothing secret has a default.
 """
 
 import secrets
+import tomllib
 from pathlib import Path
 from typing import Self
 
@@ -14,6 +15,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]  # backend/ (app/core/config.py -> app/core -> app -> backend)
 REPO_DIR = BACKEND_DIR.parent
+# The app's version, written only in pyproject.toml (the Docker image copies it next to app/).
+VERSION = tomllib.loads((BACKEND_DIR / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
 
 
 class Settings(BaseSettings):
