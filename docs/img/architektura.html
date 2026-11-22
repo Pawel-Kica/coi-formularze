@@ -73,7 +73,7 @@ h1{font-size:30px;font-weight:700;letter-spacing:-.3px}
 <div class="lane">
  <div class="grid3">
   <div class="box llm"><h3>Modele na Eden AI (otwarte wagi)</h3><div class="f">app/llm/client.py, LLM_MODEL i TRANSCRIBE_MODEL w konfiguracji</div>
-   <ul><li>odczyt: Qwen3.5-397B-A17B (wizyjny, Apache-2.0)</li><li>planer: GLM-5.2 (tekstowy, MIT), 2 przebiegi na formularz, myślenie wyłączone</li><li>średnio na formularz: <b>{{CZAS_FORMULARZ}}</b>, <b>{{KOSZT_FORMULARZ}}</b></li><li>te same wagi można postawić u siebie: LLM_BASE_URL</li></ul></div>
+   <ul><li>odczyt: Qwen3.5-397B-A17B (wizyjny, Apache-2.0)</li><li>planer: GLM-5.2 (tekstowy, MIT), 2 przebiegi na formularz, myślenie wyłączone</li><li>średnio na formularz: <b>{{CZAS_FORMULARZ}}</b>, <b>{{KOSZT_FORMULARZ}}</b></li><li>te same wagi można postawić u siebie: LLM_BASE_URL (nie testowaliśmy)</li></ul></div>
   <div class="box llm"><h3>Propozycje słowników (bonus II)</h3><div class="f">POST /api/dictionaries/proposals, app/dictionaries.py</div>
    <ul><li>strona wysyła plik jednocześnie do konwersji i tutaj</li><li>ten sam odczyt stron, bez drugiego płacenia</li><li>model proponuje słownik, kod zostawia tylko wartości z dokumentu</li><li>„Dodaj” zapisuje go w katalogu i podpina pod pole</li></ul></div>
   <div class="box io"><h3>Strona dla urzędnika (bonusy IV, V, VI)</h3><div class="f">app/static/index.html, preview.html, editor.js</div>
@@ -84,13 +84,13 @@ h1{font-size:30px;font-weight:700;letter-spacing:-.3px}
 <div class="lane">
  <div class="lanelabel">Pętla jakości (tylko przy tworzeniu, nie w produkcie)</div>
  <div class="row">
-  <div class="box io"><h3>Wejście</h3><ul><li>9 formularzy COI z zadania we wszystkich formatach (69 plików)</li><li>prawdziwe puste formularze spoza zadania (BIP-y gmin, inne urzędy)</li></ul></div>
+  <div class="box io"><h3>Wejście</h3><ul><li>9 formularzy COI z zadania (7 do cyfryzacji, 2 referencyjne) we wszystkich formatach, 69 plików; końcowy pomiar: 7 formularzy, 54 pliki</li><li>prawdziwe puste formularze spoza zadania (BIP-y gmin, inne urzędy)</li></ul></div>
   <div class="arrow">→</div>
   <div class="box code"><h3>bench/run_all.py</h3><div class="f">--forms, --formats, --rebuild</div><ul><li>czy JSON powstał, problemy z regułami, czas, koszt w $</li><li>gold= : plan wobec naszego wzorca (szybka miara)</li></ul></div>
   <div class="arrow">→</div>
   <div class="box code"><h3>Panel 3 sędziów AI</h3><div class="f">bench/JUDGE-POPRAWKI.md</div><ul><li>widzi dokument i nasz wynik, wypisuje każdą poprawkę urzędnika</li><li>poprawka liczy się, gdy wypisze ją 2 z 3</li><li>kalibracja na podrzuconych błędach: {{KALIBRACJA}}</li></ul></div>
   <div class="arrow">→</div>
-  <div class="box io"><h3>Wynik</h3><ul><li>średnio <span class="big">{{POPRAWKI_SREDNIO}}</span> poprawek urzędnika na formularz</li><li><span class="big">0</span> problemów z regułami COI</li><li>zmiana wchodzi dopiero po pomiarze</li></ul></div>
+  <div class="box io"><h3>Wynik</h3><ul><li>średnio <span class="big">{{POPRAWKI_SREDNIO}}</span> poprawki urzędnika na formularz</li><li><span class="big">0</span> problemów z regułami COI</li><li>zmiana wchodzi dopiero po pomiarze</li></ul></div>
  </div>
 </div>
 

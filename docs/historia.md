@@ -118,7 +118,7 @@ Obraz Dockera (z LibreOffice) wstaje z samym `EDENAI_API_KEY` w `.env`, odpowiad
 
 ## 7. Końcowy pomiar: każdy plik każdego formularza
 
-Końcowa wersja, 7 formularzy do cyfryzacji w każdym formacie, w jakim przyszły: 54 pliki, 54 JSON-y, w każdym 0 problemów z regułami COI. W komórce `gold=`; średnio 0,849. Formularz 7 nie ma w paczce DOCX, XLSX ani JPEG, ma za to JPE.
+Końcowa wersja, 7 formularzy do cyfryzacji w każdym formacie, w jakim przyszły: 54 pliki, 54 JSON-y, w każdym 0 problemów z regułami COI. W komórkach `gold=` każdego pliku, średnio 0,849. Formularz 7 nie ma w paczce DOCX, XLSX ani JPEG, ma za to JPE.
 
 | Formularz | PDF | DOC | DOCX | ODS | XLSX | JPEG | JPG | JPE | PNG | Średnio |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -131,4 +131,5 @@ Końcowa wersja, 7 formularzy do cyfryzacji w każdym formacie, w jakim przyszł
 | 9 | 0,791 | 0,752 | 0,873 | 0,874 | 0,870 | 0,801 | 0,823 | | 0,828 | 0,827 |
 
 - Z każdego formularza sędziowie ocenili 2 pliki z najwyższą `gold=` i do `output/` trafił ten z mniejszą liczbą poprawek urzędnika (README, „Wyniki”).
-- Różnice między formatami jednego formularza są w dużej części zmiennością modeli: przebiegi nie są powtarzalne co do bitu, a małe formularze różnią się między przebiegami nawet o 0,2 `gold=`. Z jednego przebiegu nie wnioskujemy więc, który format jest gorszy.
+- Formularz 6 ma znaną słabość: na DOC, DOCX, ODS, JPEG i JPG (0,69-0,72) model czyta drugi wiersz tabeli zajęcia pasa jako osobne pola, a naprawa podwójnych pól je usuwa; PDF, PNG i XLSX mają 0,92-0,94.
+- Pozostałe różnice między formatami jednego formularza to w dużej części zmienność modeli: przebiegi nie są powtarzalne co do bitu, a małe formularze różnią się między przebiegami nawet o 0,2 `gold=`. Z jednego przebiegu nie wnioskujemy więc, który format jest gorszy.

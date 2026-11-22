@@ -2,7 +2,7 @@
 
 Metoda: każdą e-usługę oceniło niezależnie trzech sędziów AI, patrząc na papierowy formularz i na naszą e-usługę; poprawka liczy się, gdy wypisało ją 2 z 3. Sędziów sprawdziliśmy na wpisanych celowo błędach: formularz 8 znalezione 10 z 10, formularz 7 9 z 10, zmyślone 0.
 
-Przed nocnymi zmianami: 19 poprawek na tych samych 7 formularzach. Po: 13.
+Przed nocnymi zmianami: 19 poprawek na tych samych 7 formularzach, wtedy na jednym pliku na formularz, wybranym po zgodności ze wzorcem. Po: 13 (tak samo wybrane pliki dziś: 14).
 
 Dla każdego formularza oceniliśmy dwa pliki z najlepszym wynikiem automatycznego porównania ze wzorcem i zostawiliśmy ten, który wymaga mniej poprawek.
 

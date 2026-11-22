@@ -16,16 +16,20 @@ Mierzymy to, co obchodzi urzędnika: ile poprawek musi zrobić w edytorze, zanim
 
 | Miara | Wynik |
 |---|---|
-| Poprawki urzędnika | średnio **1,9** na formularz: 13 na 7 formularzach, przed końcową pętlą jakości 19. Formularz ma średnio 24 pola z dokumentu (razem ze stronami standardowymi COI około 70 pól i tekstów); szczegóły w tabeli niżej |
+| Poprawki urzędnika | średnio **1,9** na formularz: 13 na 7 formularzach (przed końcową pętlą jakości 19, więcej o tym pod tabelą). Formularz ma średnio 24 pola z dokumentu (razem ze stronami standardowymi COI około 70 pól i tekstów); szczegóły w tabeli niżej |
 | Pliki, z których powstał JSON | **54** z 54: 7 formularzy do cyfryzacji z zadania w każdym formacie, w jakim przyszły (PDF, DOC, DOCX, ODS, XLSX, JPEG, JPG, JPE, PNG). Formularze 1 i 5 to materiał referencyjny COI z gotowym JSON-em |
 | Problemy z regułami COI | **0** w każdym z tych JSON-ów. API nie wypuszcza JSON-a, który łamie schemat COI albo „Reguły techniczne”, tylko odpowiada 422; taki plik liczy się jako porażka w wierszu wyżej |
-| Czas i koszt | średnio **50 s** i **0,025 $** na formularz według cennika Eden AI (od 19 s i 0,012 $ za 1 stronę do 98 s i 0,051 $ za 6-stronicową deklarację). Koszt rośnie ze stronami: jedno wywołanie odczytu na stronę i dwa przebiegi planera na formularz |
-| Kalibracja sędziów | z 10 błędów podrzuconych do poprawnej e-usługi znaleźli 10 (formularz 8) i 9 (formularz 7), a zmyślonych poprawek było 0 |
+| Czas i koszt | średnio **50 s** i **0,025 $** na formularz według cennika Eden AI (od 19 s i 0,012 $ za 1 stronę do 98 s i 0,051 $ za 6-stronicową deklarację). Koszt zależy od liczby stron (jedno wywołanie odczytu na stronę) i od wielkości planu (dwa przebiegi planera): 16-stronicowy formularz 9 kosztuje 0,048 $, mniej niż 6-stronicowa deklaracja |
+| Kalibracja sędziów | z 10 błędów podrzuconych do poprawnej e-usługi znaleźli 10 (formularz 8) i 9 (formularz 7), a na formularzu 3: 4 z 4 w elementach z papieru; zmyślonych poprawek 0 |
 
 **Jak liczymy poprawki** (przepis: `bench/JUDGE-POPRAWKI.md`):
 - Trzech sędziów AI dostaje strony oryginału i nasz JSON jako czytelny konspekt. Każdy osobno wypisuje poprawki, które urzędnik zrobiłby w edytorze: brakujące pole, zmyślone pole, zły typ, złe opcje, zły albo brakujący warunek, złe „wymagane”. Poprawka liczy się, gdy wypiszą ją co najmniej 2 z 3 sędziów.
+- Liczy się tylko to, czy e-usługa pyta o to samo co papier. Sędziowie nie liczą stron standardowych COI (Dane, Kontakt i zgody, strona końcowa), tekstów informacyjnych, walidatorów, brzmienia etykiet, kolejności pól ani podziału na strony.
 - Sędziami są mocniejsze modele zamknięte, inne niż nasz planer i odczyt, więc nie oceniają samych siebie. Służą tylko do pomiaru i nie ma ich w produkcie (pkt 5 zadania pozwala używać takich modeli przy testowaniu).
-- Samych sędziów sprawdziliśmy tak: nasz wzorcowy plan formularza zbudowaliśmy w e-usługę dwa razy, czystą i z celowo wstawionymi błędami (`bench/poprawki.py plant`: usunięte pola, złe typy, usunięty albo zły warunek, zmyślone pole, ucięta lista opcji, zdjęte „wymagane”). Panel ocenił obie wersje, nie wiedząc o błędach. Na czystej wersji nie wypisał żadnej poprawki. Na formularzach 8 i 7 znalazł 19 z 20 błędów; ominął zdjęte „wymagane” przy potwierdzeniu przelewu, którego papier wprost nie każe dołączać. Na formularzu 3 (1 strona, 3 rzeczy do wypełnienia) znalazł 4 z 4 błędów w elementach z papieru. Pozostałe 3 z 7 trafiły w pytanie o opłatę i załącznik z potwierdzeniem zapłaty, które dodał tylko nasz wzorzec, oraz w warunek przy tekście informacyjnym, którego sędziowie z zasady nie oceniają; słusznie ich nie policzyli.
+- Samych sędziów sprawdziliśmy tak: nasz wzorcowy plan formularza zbudowaliśmy w e-usługę dwa razy, czystą i z celowo wstawionymi błędami (`bench/poprawki.py plant`: usunięte pola, złe typy, usunięty albo zły warunek, zmyślone pole, ucięta lista opcji, zdjęte „wymagane”). Panel ocenił obie wersje, nie wiedząc o błędach.
+  - Na czystej wersji nie policzył żadnej poprawki.
+  - Na formularzach 8 i 7 znalazł 19 z 20 błędów. Ominął zdjęte „wymagane” przy potwierdzeniu przelewu, którego papier wprost nie każe dołączać.
+  - Na formularzu 3 (1 strona, mały formularz) znalazł 4 z 4 błędów w elementach z papieru. Pozostałe 3 z 7 trafiły w pytanie o opłatę i załącznik z potwierdzeniem zapłaty, które dodał tylko nasz wzorzec, oraz w warunek przy tekście informacyjnym, którego sędziowie z zasady nie oceniają; słusznie ich nie policzyli.
 
 ### Każdy formularz z zadania
 
@@ -40,10 +44,10 @@ Mierzymy to, co obchodzi urzędnika: ile poprawek musi zrobić w edytorze, zanim
 | 9. Stypendium sportowe, 3 wnioski w 1 | ODS | **4** | 2 brakujące warunki (rubryki tylko przy stypendium lub nagrodzie), 2 brakujące pola (dowód pełnomocnika klubu, rodzic niepełnoletniego kandydata) | DOCX: 9 | 32 | 87 s | 0,048 $ |
 | **Średnio** | | **1,9** | | 2,9 | 24 | 50 s | 0,025 $ |
 
-- Każdy formularz przyszedł w 6-9 formatach. Wszystkie 54 pliki dały JSON bez problemów z regułami COI, a ich zgodność z naszym wzorcem (`gold=`) jest w [docs/historia.md](docs/historia.md#7-końcowy-pomiar-każdy-plik-każdego-formularza). Sędziowie ocenili po 2 pliki na formularz, te z najwyższą zgodnością. Tabela pokazuje lepszy z nich i ten trafił do `output/`; drugi stoi w kolumnie „Drugi oceniony plik” (razem 20 poprawek zamiast 13). Najwięcej poprawek, 9, wymagał DOCX formularza 9.
-- Przed końcową pętlą jakości ten sam panel liczył na tych formularzach 19 poprawek. Zysk dały formularze 8 (8 → 3) i 9 (7 → 4). Formularz 6 się pogorszył (2 → 4): zniknęły 2 stare poprawki przy załącznikach, doszły 4 przy wariantach tabeli.
+- Formularz 7 przyszedł w 6 formatach, pozostałe w 8. Wszystkie 54 pliki dały JSON bez problemów z regułami COI (pliki, które padły przez zerwaną sieć na sali, puściliśmy jeszcze raz), a ich zgodność z naszym wzorcem (`gold=`) jest w [docs/historia.md](docs/historia.md#7-końcowy-pomiar-każdy-plik-każdego-formularza). Sędziowie ocenili po 2 pliki na formularz, te z najwyższą zgodnością. Tabela pokazuje lepszy z nich i ten trafił do `output/`; drugi stoi w kolumnie „Drugi oceniony plik” (razem 20 poprawek zamiast 13). Najwięcej poprawek, 9, wymagał DOCX formularza 9.
+- Przed końcową pętlą jakości ten sam panel liczył na tych formularzach 19 poprawek. Wtedy był to jeden plik na formularz, ten z najwyższą `gold=`; wybrany tak samo dziś daje 14, a 13 to lepszy z dwóch ocenionych plików. Zysk dały formularze 8 (8 → 3) i 9 (7 → 4). Formularz 6 się pogorszył (2 → 4): zniknęły 2 stare poprawki przy załącznikach, doszły 4 przy wariantach tabeli.
 - „Pola z dokumentu” to pola na stronach formularza, bez stron standardowych COI. Czas i koszt to cały przebieg pliku: odczyt stron, 2 przebiegi planera i kod.
-- Na tych formularzach stroiliśmy prompty i kod, więc to wynik na znanych dokumentach.
+- Na tych formularzach stroiliśmy prompty i kod, a w końcowej pętli uwagi tego samego panelu podpowiadały nam, co poprawić. To wynik na znanych dokumentach.
 
 ### Porównanie podejść
 
@@ -61,6 +65,7 @@ Trzy dokumenty: formularz 3 PDF (1 strona), formularz 7 JPG (skan, 2 strony) i f
 
 - Jeden model piszący cały JSON (3 i 4) dorównuje nam na krótkich formularzach, ale na 6-stronicowej deklaracji potrzebuje 19-21 poprawek wobec naszych 5. Na dłuższych formularzach jego JSON łamie reguły COI (4-52 problemów: powtórzone identyfikatory, warunki na opcjach, których nie ma). Kosztuje też ponad 2 razy więcej, bo pisze 7-20 tys. tokenów JSON-a, a nasz planer 1-6 tys. tokenów planu.
 - Nasze bez filtra cytatów i napraw daje na tych 3 dokumentach prawie to samo (różnica jednego pola na formularzu 8), też bez problemów z regułami. Te reguły to siatka bezpieczeństwa na trudniejsze przypadki (na formularzu 9 poprawiają 3 warunki). Zero problemów z regułami daje builder: format COI pisze kod, nie model.
+- Nasz potok stroiliśmy na tych dokumentach, pozostałych podejść nie, więc porównanie działa na naszą korzyść.
 - Porównanie zrobiliśmy przed końcowymi poprawkami, więc nasze liczby różnią się trochę od tabeli wyżej. Nasze 267 s na formularzu 8 to wolny moment Edenu; spokojny przebieg trwa około 100 s.
 - Przepis i surowe liczby: `bench/ARMS.md`, kod: `bench/arms.py`.
 
@@ -86,7 +91,7 @@ cp .env.example .env && uv sync
 uv run uvicorn app.api:app --port 8000
 ```
 
-Strona dla urzędnika: http://localhost:8000. OpenAPI: http://localhost:8000/docs. Stan: http://localhost:8000/health. Jeden formularz trwa od pół minuty do kilku minut. Gdy klient nie może tyle czekać, jest [zadanie w tle](#zadanie-w-tle).
+Strona dla urzędnika: http://localhost:8000. OpenAPI: http://localhost:8000/docs. Stan: http://localhost:8000/health. Jeden formularz trwa od kilkunastu sekund do około dwóch minut, dłużej, gdy Eden zwalnia. Gdy klient nie może tyle czekać, jest [zadanie w tle](#zadanie-w-tle).
 
 Bez klucza działa wszystko poza odczytem nowego pliku: edytor, podgląd, pusty formularz, wgrany JSON e-usługi, sprawdzanie reguł i katalog słowników. Konwersja i propozycje słowników odpowiadają wtedy 503.
 
@@ -137,7 +142,7 @@ Dlaczego tak:
 
 Kroki po kolei:
 1. **Upload** (`app/upload.py`). Plik idzie do pamięci, a limit rozmiaru działa w trakcie odczytu. Potem kod sprawdza nazwę, rozszerzenie i sygnaturę bajtów. Przy `AUTH_ENABLED=1` żądanie potrzebuje tokenu JWT (`app/security.py`).
-2. **Odczyt** (`app/llm/transcribe.py`). PDF renderuje PDFium, pliki biurowe najpierw zamienia na PDF LibreOffice, a wysoki skan z kilkoma stronami kod tnie na strony. Każda strona, zmniejszona do 1024 px, idzie osobno do Qwen3.5-397B-A17B, cztery naraz. Gdy model zapętli się na stronie (np. w kółko przepisuje pusty wiersz tabeli) i odpowiedź się utnie albo przekroczy limit czasu, strona idzie jeszcze raz z karą za powtórzenia (`frequency_penalty`). Gdy w PDF z LibreOffice brakuje tekstu pliku (LibreOffice gubi pola tekstowe niektórych DOCX, strony wychodzą puste) albo LibreOffice nie umie pliku zamienić, kod nie wysyła obrazów stron, tylko daje plannerowi tekst odczytany z samego pliku.
+2. **Odczyt** (`app/llm/transcribe.py`). PDF renderuje PDFium, pliki biurowe najpierw zamienia na PDF LibreOffice, a wysoki skan z kilkoma stronami kod tnie na strony. Każda strona, zmniejszona do 1024 px, idzie osobno do Qwen3.5-397B-A17B, cztery naraz. Gdy model zapętli się na stronie (np. w kółko przepisuje pusty wiersz tabeli) i odpowiedź się utnie albo przekroczy limit czasu, strona idzie jeszcze raz z karą za powtórzenia (`frequency_penalty`). Gdy w PDF z LibreOffice brakuje tekstu pliku (LibreOffice gubi pływające pola tekstowe niektórych DOCX, w PDF zostają puste ramki) albo LibreOffice nie umie pliku zamienić, kod nie wysyła obrazów stron, tylko daje planerowi tekst odczytany z samego pliku.
 3. **Plan** (`app/llm/planner.py`, kontrakt `app/plan.py`). GLM-5.2 czyta sam Markdown, bez trybu myślenia, a odpowiedź wymusza schemat JSON. Przebieg 3a ustala strukturę, przebieg 3b warunki.
 4. **Filtr cytatów i naprawy** (`app/quotes.py`, `app/repair.py`). Wypadają:
    - element bez cytatu w Markdownie (dopasowanie rozmyte, `rapidfuzz`);
@@ -220,7 +225,7 @@ Zmienne środowiskowe albo plik `.env` (`app/config.py`, wzór w `.env.example`)
 | `LLM_TIMEOUT_S` | `1200` | Limit czasu jednego wywołania planera (s) |
 | `TRANSCRIBE_SIDE` | `1024` | Dłuższy bok obrazu strony wysyłanego do przepisania (px) |
 | `TRANSCRIBE_WORKERS` | `4` | Ile stron przepisywanych naraz |
-| `TRANSCRIBE_TIMEOUT_S` | `180` | Limit czasu jednej strony (s). Strona ucięta albo po limicie dostaje jedną ponowną próbę z karą za powtórzenia |
+| `TRANSCRIBE_TIMEOUT_S` | `180` | Limit czasu jednego wywołania modelu dla strony (s). Strona ucięta albo po limicie dostaje jedną ponowną próbę z karą za powtórzenia |
 | `SOFFICE` | `soffice` | Program LibreOffice (na macOS kod sprawdza też ścieżkę aplikacji) |
 | `HISTORY_ENABLED` | `1` | `0` = serwer nie zapisuje wgranych plików ani wyników, `/api/history` odpowiada 404, a strona działa bez „Źródła”. W pamięci procesu zostają tylko wynik zadania w tle (1 h) i odczyt 16 ostatnich plików ([Przechowywanie plików](#przechowywanie-plików)). Katalog słowników zostaje, bo trzyma tylko nazwy i wartości |
 | `HISTORY_DB` | `history.sqlite3`, w Dockerze `/tmp/history.sqlite3` | Plik SQLite z historią strony i katalogiem słowników; obok niego katalog `<nazwa>-pdf` z PDF-ami plików biurowych |

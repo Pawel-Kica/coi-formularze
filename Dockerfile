@@ -1,7 +1,7 @@
 # COI Cyfryzacja Formularzy API. Only the official python Alpine image (every locked dependency
 # has a musl wheel), dependencies from uv.lock, Tesseract with Polish data ("Źródło" on scans), non-root.
 # LibreOffice (DOC/DOCX/ODS/XLS/XLSX -> PDF -> page images for the vision model) is in by default;
-# LIBREOFFICE=0 builds a lighter image that converts only PDF and image files.
+# LIBREOFFICE=0 builds a lighter image: PDF and images still become page images, office files are read as their own text.
 ARG PYTHON_VERSION=3.14.10
 ARG ALPINE_VERSION=3.24
 
