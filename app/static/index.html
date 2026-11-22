@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cyfryzacja formularzy | generator e-usług COI</title>
 <!-- One self-contained page served by the API at "/": log in, drop forms, check each result against its original.
-     Left column = one file at a time, or many with "Wgraj wiele plików naraz" (sent one by one); a COI JSON dropped there
+     Left column = drop one file or many (sent one by one); a COI JSON (dropped or picked with "Wgraj JSON")
      and "Zacznij od pustego formularza" skip the model and open straight in the editor (openReady); plus history (on the server,
      /api/history) with a ZIP of all results. Main area = original document | e-service, one of three views: "Podgląd" (the form
      with the paper quote under every field and the paper heading of every page and section, a click on it shows that
@@ -60,10 +60,9 @@
   .drop:focus-within { outline: 3px solid #c2662d; outline-offset: 2px; }
   .drop strong { color: var(--navy); }
   .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-  .batch-toggle { display: flex; gap: 8px; align-items: center; margin: 8px 0 0; font-weight: 400; font-size: .9rem; cursor: pointer; }
-  .batch-toggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--navy); }
-  #blank { flex: none; width: 100%; margin-top: 10px; }
-  .hist-head { display: flex; justify-content: space-between; align-items: center; margin: 14px 0 6px; }
+  #blank, #json-pick { flex: none; width: 100%; margin-top: 10px; }
+  #json-pick { margin-top: 6px; }
+  #history-title { margin: 14px 0 6px; }
   #zip { flex: none; width: 100%; margin-bottom: 8px; }
   ul.files .err { display: block; font-size: .8rem; color: var(--err); white-space: normal; overflow-wrap: anywhere; }
   ul.files { list-style: none; padding: 0; margin: 0; }
@@ -181,16 +180,14 @@
   <section class="card" id="upload" aria-labelledby="upload-title" hidden>
     <h2 id="upload-title">Wgraj pusty formularz</h2>
     <label class="drop" id="drop">
-      <input id="file" type="file" accept=".pdf,.doc,.docx,.ods,.xlsx,.xls,.jpg,.jpeg,.jpe,.png,.json">
-      <strong id="drop-title">Przeciągnij plik tutaj</strong> albo kliknij, aby wybrać z dysku
-      <span class="muted" style="display:block">PDF, DOC, DOCX, ODS, XLSX, XLS, JPG, PNG albo gotowy JSON e-usługi COI.<span id="drop-batch" hidden> Pliki przetworzymy po kolei, jeden po drugim.</span></span>
+      <input id="file" type="file" multiple accept=".pdf,.doc,.docx,.ods,.xlsx,.xls,.jpg,.jpeg,.jpe,.png,.json">
+      <strong>Przeciągnij pliki tutaj</strong> albo kliknij, aby wybrać z dysku
+      <span class="muted" style="display:block">PDF, DOC, DOCX, ODS, XLSX, XLS, JPG, PNG albo gotowy JSON e-usługi COI. Kilka plików przetworzymy po kolei.</span>
     </label>
-    <label class="batch-toggle"><input type="checkbox" id="batch"> Wgraj wiele plików naraz</label>
     <button type="button" id="blank" class="small" title="Zbuduj e-usługę od zera w edytorze, bez dokumentu">+ Zacznij od pustego formularza</button>
-    <div class="hist-head">
-      <h3 id="history-title">Historia</h3>
-      <button type="button" id="clear" class="small">Wyczyść historię</button>
-    </div>
+    <button type="button" id="json-pick" class="small" title="Otwórz gotowy JSON e-usługi COI w edytorze, bez modelu">Wgraj JSON</button>
+    <input id="json-file" type="file" accept=".json,application/json" multiple hidden>
+    <h3 id="history-title">Historia</h3>
     <button type="button" id="zip" class="small" title="Pobierz ZIP z JSON-ami wszystkich gotowych plików z historii" hidden>Pobierz wszystkie</button>
     <ul class="files" id="files" aria-labelledby="history-title"></ul>
     <p id="history-empty" class="muted">Brak przetworzonych plików.</p>
@@ -314,7 +311,7 @@ function el(tag, className, text) {
 // edit was saved before its rules check came back (after a reload: no download until the check that runs when the file is opened comes back) ---
 
 // One history request: store("put", record) creates a record without id (multipart with the file) or updates one
-// (JSON, file unchanged) and resolves with its id; store("getAll"), store("delete", id), store("clear").
+// (JSON, file unchanged) and resolves with its id; store("getAll"), store("delete", id).
 async function store(method, arg) {
   if (!state.history) return method === "getAll" ? [] : undefined; // HISTORY_ENABLED=0: the server keeps nothing
   const headers = { Authorization: `Bearer ${state.token}` };
@@ -334,7 +331,7 @@ async function store(method, arg) {
   } else if (method === "getAll") {
     response = await fetch("/api/history", { headers });
   } else {
-    response = await fetch(method === "delete" ? `/api/history/${arg}` : "/api/history", { method: "DELETE", headers });
+    response = await fetch(`/api/history/${arg}`, { method: "DELETE", headers });
   }
   if (!response.ok) throw new Error(`history ${method}: ${response.status}`);
   if (response.status === 204) return;
@@ -426,26 +423,11 @@ $("#login-form").addEventListener("submit", async (event) => {
 });
 $("#logout").addEventListener("click", () => logout());
 
-// --- files: single file by default, many with "Wgraj wiele plików naraz"; either way one request at a time ---
-
-// Batch mode (bonus VI) is an explicit opt-in, remembered in localStorage.
-function setBatch(on) {
-  $("#batch").checked = on;
-  $("#file").multiple = on;
-  $("#drop-title").textContent = on ? "Przeciągnij pliki tutaj" : "Przeciągnij plik tutaj";
-  $("#drop-batch").hidden = !on;
-  localStorage.setItem("coi-batch", on ? "1" : "");
-}
-setBatch(localStorage.getItem("coi-batch") === "1");
-$("#batch").addEventListener("change", (event) => { setBatch(event.target.checked); renderFiles(); });
+// --- files: one or many (bonus VI), either way one request at a time ---
 
 async function addFiles(files) {
   if (!files.length) return;
   $("#announce").textContent = "";
-  if (!$("#batch").checked && files.length > 1) {
-    files = files.slice(0, 1);
-    $("#announce").textContent = `Biorę tylko pierwszy plik (${files[0].name}). Aby wgrać kilka naraz, zaznacz „Wgraj wiele plików naraz”.`;
-  }
   const known = $("#file").accept.split(",");
   const wrong = files.filter((file) => !known.includes("." + file.name.split(".").pop().toLowerCase()));
   if (wrong.length) { // said here, not as a failed row whose "Spróbuj ponownie" could never work
@@ -491,6 +473,14 @@ async function openJson(file) {
   }
   await openReady(file, coi, {}); // no evidence: the editor says the origin is unknown and keeps its techNames
 }
+
+// "Wgraj JSON": a file picker for JSON only, the same path as a JSON dropped on the page.
+$("#json-pick").addEventListener("click", () => $("#json-file").click());
+$("#json-file").addEventListener("change", async (event) => {
+  const files = [...event.target.files];
+  event.target.value = ""; // the same file can be picked again
+  await addFiles(files);
+});
 
 $("#blank").addEventListener("click", async () => {
   $("#announce").textContent = "";
@@ -583,16 +573,6 @@ async function removeItem(item) {
   $("#live").textContent = `Usunięto z historii: ${item.file.name}`;
 }
 
-$("#clear").addEventListener("click", async () => {
-  if (!state.items.length || !confirm("Usunąć całą historię przetworzonych plików?")) return;
-  for (const item of state.items) { item.deleted = true; item.row?.li.remove(); }
-  state.items = [];
-  await store("clear").catch(() => {});
-  select(null);
-  renderFiles();
-  $("#live").textContent = "Historia wyczyszczona.";
-});
-
 const when = (ms) => new Date(ms).toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
 // Rows are created once and then only updated, so keyboard focus survives the 1 s ticker.
@@ -630,9 +610,8 @@ function renderFiles() {
     item.row.status.textContent = item.status === "working" ? `${STATUS.working}…${item === state.selected ? "" : ` ${seconds} s`}` : fix ? "Do poprawy" : STATUS[item.status];
   }
   $("#history-empty").hidden = state.items.length > 0;
-  $("#clear").hidden = state.items.length === 0;
   const done = state.items.filter(exportable).length;
-  $("#zip").hidden = done < 2 || !$("#batch").checked; // part of the batch mode; one result has its own "Pobierz JSON"
+  $("#zip").hidden = done < 2; // one result has its own "Pobierz JSON"
   $("#zip").textContent = `Pobierz wszystkie JSON-y (${done})`;
 }
 
