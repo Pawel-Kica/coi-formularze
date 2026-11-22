@@ -5,7 +5,7 @@ For every file: transcribe (page images -> Markdown) -> make_plan -> filter_plan
 before the quote filter, for `bench.refilter`), `.plan.json`,
 `.coi.json`, `<out>/source.txt` (the source folder, for the review page `/review`) and
 `<out>/summary.json` (per file: ok/error, seconds, fields, rules problems, quote-filter drops).
-A Claude judge then compares each original with its output.
+An AI judge then compares each original with its output.
 
     uv run python -m bench.run_dir ~/hacknation-2026/resources/drive-formularze --out bench/runs/drive-baseline
     uv run python -m bench.run_dir <folder> --out <earlier run>   # files already done are skipped
