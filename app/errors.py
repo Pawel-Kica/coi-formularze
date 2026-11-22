@@ -6,6 +6,8 @@ import logging
 import httpx
 from fastapi import HTTPException, status
 
+from app.llm.client import MissingKeyError
+
 log = logging.getLogger(__name__)
 
 
@@ -21,6 +23,10 @@ def conversion_error(error: Exception) -> HTTPException:
             return HTTPException(status.HTTP_504_GATEWAY_TIMEOUT, "Model nie odpowiedział na czas. Spróbuj ponownie.")
         case httpx.TransportError() | ConnectionError():
             return HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Model językowy jest niedostępny.")
+        # before ValueError: a missing key is the server's setup, not a bad form
+        case MissingKeyError():
+            return HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                                 "Brak klucza EDENAI_API_KEY: serwer nie ma dostępu do modeli.")
         case ValueError():
             return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Nie udało się odczytać formularza: {error}")
     log.exception("conversion failed", exc_info=error)

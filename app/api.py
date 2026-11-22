@@ -6,7 +6,6 @@ Run: `uv run uvicorn app.api:app --reload`. Docs at /docs, upload page at /.
 from pathlib import Path
 from typing import Annotated
 
-import httpx
 from fastapi import Body, Depends, FastAPI, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse
@@ -169,12 +168,8 @@ async def dictionary_proposals(request: Request, _user: Annotated[str, Depends(c
     validate_upload(filename, data)
     try:
         result = await run_in_threadpool(propose_dictionaries, data, filename)
-    except httpx.HTTPStatusError:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Model językowy zwrócił błąd.")
-    except httpx.TransportError, ConnectionError, TimeoutError:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Model językowy jest niedostępny.")
-    except ValueError as error:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Nie udało się odczytać formularza: {error}")
+    except Exception as error:  # the same codes as /api/forms/convert
+        raise conversion_error(error)
     return JSONResponse(result)
 
 

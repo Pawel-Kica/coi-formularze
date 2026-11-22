@@ -31,6 +31,10 @@ class LLMError(ValueError):
     """The model answered, but not with usable JSON (e.g. cut off by max_tokens)."""
 
 
+class MissingKeyError(LLMError):
+    """EDENAI_API_KEY is not set: the server's fault, not the form's (`app.errors` maps it to 503)."""
+
+
 @dataclass
 class ChatResult:
     data: dict  # parsed JSON answer
@@ -65,7 +69,7 @@ def _headers() -> dict:
     """Auth header built at call time; the key never leaves this dict (not logged, not in errors)."""
     key = settings.edenai_api_key
     if key is None or not key.get_secret_value():
-        raise LLMError("no model API key: set EDENAI_API_KEY in .env")
+        raise MissingKeyError("no model API key: set EDENAI_API_KEY in .env")
     return {"Authorization": f"Bearer {key.get_secret_value()}"}
 
 

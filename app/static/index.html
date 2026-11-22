@@ -686,7 +686,7 @@ const fileSize = (bytes) => (bytes < 1024 * 1024 ? `${Math.max(1, Math.round(byt
 
 // PDF in an iframe, JPG/PNG as an image; DOC/DOCX/ODS/XLSX/XLS as the real document too: the PDF LibreOffice made
 // of it on the server (GET /api/history/{id}/pdf) in the same iframe. Only when there is none (not saved yet,
-// LibreOffice failed or lost text) the text read from the file by POST /api/forms/text, the same text the model gets.
+// LibreOffice failed or lost text) the text read from the file by POST /api/forms/text (no model; the model reads page images).
 function showOriginal(item) {
   if (state.originalUrl) URL.revokeObjectURL(state.originalUrl);
   state.originalUrl = state.frameUrl = null;

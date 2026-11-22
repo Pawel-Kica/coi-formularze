@@ -14,6 +14,7 @@ from pydantic import SecretStr
 from app import pipeline
 from app.api import app
 from app.config import settings
+from app.llm.client import MissingKeyError
 from app.upload import MIME_BY_EXTENSION, sniff_mime, validate_upload
 
 SECRET = "test-secret-" + "x" * 32
@@ -219,6 +220,7 @@ def test_exactly_one_file(client, auth):
     "error, code",
     [
         (ValueError("brak tekstu"), 422),
+        (MissingKeyError("no key"), 503),  # a ValueError too: the server's setup, never "Nie udało się odczytać"
         (httpx.ConnectError("refused"), 503),
         (httpx.ReadTimeout("slow model"), 504),
         (httpx.HTTPStatusError("500", request=httpx.Request("POST", "http://x"), response=httpx.Response(500)), 502),
@@ -231,6 +233,20 @@ def test_pipeline_errors_mapped(client, auth, monkeypatch, error, code):
     monkeypatch.setattr(pipeline, "convert", fail)
     response = upload(client, auth, "a.pdf", PDF)
     assert response.status_code == code and "detail" in response.json()
+
+
+def png_page() -> bytes:
+    """A real one-page PNG the pipeline can turn into a page image."""
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("L", (200, 280), 255).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def test_dictionary_proposals_map_errors_like_convert(client, auth):
+    response = client.post("/api/dictionaries/proposals", headers=auth, files={"file": ("a.png", png_page())})
+    assert response.status_code == 503 and "EDENAI_API_KEY" in response.json()["detail"]
 
 
 # --- real COI sample files: every format sniffs as its extension ---
