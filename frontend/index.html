@@ -61,6 +61,15 @@
   .drop:focus-within { outline: 3px solid #c2662d; outline-offset: 2px; }
   .drop strong { color: var(--navy); }
   .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  /* "Wgraj pusty formularz" folds away while a document is open, so small screens keep room for the history */
+  #add { flex: none; }
+  #add > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+  #add > summary::-webkit-details-marker { display: none; }
+  #add > summary::after { content: ""; margin: 0 4px 0 auto; width: 8px; height: 8px; border: solid var(--navy);
+                          border-width: 0 2px 2px 0; transform: translateY(-2px) rotate(45deg); transition: transform .15s; }
+  #add:not([open]) > summary::after { transform: rotate(-45deg); }
+  #add > summary h2 { margin: 0; }
+  #add[open] > summary { margin-bottom: 12px; }
   #blank, #json-pick { flex: none; width: 100%; margin-top: 10px; }
   #json-pick { margin-top: 6px; }
   #history-title { margin: 14px 0 6px; }
@@ -179,7 +188,8 @@
   </section>
 
   <section class="card" id="upload" aria-labelledby="upload-title" hidden>
-    <h2 id="upload-title">Wgraj pusty formularz</h2>
+    <details id="add" open>
+    <summary><h2 id="upload-title">Wgraj pusty formularz</h2></summary>
     <label class="drop" id="drop">
       <input id="file" type="file" multiple accept=".pdf,.doc,.docx,.ods,.xlsx,.xls,.jpg,.jpeg,.jpe,.png,.json">
       <strong>Przeciągnij pliki tutaj</strong> albo kliknij, aby wybrać z dysku
@@ -188,6 +198,7 @@
     <button type="button" id="blank" class="small" title="Zbuduj e-usługę od zera w edytorze, bez dokumentu">+ Zacznij od pustego formularza</button>
     <button type="button" id="json-pick" class="small" title="Otwórz gotowy JSON e-usługi COI w edytorze, bez modelu">Wgraj JSON</button>
     <input id="json-file" type="file" accept=".json,application/json" multiple hidden>
+    </details>
     <h3 id="history-title">Historia</h3>
     <button type="button" id="zip" class="small" title="Pobierz ZIP z JSON-ami wszystkich gotowych plików z historii" hidden>Pobierz wszystkie</button>
     <ul class="files" id="files" aria-labelledby="history-title"></ul>
@@ -620,7 +631,7 @@ function renderFiles() {
 // one dropped on the embedded preview arrives as a "coi-drop" message.
 const drop = $("#drop");
 $("#file").addEventListener("change", (event) => { addFiles([...event.target.files]); event.target.value = ""; });
-window.addEventListener("dragover", (event) => { event.preventDefault(); drop.classList.add("over"); });
+window.addEventListener("dragover", (event) => { event.preventDefault(); drop.classList.add("over"); $("#add").open = true; });
 window.addEventListener("dragleave", (event) => { if (!event.relatedTarget) drop.classList.remove("over"); });
 window.addEventListener("drop", (event) => {
   event.preventDefault();
@@ -635,6 +646,7 @@ function select(item) {
   const changed = item !== state.selected;
   state.selected = item;
   if (changed) state.originalHidden = false; // a new document shows its original again
+  if (changed) $("#add").open = !item; // the upload box folds while a document is open, unfolds when none is
   if (changed && item?.status !== "done") state.view = "preview"; // a file still in the works opens in the preview when it is ready
   renderFiles();
   $("#result-empty").hidden = Boolean(item);
