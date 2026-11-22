@@ -13,6 +13,7 @@ from app.api import app
 from app.builder import build_with_evidence
 from app.config import settings
 from app.extract import UnsupportedFile
+from app.llm import transcribe
 from app.llm.transcribe import MAC_SOFFICE
 from app.plan import Plan
 
@@ -95,9 +96,11 @@ def test_failed_conversion_falls_back_to_text_lines(client, monkeypatch):
 @needs_data
 def test_pdf_that_lost_text_is_not_shown(client, monkeypatch):
     """LibreOffice drops the text boxes of some DOCX (form 8: 0.80 of its words): such a PDF is not shown."""
-    other = next(COI.glob("1.*/*.pdf")).read_bytes()  # a real PDF without the words of form 3
+    other = next(COI.glob("1.*/*.pdf")).read_bytes()
     monkeypatch.setattr(history, "office_convert", lambda data, name, to: other)
     f, coi, ev = form3("docx")
+    own = transcribe.file_text(f.read_bytes(), f.name).split("\n")
+    monkeypatch.setattr(transcribe, "page_texts", lambda pdf: own[: len(own) // 2])  # the PDF kept half the lines
     item = add(f, coi, ev)
     assert client.get(f"/api/history/{item}/pdf").status_code == 422
 

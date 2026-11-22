@@ -129,7 +129,9 @@ class _Doc:
                         checked = box.find(W + "default")
                     on = checked is not None and checked.get(W + "val", "1") not in ("0", "false")
                     parts.append("☒" if on else "☐")
-            elif tag in (W + "instrText", W + "delText", W + "del", MC + "Fallback", W + "rPr", W + "pPr"):
+            elif tag in (W + "instrText", W + "delText", W + "del", MC + "Fallback", W + "rPr", W + "pPr") or (
+                tag == W + "r" and _hidden(ch)  # hidden text (w:vanish) is not on paper
+            ):
                 continue
             elif tag == W + "footnoteReference" or tag == W + "endnoteReference":
                 if ch.get(W + "customMarkFollows") not in ("1", "true"):
@@ -148,6 +150,11 @@ class _Doc:
                     boxes.append(Box(pos[0], pos[1], pos[2], text))
             else:
                 self._runs(ch, parts, boxes, inline_boxes, pos)
+
+def _hidden(run) -> bool:
+    vanish = run.find(f"{W}rPr/{W}vanish")
+    return vanish is not None and vanish.get(W + "val", "true") not in ("0", "false", "off")
+
 
 def _anchor_pos(anchor):
     def off(tag):

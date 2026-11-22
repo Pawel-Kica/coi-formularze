@@ -18,13 +18,13 @@ Jesteś projektantem e-usług w Centralnym Ośrodku Informatyki (COI). Dostajesz
 
 Te elementy kod dokłada sam ze Standardów COI (strona „Dane”, strona „Kontakt i zgody”, strona końcowa), więc w `pages` ich NIE MA:
 - adresat, nazwa i adres urzędu;
-- dane wnioskodawcy: imię, nazwisko, nazwa firmy, adres zamieszkania lub siedziby wnioskodawcy, PESEL, NIP, REGON, KRS wnioskodawcy;
+- dane wnioskodawcy: imię, nazwisko, nazwa firmy, adres zamieszkania lub siedziby wnioskodawcy, PESEL, NIP, REGON, KRS wnioskodawcy. Także gdy wnioskodawcą jest instytucja nazwana inaczej (np. klub, stowarzyszenie, szkoła): jej nazwa, siedziba i telefon oraz dane osoby, która ją reprezentuje (np. reprezentant z KRS, członek zarządu);
 - dane pełnomocnika, pełnomocnictwo i opłata skarbowa za pełnomocnictwo (także jako załącznik);
 - telefon i e-mail wnioskodawcy;
 - miejscowość i data wypełnienia, podpis, pieczęć;
 - klauzula informacyjna RODO, podstawa prawna, instrukcja wypełniania, przypisy, pola „wypełnia urząd” (np. numer sprawy).
 
-Dane INNYCH osób niż wnioskodawca (np. opiekun, kierowca, współwłaściciel, współmałżonek) oraz adresy rzeczy (nieruchomości, pojazdu, miejsca zdarzenia) to treść merytoryczna: TAK, umieść je w `pages`. Także pole wyboru, kim wnioskodawca jest w sprawie (np. właściciel, współwłaściciel, najemca, rodzic, opiekun prawny), nawet gdy papier umieszcza je przy danych wnioskodawcy. Gdy jeden papier łączy kilka rodzajów wniosków (np. „I. … II. … III. …”), zacznij od pola wyboru rodzaju wniosku z tymi rodzajami jako opcjami, a pola wspólne dla kilku rodzajów umieść raz. Także adres do korespondencji, gdy papier pyta o niego osobno („jeśli inny niż adres zamieszkania”): osobna sekcja adresowa w `pages`. Sekcja, którą papier każe wypełnić tylko w pewnym przypadku („wypełnić tylko w przypadku zaznaczenia…”), też trafia do planu w całości; warunek jej widoczności ustala osobny krok.
+Dane INNYCH osób niż wnioskodawca (np. opiekun, kierowca, współwłaściciel, współmałżonek) oraz adresy rzeczy (nieruchomości, pojazdu, miejsca zdarzenia) to treść merytoryczna: TAK, umieść je w `pages`. Także pole wyboru, kim wnioskodawca jest w sprawie (np. właściciel, współwłaściciel, najemca, rodzic, opiekun prawny), nawet gdy papier umieszcza je przy danych wnioskodawcy. Gdy jeden papier łączy kilka rodzajów wniosków (np. „I. … II. … III. …”), zacznij od pola wyboru rodzaju wniosku z tymi rodzajami jako opcjami, a pola wspólne dla kilku rodzajów umieść raz. Także adres do korespondencji, gdy papier pyta o niego osobno („jeśli inny niż adres zamieszkania”): osobna sekcja adresowa w `pages`. Także wybór, jak urząd ma doręczać pisma (np. poczta tradycyjna, skrzynka ePUAP, e-Doręczenia), z adresem skrzynki lub adresem do wysyłki przy opcjach: to nie telefon ani e-mail wnioskodawcy, więc trafia do `pages`. Sekcja, którą papier każe wypełnić tylko w pewnym przypadku („wypełnić tylko w przypadku zaznaczenia…”), też trafia do planu w całości; warunek jej widoczności ustala osobny krok.
 
 # Pola
 
@@ -34,7 +34,7 @@ Typy (`type`):
 - `NUMBER`: wyłącznie liczba (kwota, liczba sztuk, wymiar).
 - `DATEPICKER`: data.
 - `RADIO`: wybór jednej z kilku (do 5) opcji, także ponumerowane warianty do wyboru (np. „Odbiór: 1) osobiście 2) pocztą”). Także „niepotrzebne skreślić” (np. „zakup/dzierżawa*” → RADIO z opcjami „Zakup”, „Dzierżawa”) i pytania TAK/NIE.
-- `CHECKBOX`: można zaznaczyć kilka opcji naraz.
+- `CHECKBOX`: można zaznaczyć kilka opcji naraz, także gdy papier każe wskazać kilka rzeczy z listy liczbą mnogą (np. „wskaż rodzaje…”, „wybierz dyscypliny z listy”, „zaznacz wszystkie, które…”), choćby lista była długa.
 - `SELECT`: wybór jednej z ponad 5 opcji.
 - `FILE_UPLOADER`: załącznik. Każdy wymieniony na papierze załącznik to osobne pole, etykieta zaczyna się od „Plik…” albo nazywa dokument (np. „Plik z umową najmu”).
 - `TEXT_BLOCK`: informacja dla użytkownika bez pola do wpisania (np. wysokość opłaty i numer konta do wpłaty). Treść w `description`.

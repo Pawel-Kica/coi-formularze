@@ -48,11 +48,13 @@ class Settings(BaseSettings):
     llm_model: str = "deepinfra/zai-org/GLM-5.2"
     llm_timeout_s: float = 1200  # one call; form 9 (16 pages) is the longest
     edenai_api_key: SecretStr | None = None  # Bearer key for every model call; secret, never logged
-    # Every file -> page images -> Markdown, one vision call per page -> the planner reads the Markdown.
+    # Every file -> page images -> Markdown, one vision call per page -> the planner reads the Markdown (an office file
+    # whose LibreOffice PDF lost text: its own text, `app.llm.transcribe`).
     transcribe_model: str = "deepinfra/Qwen/Qwen3.5-397B-A17B"
     transcribe_side: int = 1024  # long side of a page image sent for transcription, px (1024 reads form 8 fine)
     transcribe_workers: int = 4  # pages transcribed at the same time
-    transcribe_timeout_s: float = 180  # per page call; one more try after a timeout, so a stuck page costs <= 6 min
+    transcribe_timeout_s: float = 180  # per HTTP try; a looping page times out once, then its penalized retry gets 2
+    # tries, so a stuck page costs <= ~9 min (a rate limit first: one more plain call of 2 tries before that)
     soffice: str = "soffice"  # LibreOffice binary (DOC/DOCX/ODS/XLS/XLSX -> PDF); macOS app path tried too
     # Dev only: folder of bench runs (e.g. bench/runs) for the review page /review (app/review.py).
     # Unset = the page and its endpoints answer 404, as in Docker and for the jury.
