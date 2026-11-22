@@ -34,7 +34,7 @@ Typy (`type`):
 - `NUMBER`: wyłącznie liczba (kwota, liczba sztuk, wymiar).
 - `DATEPICKER`: data.
 - `RADIO`: wybór jednej z kilku (do 5) opcji, także ponumerowane warianty do wyboru (np. „Odbiór: 1) osobiście 2) pocztą”). Także „niepotrzebne skreślić” (np. „zakup/dzierżawa*” → RADIO z opcjami „Zakup”, „Dzierżawa”) i pytania TAK/NIE.
-- `CHECKBOX`: można zaznaczyć kilka opcji naraz.
+- `CHECKBOX`: można zaznaczyć kilka opcji naraz, także gdy papier każe wskazać kilka rzeczy z listy liczbą mnogą (np. „wskaż rodzaje…”, „wybierz dyscypliny z listy”, „zaznacz wszystkie, które…”), choćby lista była długa.
 - `SELECT`: wybór jednej z ponad 5 opcji.
 - `FILE_UPLOADER`: załącznik. Każdy wymieniony na papierze załącznik to osobne pole, etykieta zaczyna się od „Plik…” albo nazywa dokument (np. „Plik z umową najmu”).
 - `TEXT_BLOCK`: informacja dla użytkownika bez pola do wpisania (np. wysokość opłaty i numer konta do wpłaty). Treść w `description`.
