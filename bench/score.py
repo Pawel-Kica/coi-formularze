@@ -324,8 +324,9 @@ def _options_f1(gold: list[str], ours: list[str]) -> float:
 
 def score_plan(ours: Plan, gold: Plan) -> dict:
     """Compare a model Plan with a gold Plan. Fields are matched across the whole plan
-    (label, or the paper quote as a fallback), with a bonus for sitting on the matched
-    page, so a different page split does not hide correct fields."""
+    (label, the paper quote, or for a choice question its own option list), with a bonus for
+    sitting on the matched page, so a different page split does not hide correct fields.
+    A condition on a one-field section is scored as a condition on that field."""
     from app.builder.standard import is_organ
 
     page_pairs = pair(gold.pages, ours.pages, lambda g, o: max(
@@ -337,7 +338,11 @@ def score_plan(ours: Plan, gold: Plan) -> dict:
     gf, of = _plan_fields(gold), _plan_fields(ours)
 
     def fscore(g, o):
-        s = max(sim(g["field"].label, o["field"].label), 0.9 * sim(g["field"].quote, o["field"].quote))
+        gl, ol = g["field"], o["field"]
+        s = max(sim(gl.label, ol.label), 0.9 * sim(gl.quote, ol.quote))
+        # the same choice question worded differently: its own option list (not just Tak/Nie) matches
+        if len(gl.options) > 2 and len(ol.options) > 2 and _options_f1(gl.options, ol.options) >= 0.8:
+            s = max(s, 90.0)
         return s + (5 if page_map.get(g["page"]) == o["page"] else 0) if s >= THRESHOLD else s
 
     fpairs = pair(gf, of, fscore)
@@ -368,8 +373,14 @@ def score_plan(ours: Plan, gold: Plan) -> dict:
     smap = {i: j for i, j, _ in pair(gsec, osec, lambda g, o: sim(g.title, o.title))}
 
     def conds(plan_fields, sections):
+        """(kind, index, condition); a condition on a section of one field counts as one on that field."""
+        at = {id(x["field"]): k for k, x in enumerate(plan_fields)}
         out = [("field", k, x["field"].show_if) for k, x in enumerate(plan_fields) if x["field"].show_if]
-        out += [("section", k, s.show_if) for k, s in enumerate(sections) if s.show_if]
+        for k, s in enumerate(sections):
+            if s.show_if and len(s.fields) == 1 and not s.fields[0].show_if:
+                out.append(("field", at[id(s.fields[0])], s.show_if))
+            elif s.show_if:
+                out.append(("section", k, s.show_if))
         return out
 
     gconds, oconds = conds(gf, gsec), conds(of, osec)

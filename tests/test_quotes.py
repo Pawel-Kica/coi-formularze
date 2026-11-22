@@ -153,6 +153,16 @@ def test_section_condition_on_own_field_dropped():
     assert "inside its own target" in dropped[0]
 
 
+def test_added_question_without_a_condition_dropped():
+    q = f("f9", "Czy jesteś osobą niepełnoletnią?", "Kwotę nadpłaty proszę:", FieldType.RADIO, ["Tak", "Nie"])
+    q.synthesized = True
+    used = q.model_copy(update={"id": "f8", "label": "Czy chcesz złożyć korektę?"})
+    cond = Condition(field="f8", options=["Tak"], quote="w załączeniu: 1) korekta deklaracji")  # its own paper line
+    out, dropped = filter_plan(plan([RADIO, q, used, f("f2", "Korekta", "korekta deklaracji", show_if=cond)]), TEXT)
+    assert [x.id for x in out.pages[0].sections[0].fields] == ["f1", "f8", "f2"]
+    assert any("question f9" in d for d in dropped)
+
+
 def test_fields_of_generated_pages_dropped():
     p = plan([RADIO, f("f2", "Imię i nazwisko wnioskodawcy", "Nazwisko i imię/Nazwa firmy"),
               f("f3", "Podpis", "Oświadczam, że dane są prawdziwe.")])

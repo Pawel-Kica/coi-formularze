@@ -355,6 +355,7 @@ def _conditions_system() -> str:
 
 def apply_conditions(plan: Plan, answer: dict) -> Plan:
     """Insert synthesized trigger questions, then attach conditions (first one per target wins).
+    Such questions are marked `synthesized`; the quote filter drops the ones no condition uses in the end.
 
     Structural checks (trigger before target, options exist...) are done again by
     `app.quotes.filter_plan`; here we only skip what cannot be attached at all.
@@ -369,7 +370,7 @@ def apply_conditions(plan: Plan, answer: dict) -> Plan:
             continue
         n_field += 1
         new = PlanField(id=f"f{n_field}", label=_str(q["label"]), type=FieldType.RADIO, required=True,
-                        options=["Tak", "Nie"], quote=_str(q.get("quote")))
+                        options=["Tak", "Nie"], quote=_str(q.get("quote")), synthesized=True)
         for p in plan.pages:
             for i, s in enumerate(p.sections):
                 if s.id == before:  # target is a whole section: the question gets its own section before it

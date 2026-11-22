@@ -447,4 +447,14 @@ def filter_plan(plan: Plan, text: str, threshold: float | None = None) -> tuple[
             check(sec.id, sec, {f.id for f in sec.fields}, is_section=True)
             for f in sec.fields:
                 check(f.id, f, set())
+
+    # 3. A question the conditions pass added that no condition uses any more changes nothing: drop it.
+    used = {t.show_if.field for _, t, _ in _targets(plan) if t.show_if}
+    for page in plan.pages:
+        for sec in page.sections:
+            dropped += [f"question {f.id} '{f.label}': added for a condition that is gone"
+                        for f in sec.fields if f.synthesized and f.id not in used]
+            sec.fields = [f for f in sec.fields if not f.synthesized or f.id in used]
+        page.sections = [s for s in page.sections if s.fields]
+    plan.pages = [p for p in plan.pages if p.sections]
     return plan, dropped

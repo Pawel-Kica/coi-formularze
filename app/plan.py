@@ -60,6 +60,7 @@ class PlanField(BaseModel):
     description: str = ""  # short hint for the user (plain language), optional
     quote: str
     show_if: Condition | None = None
+    synthesized: bool = False  # a Tak/Nie question the conditions pass added (no field on paper)
 
 
 class Section(BaseModel):
