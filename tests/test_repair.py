@@ -230,6 +230,22 @@ def test_correspondence_address_without_a_rule_on_paper_is_dropped_but_not_a_thi
     assert len(out.pages[0].sections) == 2
 
 
+def test_a_field_shown_by_its_own_condition_is_required_unless_the_paper_says_optional():
+    # "[ ] tablica ____": the number is asked only for the chosen option, so it must be filled then
+    cond = Condition(field="f2", options=["Tablica"], quote="2. Sposób oznakowania:")
+    opt = Condition(field="f2", options=["Taśma"], quote="2. Sposób oznakowania:")
+    p = plan(sec("s1", [MARKING, f("f3", "Numer tablicy", "tablica", show_if=cond, required=False),
+                        f("f4", "Numer taśmy (opcjonalnie)", "taśma", show_if=opt, required=False),
+                        f("f7", "Co oznakujesz?", "taśma", FieldType.CHECKBOX, ["Wjazd", "Wyjazd"], show_if=opt, required=False)]))
+    out, notes = filter_plan(p, PAPER)
+    got = fields_of(out)
+    assert got["f3"].required is True and any(n.startswith("required: field f3") for n in notes)
+    assert got["f4"].required is False and got["f7"].required is False
+    # a field without a condition keeps the model's choice
+    out, _ = filter_plan(plan(sec("s1", [f("f4", "Nazwa inwestycji", "4. Nazwa inwestycji", required=False)])), PAPER)
+    assert fields_of(out)["f4"].required is False
+
+
 def test_gold_plans_pass_untouched():
     """Hard check: every condition, option and field of the 9 gold plans survives the filter and the repairs."""
     import pytest

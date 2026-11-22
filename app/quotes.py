@@ -19,7 +19,8 @@
   paper (`_supported`). A broken condition is dropped, the target stays (always visible;
   a field also stops being required);
 - between the two, `app.repair.repair_plan` fixes invented options, doubled questions and
-  the applicant's correspondence address.
+  the applicant's correspondence address;
+- last, a field shown by its own condition becomes required when shown (`app.repair.require_shown`).
 Returns the cleaned plan and human-readable notes for everything dropped.
 """
 
@@ -457,4 +458,9 @@ def filter_plan(plan: Plan, text: str, threshold: float | None = None) -> tuple[
             sec.fields = [f for f in sec.fields if not f.synthesized or f.id in used]
         page.sections = [s for s in page.sections if s.fields]
     plan.pages = [p for p in plan.pages if p.sections]
+
+    # 4. A field shown by its own condition is required when shown (`app.repair.require_shown`).
+    from app.repair import require_shown
+
+    dropped += require_shown(plan)
     return plan, dropped

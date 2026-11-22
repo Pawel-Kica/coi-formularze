@@ -17,6 +17,11 @@ what the model tends to get wrong and the paper text can settle:
   section shows on "Tak" (none is added when the model already gates it with its own question);
   otherwise the section goes, the "Dane" page already asks for the address.
 Returns human-readable notes, like the quote filter.
+
+`require_shown(plan)` runs at the very end of `filter_plan`, once the conditions that stay are known: a field
+shown by its own condition is the detail of a choice ("[ ] tatuaż ____", "Inna dyscyplina", the date of the
+chosen case), so it is required when shown, as in the Standards' own conditional fields ("Dane innej osoby":
+"Walidacja: pole wymagane"); not when the paper marks it optional or it is a CHECKBOX / text block.
 """
 
 import re
@@ -204,6 +209,23 @@ def _correspondence_address(plan: Plan, text: str, notes: list[str]) -> None:
                 out.append(sec)
         page.sections = out
     plan.pages = [p for p in plan.pages if p.sections]
+
+
+# the paper says the item may be skipped ("(opcjonalnie)", "można dołączyć", "jeśli posiada")
+_OPTIONAL = re.compile(r"opcjonaln|nieobowiązkow|fakultatywn|\bmożna\b|(jeśli|jeżeli|o ile) posiada")
+
+
+def require_shown(plan: Plan) -> list[str]:
+    """A field with its own SHOW condition is required when shown, unless the paper calls it optional."""
+    notes = []
+    for _, s in _sections(plan):
+        for f in s.fields:
+            if (f.show_if is None or f.required or f.type in (FieldType.CHECKBOX, FieldType.TEXT_BLOCK)
+                    or any(_OPTIONAL.search(x.lower()) for x in (f.label, f.quote, f.description))):
+                continue
+            f.required = True
+            notes.append(f"required: field {f.id} '{f.label}' is shown only for its condition, required then")
+    return notes
 
 
 def repair_plan(plan: Plan, text: str) -> list[str]:
