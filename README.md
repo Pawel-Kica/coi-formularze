@@ -59,7 +59,7 @@ Strona dla urzędnika: http://localhost:8000. OpenAPI: http://localhost:8000/doc
 
 1. **Wgraj plik** na http://localhost:8000: upuść go gdziekolwiek na stronie albo wybierz z dysku. Kilka plików naraz przetwarza się po kolei, a „Pobierz wszystkie” daje ZIP z ich JSON-ami.
 2. **Porównaj.** Z lewej oryginał, z prawej e-usługa tak, jak zobaczy ją obywatel. Wszystkie kroki przeklikasz bez wypełniania pól.
-3. **Sprawdź.** Pod każdym polem jest jego cytat z dokumentu i warunek, który je pokazuje. „Źródło” rozwija wycinek oryginału z ramką na tym cytacie, a klik w wycinek pokazuje całą stronę.
+3. **Sprawdź.** Pod polem z dokumentu jest jego cytat i warunek, który je pokazuje. „Źródło” rozwija wycinek oryginału z ramką na tym cytacie, a klik w wycinek pokazuje całą stronę.
 4. **Popraw.** Ołówek przy elemencie otwiera panel „Edycja” obok podglądu: etykieta, typ, opcje, „wymagane”, warunek „pokaż, gdy…”, dodawanie i usuwanie pól, sekcji, stron i oświadczeń, „Cofnij”. Każdą zmianę sprawdzają reguły COI: z problemem nie da się pobrać JSON-a, a usunięcie, które zepsułoby import, jest wyłączone i podaje powód.
 5. **Pobierz JSON** gotowy do importu.
 
@@ -94,7 +94,7 @@ Model czyta dokument, a kod pilnuje formatu COI. Modele oddają tylko Markdown s
 
 Dlaczego tak:
 - **Jedna ścieżka odczytu dla każdego formatu.** Każdy plik staje się obrazami stron, a Qwen3.5 przepisuje każdą stronę do Markdown. Skan, PDF i Word idą tą samą drogą, bez osobnego kodu na skany. Obrazy wygrały z odczytem tekstu w pomiarze, najmocniej na skanach ([historia](#jak-doszliśmy-do-tej-architektury)).
-- **Każdy element planu niesie cytat z dokumentu.** Kod wyrzuca pole, opcję albo warunek, którego cytatu nie ma w odczytanym tekście, więc model nie może dopisać czegoś od siebie. Ten sam cytat urzędnik widzi pod polem, a „Źródło” pokazuje go w oryginale.
+- **Każde pole, warunek i oświadczenie planu niesie cytat z dokumentu.** Kod wyrzuca te, których cytatu nie ma w odczytanym tekście, i opcje, których nie ma w dokumencie, więc model nie doda pola, którego na papierze nie ma. Ten sam cytat urzędnik widzi pod polem, a „Źródło” pokazuje go w oryginale.
 - **JSON COI pisze kod, nie model.** UUID, `techName`, siatkę, warunki JSONata, walidatory, słowniki i strony ze Standardów COI (Dane, Kontakt i zgody, strona końcowa) builder składa z gotowych klocków. Dlatego format jest zawsze poprawny, a reguły COI sprawdzamy jeszcze raz przed odpowiedzią.
 - **Dwa przebiegi planera.** Najpierw struktura (strony, sekcje, pola, opcje, oświadczenia), potem warunki. W drugim przebiegu schemat odpowiedzi dopuszcza tylko istniejące pola i opcje.
 
