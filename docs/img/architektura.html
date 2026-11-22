@@ -38,7 +38,7 @@ h1{font-size:30px;font-weight:700;letter-spacing:-.3px}
 </div>
 
 <div class="lane">
- <div class="lanelabel">Główna ścieżka: POST /api/forms/convert (app/pipeline.py)</div>
+ <div class="lanelabel">Główna ścieżka: <span style="text-transform:none">POST /api/forms/convert (app/pipeline.py)</span></div>
  <div class="row">
   <div class="box io"><h3>1. Upload</h3><div class="f">app/upload.py, security.py</div>
    <ul><li>jeden plik, tylko w pamięci</li><li>limit rozmiaru, nazwa, rozszerzenie, sygnatura bajtów</li><li>JWT przy AUTH_ENABLED=1</li></ul>
@@ -90,7 +90,7 @@ h1{font-size:30px;font-weight:700;letter-spacing:-.3px}
   <div class="arrow">→</div>
   <div class="box code"><h3>Panel 3 sędziów AI</h3><div class="f">bench/JUDGE-POPRAWKI.md</div><ul><li>widzi dokument i nasz wynik, wypisuje każdą poprawkę urzędnika</li><li>poprawka liczy się, gdy wypisze ją 2 z 3</li><li>kalibracja na podrzuconych błędach: {{KALIBRACJA}}</li></ul></div>
   <div class="arrow">→</div>
-  <div class="box io"><h3>Wynik</h3><ul><li>średnio <span class="big">{{POPRAWKI_SREDNIO}}</span> poprawek urzędnika na formularz</li><li><span class="big">0</span> problemów z regułami COI</li><li>zmiana wchodzi, gdy poprawek nie przybywa</li></ul></div>
+  <div class="box io"><h3>Wynik</h3><ul><li>średnio <span class="big">{{POPRAWKI_SREDNIO}}</span> poprawek urzędnika na formularz</li><li><span class="big">0</span> problemów z regułami COI</li><li>zmiana wchodzi dopiero po pomiarze</li></ul></div>
  </div>
 </div>
 
