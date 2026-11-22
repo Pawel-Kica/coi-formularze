@@ -1,12 +1,12 @@
 # eFormatka: z papierowego formularza e-usługa COI
 
-Wgrywasz pusty formularz urzędowy w dowolnym formacie (PDF, skan JPG/PNG, DOC, DOCX, ODS, XLS, XLSX), a REST API zwraca JSON e-usługi COI gotowy do importu. Urzędnik dostaje ten JSON jako szkic obok oryginału i poprawia go w edytorze: pod polem widzi cytat z dokumentu, z którego pole powstało, i „Źródło”, czyli wycinek oryginału z zaznaczonym miejscem. Model nie musi trafić wszystkiego za pierwszym razem: JSON to szkic, który urzędnik sprawdza i poprawia z oryginałem przed oczami.
+Projekt na HackNation 2026, zadanie COI „Cyfryzacja Formularzy”.
+
+Wgrywasz pusty formularz urzędowy w dowolnym formacie (PDF, skan JPG/PNG, DOC, DOCX, ODS, XLS, XLSX), a REST API zwraca JSON e-usługi COI gotowy do importu. Urzędnik widzi go obok oryginału i poprawia w edytorze: pod polem jest cytat z dokumentu, z którego pole powstało, i „Źródło”, czyli wycinek oryginału z zaznaczonym miejscem. Dlatego model nie musi trafić wszystkiego za pierwszym razem.
 
 {{ZRZUT_APLIKACJI}}
 
 ![Schemat: plik → odczyt stron → plan z cytatami → kod buduje i sprawdza JSON COI → urzędnik poprawia w przeglądarce](docs/img/prosty.png)
-
-Projekt na HackNation 2026, zadanie COI „Cyfryzacja Formularzy”.
 
 ## Wyniki
 
@@ -16,15 +16,17 @@ Mierzymy to, co obchodzi urzędnika: ile poprawek musi zrobić w edytorze, zanim
 |---|---|
 | Poprawki urzędnika | średnio **{{POPRAWKI_SREDNIO}}** na formularz, który ma średnio {{POLA_SREDNIO}} pól; szczegóły w tabeli niżej |
 | Pliki, z których powstał JSON | **{{PLIKI_OK}}** z 69 (9 formularzy z zadania we wszystkich formatach) |
-| Problemy z regułami COI | **0**. API nie wypuszcza JSON-a, który łamie schemat COI albo „Reguły techniczne”, tylko odpowiada 422 |
+| Problemy z regułami COI | **0** w każdym z tych JSON-ów. API nie wypuszcza JSON-a, który łamie schemat COI albo „Reguły techniczne”, tylko odpowiada 422, a taki plik liczy się wyżej jako porażka |
 | Czas i koszt | średnio **{{CZAS_FORMULARZ}}** i **{{KOSZT_FORMULARZ}}** na formularz (modele na Eden AI) |
 | Kalibracja sędziów | {{KALIBRACJA}} |
 
-**Jak liczymy poprawki.** Trzech sędziów AI dostaje strony oryginału i nasz JSON jako czytelny konspekt. Każdy osobno wypisuje poprawki, które urzędnik zrobiłby w edytorze: brakujące pole, zmyślone pole, zły typ, złe opcje, zły albo brakujący warunek, złe „wymagane”. Poprawka liczy się, gdy wypiszą ją co najmniej 2 z 3 sędziów. Samych sędziów sprawdziliśmy na 10 błędach, które celowo wstawiliśmy do poprawnych JSON-ów (wiersz „Kalibracja sędziów”). Przepis: `bench/JUDGE-POPRAWKI.md`.
+**Jak liczymy poprawki.** Trzech sędziów AI dostaje strony oryginału i nasz JSON jako czytelny konspekt. Każdy osobno wypisuje poprawki, które urzędnik zrobiłby w edytorze: brakujące pole, zmyślone pole, zły typ, złe opcje, zły albo brakujący warunek, złe „wymagane”. Poprawka liczy się, gdy wypiszą ją co najmniej 2 z 3 sędziów. Sędziami są mocniejsze modele niż nasz planer i odczyt, więc nie oceniają same siebie. Samych sędziów sprawdziliśmy na 10 błędach, które celowo wstawiliśmy do poprawnych JSON-ów (wiersz „Kalibracja sędziów”). Przepis: `bench/JUDGE-POPRAWKI.md`.
 
 ### Każdy formularz z zadania
 
 {{POPRAWKI_TABELA}}
+
+Na tych 9 formularzach stroiliśmy prompty i kod, więc to wynik na znanych dokumentach. {{SPOZA_ZADANIA}}
 
 ### Porównanie podejść
 
@@ -32,7 +34,7 @@ Te same dokumenty i ci sami sędziowie, od najprostszego podejścia (cały plik 
 
 {{PORÓWNANIE}}
 
-JSON-y do oddania są w `output/`: `output/api/` to surowy wynik API, a `output/` to ta sama e-usługa po naszych poprawkach. Liczba poprawek każdego formularza jest w `output/POPRAWKI.md`.
+JSON-y do oddania: główny wynik to `output/api/`, surowy JSON z API, ten sam, który mierzą tabele wyżej. Dodatkowo `output/` ma te same e-usługi poprawione przez zespół o poprawki wskazane przez sędziów, a `output/POPRAWKI.md` mówi, ile ich było na każdym formularzu.
 
 ## Szybki start
 
@@ -78,11 +80,11 @@ Do tego:
 | 3.3.III Zależności | warunki „pokaż, gdy…” na polach i sekcjach, każdy z cytatem; sekcje powtarzalne. Schemat COI nie ma warunku na stronie, więc przejście zależne od odpowiedzi to warunki na sekcjach | `app/llm/planner.py`, `app/builder/` |
 | 3.3.IV Frontend | strona `/`: upload, kilka plików naraz, historia, JSON | [Jak z tego korzystać](#jak-z-tego-korzystać) |
 | 3.3.V Wizualizacja e-usługi | podgląd tak, jak widzi go obywatel, z edytorem; osobno `/preview` | `app/static/preview.html` |
-| 3.3.VI Walidacje i UX | walidatory COI z etykiet (PESEL, NIP, REGON, kod pocztowy, e-mail, ePUAP, ADE, dowód osobisty), „wymagane”, przy telefonie numer kierunkowy i podpowiedź formatu; batch i ZIP | `app/builder/` |
+| 3.3.VI Walidacje i UX (w kryteriach oceny, pkt 8, to punkt V „Walidacje pól”) | walidatory COI z etykiet (PESEL, NIP, REGON, kod pocztowy, e-mail, ePUAP, ADE, dowód osobisty), „wymagane”, przy telefonie numer kierunkowy i podpowiedź formatu; batch i ZIP | `app/builder/` |
 | 5. Formaty, MIME z zawartości, nazwa pliku, limit rozmiaru | wszystko z listy zadania plus `.xls` i `.jpe` | [Walidacja i limity](#walidacja-i-limity) |
-| 5. Tylko tymczasowe przetwarzanie | `convert` trzyma plik w pamięci; `HISTORY_ENABLED=0` wyłącza historię | [Przechowywanie plików](#przechowywanie-plików) |
+| 5. Tylko tymczasowe przetwarzanie | `convert` trzyma plik tylko w pamięci. Historia strony jest domyślnie włączona, `HISTORY_ENABLED=0` ją wyłącza | [Przechowywanie plików](#przechowywanie-plików) |
 | 5. Docker, konfiguracja, README | Alpine, wersje przypięte, użytkownik bez uprawnień, sekrety tylko przy starcie | [Budowanie obrazu Docker](#budowanie-obrazu-docker), [Konfiguracja](#konfiguracja) |
-| 5. Python 3.14+, open source bez copyleft, bez modeli dostępnych tylko przez API | GLM-5.2 (MIT) i Qwen3.5 (Apache-2.0) mają otwarte wagi. Eden AI tylko je hostuje, a dostęp dali organizatorzy zadania. Własny serwer z tymi wagami ustawia się w konfiguracji, bez zmian w kodzie | [Licencje](#licencje) |
+| 5. Python 3.14+, open source bez copyleft, bez zewnętrznych API i modeli dostępnych tylko przez API | GLM-5.2 (MIT) i Qwen3.5 (Apache-2.0) mają otwarte wagi. W czasie działania wołamy je przez Eden AI, czyli zewnętrzne API, do którego dostęp i tokeny dali organizatorzy zadania (pkt 7). Własny serwer z tymi wagami to zmiana konfiguracji | [Znane ograniczenia](#znane-ograniczenia), [Licencje](#licencje) |
 
 ## Architektura
 
@@ -103,7 +105,7 @@ Kroki po kolei:
 2. **Odczyt** (`app/llm/transcribe.py`). PDF renderuje PDFium, pliki biurowe najpierw zamienia na PDF LibreOffice, a wysoki skan z kilkoma stronami kod tnie na strony. Każda strona, zmniejszona do 1024 px, idzie osobno do Qwen3.5-397B-A17B, cztery naraz.
 3. **Plan** (`app/llm/planner.py`, kontrakt `app/plan.py`). GLM-5.2 czyta sam Markdown, bez trybu myślenia, a odpowiedź wymusza schemat JSON. Przebieg 3a ustala strukturę, przebieg 3b warunki.
 4. **Filtr cytatów i naprawy** (`app/quotes.py`, `app/repair.py`). Wypada element bez cytatu w Markdownie (dopasowanie rozmyte, `rapidfuzz`), pole, które kod i tak buduje na stronie „Dane”, i warunek bez oparcia w dokumencie (pole zostaje). Naprawy bez modelu: lista z opcją spoza dokumentu staje się polem tekstowym, podwójne pytanie i podwójne pole zostają raz, adres do korespondencji dostaje pytanie Tak/Nie, gdy dokument mówi „inny niż”.
-5. **Builder** (`app/builder/`). Plan staje się pełną konfiguracją COI. Builder zwraca też mapę dowodów: przy każdym elemencie cytat z dokumentu albo informacja, że dodał go kod.
+5. **Builder** (`app/builder/`). Plan staje się pełną konfiguracją COI. Builder zwraca też mapę dowodów: przy każdym elemencie cytat z dokumentu albo informacja, skąd jest (stronę lub sekcję bez cytatu ułożył model, strony ze Standardów dodał kod).
 6. **Reguły** (`app/rules.py`). Schemat JSON COI i „Reguły techniczne”. Każdy problem kończy żądanie kodem 422.
 
 Tesseract nie czyta treści formularza. Daje tylko ramki słów na skanach (`app/sources.py`, tryb `psm 11`), żeby „Źródło” i nagłówek „W dokumencie” trafiły w miejsce na stronie. PDF z warstwą tekstu i pliki biurowe mają te ramki bez OCR.
@@ -123,7 +125,7 @@ Obraz buduje też `docker compose build`. Potrzebny jest Docker 23+, bo `Dockerf
 - Tesseract z danymi `pol`, tylko do ramek słów na skanach.
 - Proces działa jako użytkownik bez uprawnień (UID 10001), wystawia tylko port 8000 i ma `HEALTHCHECK` na `/health`.
 - Sekrety przychodzą tylko przy uruchomieniu, z `.env`. `.dockerignore` wyklucza `.env`, więc plik nie trafia do obrazu.
-- Nigdzie `latest`. Pakiety systemowe pochodzą z zamrożonej gałęzi Alpine 3.24 bez numerów rewizji, bo Alpine usuwa stare rewizje i przypięty build przestałby się budować.
+- Nigdzie `latest`. Pakiety systemowe pochodzą ze stabilnej gałęzi Alpine 3.24 bez numerów rewizji, bo Alpine usuwa stare rewizje i przypięty build przestałby się budować.
 
 ## Uruchomienie aplikacji
 
@@ -169,7 +171,7 @@ Zmienne środowiskowe albo plik `.env` (`app/config.py`, wzór w `.env.example`)
 | `JWT_TTL_MINUTES` | `60` | Ważność wydanego tokenu |
 | `AUTH_USERNAME`, `AUTH_PASSWORD` | `admin`, brak | Login i hasło do `/api/auth/token`. Bez hasła logowanie lokalne jest wyłączone |
 | `JWT_JWKS_URL` | brak | Zewnętrzny serwer tożsamości (np. Keycloak): API sprawdza tokeny jego kluczami publicznymi, logowanie lokalne jest wyłączone |
-| `LLM_BASE_URL` | `https://api.edenai.run/v3` | API czatu zgodne z OpenAI. Własny serwer z tymi samymi wagami działa bez zmian w kodzie (jego klucz idzie w `EDENAI_API_KEY`) |
+| `LLM_BASE_URL` | `https://api.edenai.run/v3` | API czatu zgodne z OpenAI. Tu wskazuje się własny serwer z tymi samymi wagami (jego klucz idzie w `EDENAI_API_KEY`) |
 | `LLM_MODEL` | `deepinfra/zai-org/GLM-5.2` | Planer: czyta Markdown stron i pisze plan formularza |
 | `TRANSCRIBE_MODEL` | `deepinfra/Qwen/Qwen3.5-397B-A17B` | Model wizyjny, który przepisuje każdą stronę do Markdown |
 | `LLM_TIMEOUT_S` | `1200` | Limit czasu jednego wywołania planera (s) |
@@ -177,9 +179,10 @@ Zmienne środowiskowe albo plik `.env` (`app/config.py`, wzór w `.env.example`)
 | `TRANSCRIBE_WORKERS` | `4` | Ile stron przepisywanych naraz |
 | `TRANSCRIBE_TIMEOUT_S` | `180` | Limit czasu jednej strony (s), potem jedna ponowna próba |
 | `SOFFICE` | `soffice` | Program LibreOffice (na macOS kod sprawdza też ścieżkę aplikacji) |
-| `HISTORY_ENABLED` | `1` | `0` = serwer nie zachowuje żadnego pliku ani wyniku po żądaniu, `/api/history` odpowiada 404. Katalog słowników zostaje, bo trzyma tylko nazwy i wartości |
+| `HISTORY_ENABLED` | `1` | `0` = serwer nie zapisuje wgranych plików ani wyników, `/api/history` odpowiada 404. W pamięci procesu zostają tylko wynik zadania w tle (1 h) i odczyt 16 ostatnich plików ([Przechowywanie plików](#przechowywanie-plików)). Katalog słowników zostaje, bo trzyma tylko nazwy i wartości |
 | `HISTORY_DB` | `history.sqlite3`, w Dockerze `/tmp/history.sqlite3` | Plik SQLite z historią strony i katalogiem słowników |
 | `LIBREOFFICE` | `1` | Tylko przy budowie obrazu (compose czyta go z `.env`): `0` = obraz bez LibreOffice |
+| `REVIEW_RUNS_DIR` | brak | Tylko dla zespołu: katalog przebiegów benchmarku dla strony przeglądu `/review`. Bez niego ta strona odpowiada 404 |
 
 ## REST API
 
@@ -187,7 +190,7 @@ Przy `AUTH_ENABLED=1` każda trasa `/api/...` poza `/api/auth/*` wymaga nagłów
 
 | Trasa | Co robi |
 |---|---|
-| `POST /api/forms/convert` | Jeden plik w polu `file` (multipart) → czysty JSON COI. Z `?evidence=1` → `{"coi", "evidence"}`: przy każdym elemencie cytat z dokumentu albo informacja, że dodał go kod (tego używa strona) |
+| `POST /api/forms/convert` | Jeden plik w polu `file` (multipart) → czysty JSON COI. Z `?evidence=1` → `{"coi", "evidence"}`: skąd jest każdy element (cytat z dokumentu, model albo kod); tego używa strona |
 | `POST /api/forms/jobs` | To samo bez czekania. Te same kontrole pliku od razu, potem `202 {"id", "status_url", "result_url"}`. 429, gdy 20 zadań jest w toku |
 | `GET /api/forms/jobs/{id}/result` | **404, dopóki formularz się liczy** (z `Retry-After`), potem JSON COI albo ten sam kod błędu co `convert`. Wynik czeka 1 h |
 | `GET /api/forms/jobs/{id}` | `{"id", "status": "pending" \| "done" \| "error"}`, przy błędzie też `code` i `detail` |
@@ -219,10 +222,12 @@ Wyślij plik, potem pytaj o adres wyniku, aż przestanie odpowiadać 404:
 
 ```bash
 BASE=http://localhost:8000
-RESULT=$BASE$(curl -s -X POST $BASE/api/forms/jobs -F "file=@wniosek.pdf" | jq -r .result_url)
+JOB=$(curl -s -X POST $BASE/api/forms/jobs -F "file=@wniosek.pdf")
+RESULT=$(echo "$JOB" | jq -r '.result_url // empty')   # puste = plik odrzucony od razu, powód w $JOB
 for i in $(seq 240); do   # do 20 minut
-  CODE=$(curl -s -o wniosek.json -w '%{http_code}' "$RESULT"); [ "$CODE" != 404 ] && break; sleep 5
-done; echo "$CODE"       # 200 = JSON COI, inny kod = błąd opisany w wniosek.json
+  [ -z "$RESULT" ] && { echo "$JOB"; break; }
+  CODE=$(curl -s -o wniosek.json -w '%{http_code}' "$BASE$RESULT"); [ "$CODE" != 404 ] && break; sleep 5
+done; echo "$CODE"         # 200 = JSON COI, inny kod = błąd opisany w wniosek.json
 ```
 
 Zadanie, którego nie ma (nieznane albo wygasłe), też daje 404 na adresie wyniku. Odróżnisz je przez `status_url`: tam 404 znaczy właśnie to, a liczące się zadanie odpowiada `pending`.
@@ -235,6 +240,7 @@ Każdy błąd to JSON z polem `detail`, zwykle `{"detail": "opis po polsku"}`.
 |---|---|
 | 400 | zła nazwa pliku, pusty plik, brak pliku albo więcej niż jeden plik; brak `username` lub `password` przy logowaniu |
 | 401 | brak, zły lub wygasły token; zły login lub hasło (tylko przy `AUTH_ENABLED=1`) |
+| 403 | zmiana albo usunięcie słownika COI, który jest tylko do odczytu |
 | 404 | wynik zadania jeszcze się liczy albo zadanie jest nieznane; `/api/history` przy `HISTORY_ENABLED=0` |
 | 413 | plik większy niż `MAX_FILE_SIZE_MB` |
 | 415 | nieobsługiwane rozszerzenie albo zawartość niezgodna z rozszerzeniem |
@@ -249,19 +255,19 @@ Każdy błąd to JSON z polem `detail`, zwykle `{"detail": "opis po polsku"}`.
 - Rozszerzenia, bez względu na wielkość liter: `.pdf .doc .docx .ods .xlsx .xls .jpg .jpeg .jpe .png`. Inne to 415. `.xls` i `.jpe` to świadomy dodatek do listy z zadania, bo spotykamy je w BIP-ach gmin.
 - Zadanie wymienia DOC jako „.doc .docx”, więc oba rozszerzenia przyjmują oba formaty Worda (gminy publikują DOCX z końcówką `.doc`). Zawartość nadal musi być prawdziwym dokumentem Worda.
 - Nazwa pliku: najwyżej 250 znaków, bez `; : > < / \ | ' * % $`.
-- Typ MIME wynika z zawartości i musi pasować do rozszerzenia; nagłówek `Content-Type` od klienta nie decyduje. PDF: `%PDF`. DOC i XLS: plik OLE2 ze strumieniem `WordDocument` albo `Workbook`. DOCX i XLSX: ZIP z `[Content_Types].xml` i katalogiem `word/` albo `xl/`. ODS: `mimetype` = `application/vnd.oasis.opendocument.spreadsheet`. JPEG: `FF D8 FF`. PNG: sygnatura PNG.
+- Typ MIME wynika z zawartości i musi pasować do rozszerzenia; nagłówek `Content-Type` od klienta nie decyduje. PDF: `%PDF`. DOC: plik OLE2 ze strumieniem `WordDocument`. XLS: plik OLE2 ze strumieniem `Workbook` albo `Book`. DOCX i XLSX: ZIP z `[Content_Types].xml` i katalogiem `word/` albo `xl/`. ODS: `mimetype` = `application/vnd.oasis.opendocument.spreadsheet`. JPEG: `FF D8 FF`. PNG: sygnatura PNG.
 - Rozmiar jest liczony w trakcie odczytu: żądanie kończy się zaraz po przekroczeniu limitu, niezależnie od `Content-Length`.
 
 ### Przechowywanie plików
 
 - `POST /api/forms/convert`: plik jest tylko w pamięci i po odpowiedzi nie zostaje ani on, ani wynik. Na dysk na czas żądania trafiają tylko pliki tymczasowe LibreOffice i Tesseracta. Obrazy stron idą do modelu na Eden AI, nie na dysk. W pamięci procesu zostaje odczyt stron (Markdown) 16 ostatnich plików, żeby propozycje słowników nie płaciły za ten sam odczyt drugi raz; znika przy restarcie.
-- `POST /api/forms/jobs`: plik jest w pamięci procesu do końca zadania, także po błędzie. Zostaje sam wynik JSON, przez 1 h. Restart serwera zapomina wszystkie zadania.
-- Historia strony `/` to funkcja interfejsu, nie API: zachowuje oryginał i wynik, żeby urzędnik mógł wrócić do pliku. W Dockerze leży w `/tmp` w pamięci kontenera. `HISTORY_ENABLED=0` wyłącza ją całkiem.
+- `POST /api/forms/jobs`: plik jest w pamięci procesu do końca zadania, także gdy kończy się ono błędem. Zostaje sam wynik JSON, przez 1 h. Restart serwera zapomina wszystkie zadania.
+- Historia strony `/` to funkcja interfejsu, nie API: zachowuje oryginał i wynik, żeby urzędnik mógł wrócić do pliku. Jest domyślnie włączona. W Dockerze leży w `/tmp` w pamięci kontenera i znika przy restarcie, a uruchomiona natywnie to plik SQLite na dysku (`HISTORY_DB`). `HISTORY_ENABLED=0` wyłącza ją całkiem.
 
 ## Jak doszliśmy do tej architektury
 
 Każdy krok rozstrzygnął pomiar na formularzach COI z zadania:
-1. **Lokalny model był za słaby.** Zaczęliśmy od qwen3 30B na laptopie. Działał od pliku do JSON-a, ale mocniejszy model na tym samym tekście i promptach pokazał, że wąskim gardłem jest model, nie odczyt ani kod.
+1. **Lokalny model był za słaby.** Zaczęliśmy od qwen3 30B na laptopie. Działał od pliku do JSON-a, ale mocniejszy model zamknięty na tym samym tekście i promptach (tylko pomiar, nie produkt) pokazał, że wąskim gardłem jest model, nie odczyt ani kod.
 2. **Obrazy stron zamiast tekstu.** Na Eden AI porównaliśmy tekst z naszej ekstrakcji i Tesseracta z obrazami stron przepisanymi przez Qwen3.5. Obrazy wygrały, najmocniej na skanach, i zostały jedyną ścieżką.
 3. **GLM-5.2 jako planer.** Na tym samym Markdownie porównaliśmy cztery modele. GLM-5.2 dał najlepszy plan, 10 razy szybciej niż Qwen3.5 w tej roli i za podobne pieniądze.
 4. **Potem pętla jakości.** Każda zmiana promptu albo kodu po modelu wchodziła tylko wtedy, gdy nie przybywało poprawek urzędnika i problemów z regułami.
@@ -274,7 +280,7 @@ Tabele, czasy, koszty i odrzucone pomysły są w [docs/historia.md](docs/histori
 
 - Najsłabsze są warunki na długich formularzach (np. 16-stronicowy wniosek „3 w 1”). Model znajduje część zależności, resztę urzędnik ustawia w panelu „Edycja” wyborem „pokaż, gdy…”.
 - Ten sam plik wysłany dwa razy może dać trochę inny szkic, bo modele nie są powtarzalne co do bitu. Dlatego każdą zmianę mierzyliśmy na kilku dokumentach.
-- Modele działają na Eden AI, do którego dostęp dali organizatorzy zadania. Wagi są otwarte, więc te same modele można postawić na własnym serwerze z API zgodnym z OpenAI: adres w `LLM_BASE_URL`, nazwy w `LLM_MODEL` i `TRANSCRIBE_MODEL`, klucz tego serwera w `EDENAI_API_KEY`.
+- Modele działają na Eden AI, czyli przez zewnętrzne API, do którego dostęp dali organizatorzy zadania. Wagi są otwarte, więc te same modele można postawić na własnym serwerze z API zgodnym z OpenAI: adres w `LLM_BASE_URL`, nazwy w `LLM_MODEL` i `TRANSCRIBE_MODEL`, klucz tego serwera w `EDENAI_API_KEY`. Tej drogi nie testowaliśmy, a oba modele są duże, więc potrzebują serwera z kilkoma GPU.
 - Formularz dłuższy niż 30 stron jest czytany do 30. strony.
 - Zadania w tle i odczyty stron żyją w pamięci jednego procesu, więc usługa działa jako jedna instancja. Kilka instancji za load balancerem wymagałoby wspólnej kolejki zadań.
 
