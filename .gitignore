@@ -2,9 +2,9 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+.ruff_cache/
 .env
 data/
-bench/runs/
 .DS_Store
 history.sqlite3
 history-pdf/
