@@ -55,7 +55,7 @@ Zapisz plik pod ścieżką z polecenia (nadpisz go) i odpowiedz jedną linią: `
 
 ## Przepis (orkiestrator lub implementer)
 
-Wszystko z `/tmp/loop-<name>` albo `~/coi-formularze`, bez sieci i bez Edena (sędziowie to subagenci, nie Eden).
+Wszystko z katalogu głównego repo, bez sieci i bez Edena (sędziowie to osobni agenci AI, nie Eden).
 
 1. **Kit.** Pliki z przebiegu `bench.run_all` (papier = PDF formularza z `data/coi/<N>. .../` dla każdego formatu):
    ```

@@ -57,7 +57,7 @@ Drobiazgi, które nie są defektem: inna kolejność pól lub inny podział na s
 Jedna komenda na plik (sprawdza dane i dopisuje linię do `<dir>/verdicts.jsonl`):
 
 ```bash
-cd ~/coi-formularze && uv run python -I bench/blind.py add <dir> <id> --verdict X --defects-x 2 --defects-y 6 \
+cd <katalog repo> && uv run python -I bench/blind.py add <dir> <id> --verdict X --defects-x 2 --defects-y 6 \
   --reasons "Y gubi tabelę »Wykaz psów« i warunek przy pełnomocniku; X ma tylko zły typ daty i zbędne pole »PESEL«"
 ```
 

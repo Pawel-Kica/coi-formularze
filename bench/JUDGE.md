@@ -56,7 +56,7 @@ W każdym innym przypadku `źle`.
 Jedna linia na plik, przez walidator (sprawdza pola i dopisuje do `<run_dir>/judge/verdicts.jsonl`):
 
 ```bash
-cd ~/coi-formularze && uv run python -I bench/judge_report.py bench/runs/drive-baseline --add <<'EOF'
+cd <katalog repo> && uv run python -I bench/judge_report.py bench/runs/drive-baseline --add <<'EOF'
 {"file": "04_usuniecie_drzewa_buczkowice.doc", "verdict": "źle", "category": "brak pól", "reasons": ["brak tabeli »Wykaz drzew«", "brak załącznika »zgoda właściciela«"], "paper_elements": 18, "covered": 13, "basis": "original.txt"}
 EOF
 ```
