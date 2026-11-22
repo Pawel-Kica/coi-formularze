@@ -1,7 +1,7 @@
 """Post-model checks: condition support (app.quotes) and plan repairs (app.repair).
 Each test is one defect a judge found on a real form, rebuilt on a made-up paper."""
 
-from app.plan import Condition, FieldType, Page, Plan, PlanField, Section
+from app.plan import Condition, FieldType, Page, Plan, PlanField, Section, Statement
 from app.quotes import filter_plan, quote_lines
 from app.repair import CORRESPONDENCE_QUESTION, option_on_paper
 
@@ -266,6 +266,30 @@ def test_a_condition_quoting_the_heading_of_the_part_the_target_sits_in_is_kept(
     assert s2.show_if is not None
     # the part I heading does not reach a target printed under part II
     assert s3.show_if is None and any("condition on s3" in n for n in notes)
+    # the part II heading reaches its own part ("Imię" printed in both parts is no list item), not part I
+    from app.quotes import _under_heading, normalize
+
+    second = normalize("II. Wniosek o przyznanie nagrody sportowej")
+    assert _under_heading(second, 8, PARTS) and not _under_heading(second, 5, PARTS)
+
+
+def test_a_trigger_line_read_twice_is_no_list_of_parts():
+    # a cut JPG holds the seam line on both pages: no part heading, the far target loses its condition
+    paper = """Wniosek o zezwolenie
+Nazwa inwestycji ____
+Czy roboty wymagają objazdu: tak / nie
+Czy roboty wymagają objazdu: tak / nie
+Długość objazdu ____
+Termin rozpoczęcia ____
+Termin zakończenia ____
+Powierzchnia zajęcia ____
+Kierownik budowy ____
+"""
+    trig = f("f1", "Czy roboty wymagają objazdu?", "Czy roboty wymagają objazdu", FieldType.RADIO, ["Tak", "Nie"])
+    c = Condition(field="f1", options=["Tak"], quote="Czy roboty wymagają objazdu")
+    out, notes = filter_plan(plan(sec("s1", [f("f0", "Nazwa", "Nazwa inwestycji"), trig,
+                                             f("f9", "Kierownik budowy", "Kierownik budowy", show_if=c)])), paper)
+    assert fields_of(out)["f9"].show_if is None and any("condition on f9" in n for n in notes)
 
 
 def test_a_statement_printed_twice_is_kept_once_but_a_different_one_stays():
@@ -288,6 +312,36 @@ def test_a_statement_printed_twice_is_kept_once_but_a_different_one_stays():
     p.pages[0].sections[0].fields[0] = ask.model_copy(update={"options": ["Mam", "Nie mam", "Nie wiem"]})
     out, _ = filter_plan(p, paper)
     assert len(out.statements) == 1
+    # statements that differ only in their item numbers are two
+    p = plan(sec("s1", [f("f4", "Nazwa inwestycji", "4. Nazwa inwestycji")]))
+    p.statements = [Statement(text="Spełniam warunek a)", quote="Nazwa inwestycji"),
+                    Statement(text="Spełniam warunek b)", quote="Nazwa inwestycji")]
+    assert len(filter_plan(p, PAPER)[0].statements) == 2
+
+
+def test_a_consent_also_printed_elsewhere_is_no_tak_nie_question():
+    from app.plan import Statement
+
+    paper = """Wniosek o stypendium
+Nazwa szkoły ____
+Wyrażam zgodę na przetwarzanie moich danych osobowych w celu rozpatrzenia wniosku.
+Wyrażam zgodę na przetwarzanie moich danych osobowych w celach promocyjnych: TAK / NIE
+"""
+    promo = f("f2", "Zgoda na cele promocyjne", "Wyrażam zgodę na przetwarzanie moich danych osobowych w celach promocyjnych",
+              FieldType.RADIO, ["Tak", "Nie"])
+    p = plan(sec("s1", [f("f1", "Nazwa szkoły", "Nazwa szkoły"), promo]))
+    p.statements = [Statement(text="Zgadzam się na przetwarzanie danych", quote="Wyrażam zgodę na przetwarzanie moich danych osobowych")]
+    assert len(filter_plan(p, paper)[0].statements) == 1
+    # a question the conditions pass added counts only while a condition uses it
+    paper = "Wniosek\nNazwa szkoły ____\nOświadczam, że jestem właścicielem nieruchomości.\nOkres ____\nKwota ____\nTermin ____\nKopia aktu ____\n"
+    owner = "Oświadczam, że jestem właścicielem nieruchomości"
+    q = PlanField(id="f2", label="Czy jesteś właścicielem?", type=FieldType.RADIO, options=["Tak", "Nie"], quote=owner,
+                  required=True, synthesized=True)
+    copy = f("f3", "Kopia aktu", "Kopia aktu", FieldType.FILE_UPLOADER, show_if=Condition(field="f2", options=["Tak"], quote=owner))
+    p = plan(sec("s1", [f("f1", "Nazwa szkoły", "Nazwa szkoły"), q, copy]))
+    p.statements = [Statement(text="Jestem właścicielem nieruchomości", quote=owner)]
+    out, _ = filter_plan(p, paper)
+    assert "f2" not in fields_of(out) and len(out.statements) == 1
 
 
 def test_a_full_name_asked_again_after_its_two_split_fields_goes():
@@ -298,6 +352,16 @@ def test_a_full_name_asked_again_after_its_two_split_fields_goes():
     out, notes = filter_plan(plan(sec("s1", name), sec("s2", [again, other], title="Zgoda")), paper)
     assert "f8" not in fields_of(out) and "f9" in fields_of(out)
     assert any(n.startswith("duplicate: field f8") for n in notes)
+    # a bare "Imię i nazwisko" is another person ("Dane trenera")
+    paper = "Dane kandydata\nImię ____ Nazwisko ____\nDane trenera\nImię i nazwisko ____\n"
+    p = plan(sec("s1", [f("f1", "Imię", "Imię"), f("f2", "Nazwisko", "Nazwisko")], title="Dane kandydata"),
+             sec("s2", [f("f3", "Imię i nazwisko", "Imię i nazwisko")], title="Dane trenera"))
+    assert "f3" in fields_of(filter_plan(p, paper)[0])
+    # split fields only some citizens see do not count
+    kind = f("f5", "Rodzaj robót", "3. Rodzaj robót", FieldType.RADIO, ["Budowa nowej sieci", "Roboty inne niż wymienione"])
+    some = Condition(field="f5", options=["Budowa nowej sieci"], quote="jeżeli wnioskodawca nie jest właścicielem terenu")
+    p = plan(sec("s0", [kind]), sec("s1", [x.model_copy() for x in name], show_if=some), sec("s2", [again], title="Zgoda"))
+    assert "f8" in fields_of(filter_plan(p, paper + PAPER)[0])
 
 
 def test_a_condition_over_every_option_of_a_required_single_choice_is_cleared():
@@ -330,6 +394,64 @@ def test_a_field_shown_by_its_own_condition_is_required_unless_the_paper_says_op
     # a field without a condition keeps the model's choice
     out, _ = filter_plan(plan(sec("s1", [f("f4", "Nazwa inwestycji", "4. Nazwa inwestycji", required=False)])), PAPER)
     assert fields_of(out)["f4"].required is False
+    # the paper says optional in the section title or in the condition's sentence
+    loose = cond.model_copy(update={"quote": "2. Sposób oznakowania: (można podać numer)"})
+    p = plan(sec("s1", [MARKING]), sec("s2", [f("f3", "Numer tablicy", "tablica", show_if=cond.model_copy(), required=False)],
+                                       title="Oznakowanie (opcjonalnie)"),
+             sec("s3", [f("f4", "Numer taśmy", "taśma", show_if=loose, required=False)]))
+    got = fields_of(require_shown_only(p))
+    assert got["f3"].required is False and got["f4"].required is False
+
+
+def require_shown_only(p):
+    from app.repair import require_shown
+
+    p = p.model_copy(deep=True)
+    require_shown(p)
+    return p
+
+
+def test_a_date_in_a_gated_address_section_keeps_the_gate_and_so_does_the_address():
+    paper = """Wniosek o wpis
+Czy zdarzenie miało miejsce poza nieruchomością? tak / nie
+Opis zdarzenia ____
+Uwagi ____
+Inne informacje ____
+Data zdarzenia ____
+Miejscowość ____
+Ulica ____
+"""
+    trig = f("f1", "Czy zdarzenie miało miejsce poza nieruchomością?", "Czy zdarzenie miało miejsce poza nieruchomością?",
+             FieldType.RADIO, ["Tak", "Nie"])
+    gate = Condition(field="f1", options=["Tak"], quote="Czy zdarzenie miało miejsce poza nieruchomością?")
+    p = plan(sec("s1", [trig, f("f2", "Opis zdarzenia", "Opis zdarzenia")]),
+             sec("s2", [f("f5", "Data zdarzenia", "Data zdarzenia", FieldType.DATEPICKER),
+                        f("f6", "Miejscowość", "Miejscowość"), f("f7", "Ulica", "Ulica")],
+                 title="Miejsce zdarzenia", address=True, show_if=gate))
+    out, notes = filter_plan(p, paper)
+    s1, s2, s3 = out.pages[0].sections
+    assert [x.id for x in s2.fields] == ["f6", "f7"] and [x.id for x in s3.fields] == ["f5"]
+    assert s2.show_if.field == "f1" and s3.show_if.field == "f1" and not [n for n in notes if n.startswith("condition")]
+
+
+def test_a_condition_on_every_field_of_an_address_gates_the_section_with_no_second_question():
+    paper = """Wniosek
+Nazwa inwestycji ____
+Adres do korespondencji (jeżeli jest inny niż adres zamieszkania)
+Czy adres jest inny niż adres zamieszkania? tak / nie
+Ulica ____
+Miejscowość ____
+"""
+    own = f("f2", "Czy adres jest inny niż adres zamieszkania?", "Czy adres jest inny niż adres zamieszkania?",
+            FieldType.RADIO, ["Tak", "Nie"])
+    g = Condition(field="f2", options=["Tak"], quote="jeżeli jest inny niż adres zamieszkania")
+    p = plan(sec("s1", [f("f1", "Nazwa", "Nazwa inwestycji"), own]),
+             sec("s2", [f("f3", "Ulica", "Ulica", show_if=g), f("f4", "Miejscowość", "Miejscowość", show_if=g.model_copy())],
+                 title="Adres do korespondencji", address=True))
+    out, _ = filter_plan(p, paper)
+    s1, s2 = out.pages[0].sections
+    assert [x.id for x in s1.fields] == ["f1", "f2"] and CORRESPONDENCE_QUESTION not in [x.label for x in s1.fields]
+    assert s2.show_if.field == "f2" and all(x.show_if is None for x in s2.fields)
 
 
 def test_gold_plans_pass_untouched():
@@ -348,7 +470,9 @@ def test_gold_plans_pass_untouched():
         gold = Plan.model_validate_json((GOLD / f"form{form}.json").read_text())
         doc = extract(path.read_bytes(), path.name)
         out, notes = filter_plan(gold, doc.text, threshold_for(doc.method))
-        assert not [n for n in notes if n.startswith(("condition", "options", "duplicate", "correspondence"))], (form, notes)
+        assert not [n for n in notes if n.startswith(("condition", "options", "duplicate", "correspondence", "address"))], (form, notes)
         assert n_conditions(out) == n_conditions(gold)
+        assert {x.id: x.required for x in fields_of(out).values()} == {x.id: x.required for x in fields_of(gold).values()}, form
+        assert len(out.statements) == len(gold.statements), form
         total += n_conditions(out)
     assert total == 37

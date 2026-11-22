@@ -13,19 +13,23 @@ what the model tends to get wrong and the paper text can settle:
   the next section when that one repeats the title and has fields of its own; the first stays, required
   if either was, conditions move to it;
 - a statement printed twice (the same words in two consent blocks of the paper) is kept once, required if
-  either was; one whose paper line the plan already asks as a Tak/Nie question ("Oświadczam, że nieruchomość
-  wyposażona jest w kompostownik" as both) goes: a required consent would make everyone declare it;
-- an "Imię i nazwisko X" asked after "Imię X" and "Nazwisko X" (a consent block naming the candidate again)
-  goes, outside repeating sections;
+  either was;
+- an "Imię i nazwisko X" asked after "Imię X" and "Nazwisko X" every citizen sees (a consent block naming the
+  candidate again) goes, outside repeating sections;
 - a field of an address section that is not an address line (a choice, date, file...) moves to the section
-  before it (or a section of its own there, with the address section's condition): the builder replaces an
-  address section's fields with the Standards block and would lose it, e.g. the model's own "Czy adres do
-  korespondencji jest inny?" put inside the address it gates;
+  before it (or a section of its own there; one with the address section's condition goes right after it): the
+  builder replaces an address section's fields with the Standards block and would lose it, e.g. the model's own
+  "Czy adres do korespondencji jest inny?" put inside the address it gates; a condition every field left in an
+  address section shares moves up to the section, for the same reason;
 - an applicant's "Adres do korespondencji" section without a condition: when the paper says it is
   filled only if it differs ("inny niż", "różni się") a Tak/Nie question is added before it and the
   section shows on "Tak" (none is added when the model already gates it with its own question);
   otherwise the section goes, the "Dane" page already asks for the address.
 Returns human-readable notes, like the quote filter.
+
+`drop_asked_statements(plan, text)` runs at the end of `filter_plan`, once the questions that stay are known: a
+statement whose every paper printing the plan asks as a Tak/Nie question ("Oświadczam, że nieruchomość wyposażona jest
+w kompostownik" as both) goes, a required consent would make everyone declare it.
 
 `require_shown(plan)` runs at the very end of `filter_plan`, once the conditions that stay are known: a field
 shown by its own condition is the detail of a choice ("[ ] tatuaż ____", "Inna dyscyplina", the date of the
@@ -172,68 +176,87 @@ def _dedupe_fields(plan: Plan, notes: list[str]) -> None:
         _drop_empty(plan)
 
 
-def _dedupe_statements(plan: Plan, text: str, notes: list[str]) -> None:
-    """The same statement twice ("Znam regulamin ..." in the adult's and the minor's consent block) is one checkbox;
-    a statement whose paper line is a Tak/Nie question of the plan is that question's "Tak", not a consent."""
-    kept: dict[str, object] = {}
+def _dedupe_statements(plan: Plan, notes: list[str]) -> None:
+    """The same statement twice ("Znam regulamin ..." in the adult's and the minor's consent block) is one checkbox."""
+    kept: dict[tuple, object] = {}
     for st in plan.statements:
-        first = kept.setdefault(normalize(st.text), st)
+        # every word counts: normalize() drops item numbering, so "warunek a)" and "warunek b)" would merge
+        first = kept.setdefault(tuple(re.findall(r"\w+", st.text.lower())), st)
         if first is not st:
             first.required = first.required or st.required
             notes.append(f"duplicate: statement '{st.text[:60]}' repeats an earlier one, dropped")
+    plan.statements = list(kept.values())
+
+
+def drop_asked_statements(plan: Plan, text: str) -> list[str]:
+    """A statement whose paper line is a Tak/Nie question of the plan is that question's "Tak", not a consent: it goes.
+    Runs at the end of `filter_plan`, when the questions the conditions pass added that no condition uses are gone."""
     asked = [quote_lines(f.quote, text) for _, s in _sections(plan) for f in s.fields
              if f.type in CHOICE_TYPES and {normalize(o) for o in f.options} == YES_NO]
-    out = []
-    for st in kept.values():
+    notes, out = [], []
+    for st in plan.statements:
         at = quote_lines(st.quote, text)
-        if at and any(q and _overlap(at, q) for q in asked):
+        # every printing of it is a question's line (a consent may also open a promo "TAK / NIE" line)
+        if at and all(any(q and _overlap([x], q) for q in asked) for x in at):
             notes.append(f"duplicate: statement '{st.text[:60]}' is already a Tak/Nie question, dropped")
         else:
             out.append(st)
     plan.statements = out
+    return notes
 
 
 _FULL_NAME = re.compile(r"^imię i nazwisko(.*)$")
 
 
 def _drop_repeated_full_name(plan: Plan, notes: list[str]) -> None:
-    """"Imię i nazwisko kandydata" after "Imię kandydata" and "Nazwisko kandydata": the paper names the person again."""
+    """"Imię i nazwisko kandydata" after "Imię kandydata" and "Nazwisko kandydata": the paper names the person again.
+    Only with a name after it (a bare "Imię i nazwisko" under "Dane trenera" is another person) and only after fields
+    every citizen sees."""
     asked: set[str] = set()
     for _, s in _sections(plan):
         kept = []
         for f in s.fields:
             lab = normalize(f.label)
             m = _FULL_NAME.match(lab)
-            if (m and not s.repeating and f.show_if is None and f.type == FieldType.TEXT_FIELD
+            if (m and m.group(1).strip() and not s.repeating and f.show_if is None and f.type == FieldType.TEXT_FIELD
                     and {f"imię{m.group(1)}", f"nazwisko{m.group(1)}"} <= asked):
                 notes.append(f"duplicate: field {f.id} '{f.label}' asks again for a name already split into two fields, dropped")
                 continue
             kept.append(f)
-            if not s.repeating:
+            if not s.repeating and s.show_if is None and f.show_if is None:
                 asked.add(lab)
         s.fields = kept
     _drop_empty(plan)
 
 
 def _split_address_questions(plan: Plan, notes: list[str]) -> None:
-    """Fields the Standards address block would swallow (anything but a text line) leave the address section."""
+    """Fields the Standards address block would swallow (anything but a text line) leave the address section; then a
+    condition every field left in it shares gates the section (the block would drop it with the fields)."""
     for page in plan.pages:
         out: list[Section] = []
         for sec in page.sections:
             odd = [f for f in sec.fields if f.type != FieldType.TEXT_FIELD] if sec.address and not sec.repeating else []
+            after = None
             if odd and len(odd) < len(sec.fields):
                 sec.fields = [f for f in sec.fields if f not in odd]
                 # the moved fields keep the section's condition, unless one of them is its trigger
                 cond = sec.show_if if sec.show_if and sec.show_if.field not in {f.id for f in odd} else None
                 prev = out[-1] if out else None
-                if prev and cond is None and not prev.address and not prev.repeating and prev.show_if is None:
+                if cond:  # after the address, which stays right after its trigger's section (`quotes._supported`)
+                    after = Section(id=f"s{odd[0].id}", title=sec.title, fields=odd, show_if=cond.model_copy())
+                elif prev and not prev.address and not prev.repeating and prev.show_if is None:
                     prev.fields += odd
                 else:
-                    out.append(Section(id=f"s{odd[0].id}", title=sec.title, fields=odd,
-                                       show_if=cond.model_copy() if cond else None))
+                    out.append(Section(id=f"s{odd[0].id}", title=sec.title, fields=odd))
                 notes.append(f"address: fields {[f.id for f in odd]} of section {sec.id} '{sec.title}' are not address "
-                             "lines, moved before it")
-            out.append(sec)
+                             f"lines, moved {'after' if cond else 'before'} it")
+            conds = {f.show_if.model_dump_json() if f.show_if else None for f in sec.fields}
+            if sec.address and not sec.repeating and sec.show_if is None and len(conds) == 1 and None not in conds:
+                sec.show_if = sec.fields[0].show_if
+                for f in sec.fields:
+                    f.show_if = None
+                notes.append(f"address: the condition of every field of section {sec.id} '{sec.title}' gates the section")
+            out += [sec, after] if after else [sec]
         page.sections = out
 
 
@@ -296,7 +319,8 @@ def require_shown(plan: Plan) -> list[str]:
     for _, s in _sections(plan):
         for f in s.fields:
             if (f.show_if is None or f.required or f.type in (FieldType.CHECKBOX, FieldType.TEXT_BLOCK)
-                    or any(_OPTIONAL.search(x.lower()) for x in (f.label, f.quote, f.description))):
+                    or any(_OPTIONAL.search(x.lower()) for x in (f.label, f.quote, f.description, f.show_if.quote,
+                                                                 s.title, s.description))):
                 continue
             f.required = True
             notes.append(f"required: field {f.id} '{f.label}' is shown only for its condition, required then")
@@ -309,7 +333,7 @@ def repair_plan(plan: Plan, text: str) -> list[str]:
     _clean_options(plan, text, notes)
     _dedupe_questions(plan, text, notes)
     _dedupe_fields(plan, notes)
-    _dedupe_statements(plan, text, notes)
+    _dedupe_statements(plan, notes)
     _drop_repeated_full_name(plan, notes)
     _split_address_questions(plan, notes)
     _correspondence_address(plan, text, notes)

@@ -21,7 +21,8 @@
   a field also stops being required);
 - between the two, `app.repair.repair_plan` fixes invented options, doubled questions and
   the applicant's correspondence address;
-- last, a field shown by its own condition becomes required when shown (`app.repair.require_shown`).
+- last, a statement the plan already asks as a Tak/Nie question goes (`app.repair.drop_asked_statements`) and a
+  field shown by its own condition becomes required when shown (`app.repair.require_shown`).
 Returns the cleaned plan and human-readable notes for everything dropped.
 """
 
@@ -284,10 +285,14 @@ def _under_heading(q: str, target_line: int, text: str) -> bool:
     if len(q.split()) < 3 or len(occ) < 2:
         return False
     first = occ[0]
-    # the list = up to 3 lines around its first printing, never past its next printing (the part heading)
-    siblings = {lines[i] for i in range(max(0, first - 3), min(occ[1], first + 4)) if not hit(lines[i])}
-    heads = [i for i in range(first + 1, min(target_line, len(lines))) if hit(lines[i]) or lines[i] in siblings]
-    return bool(heads) and hit(lines[heads[-1]])
+    # the list = up to 3 lines around its first printing, never past a line printed in it already (the part headings
+    # begin); its items = those printed again later. None: no list, e.g. a line both pages of a cut JPG hold
+    start, end = max(0, first - 3), first + 1
+    while end < min(len(lines), first + 4) and lines[end] not in lines[start:end]:
+        end += 1
+    siblings = {line for line in lines[start:end] if not hit(line) and line in lines[end:]}
+    heads = [i for i in range(end, min(target_line, len(lines))) if hit(lines[i]) or lines[i] in siblings]
+    return bool(siblings) and bool(heads) and hit(lines[heads[-1]])
 
 
 def _supported(c, trig, target, text: str, next_section: bool | None) -> bool:
@@ -443,13 +448,24 @@ def filter_plan(plan: Plan, text: str, threshold: float | None = None) -> tuple[
     order: dict[str, int] = {}
     sec_no: dict[str, int] = {}  # section or field id -> number of its section
     fields = {}
-    for n, sec in enumerate(s for page in plan.pages for s in page.sections):
+    secs = [s for page in plan.pages for s in page.sections]
+    for n, sec in enumerate(secs):
         order[sec.id] = len(order)
         sec_no[sec.id] = n
         for f in sec.fields:
             order[f.id] = len(order)
             sec_no[f.id] = n
             fields[f.id] = f
+
+    def right_after(target_id: str, c) -> bool:
+        """The section right after the trigger's one, or after address sections of its title the same condition still
+        shows (an address section's non-address fields split off after it, `app.repair._split_address_questions`)."""
+        n, t = sec_no[target_id], secs[sec_no[target_id]]
+        key = (c.field, set(c.options), c.negate)
+        return n > sec_no[c.field] and all(
+            s.address and s.title == t.title and s.show_if
+            and (s.show_if.field, set(s.show_if.options), s.show_if.negate) == key
+            for s in secs[sec_no[c.field] + 1:n])
 
     def check(target_id: str, target, own_fields: set[str], is_section: bool = False) -> None:
         c = target.show_if
@@ -471,7 +487,7 @@ def filter_plan(plan: Plan, text: str, threshold: float | None = None) -> tuple[
             opts = _fix_options(c.options, trig.options)
             if opts:
                 c.options = opts
-                if not _supported(c, trig, target, text, sec_no[target_id] - sec_no[c.field] == 1 if is_section else None):
+                if not _supported(c, trig, target, text, right_after(target_id, c) if is_section else None):
                     why = f"quote only repeats the trigger {c.field}, the target is not on the chosen option's line: {c.quote!r}"
             else:
                 why = f"options {c.options} not among {trig.options}"
@@ -497,9 +513,12 @@ def filter_plan(plan: Plan, text: str, threshold: float | None = None) -> tuple[
         page.sections = [s for s in page.sections if s.fields]
     plan.pages = [p for p in plan.pages if p.sections]
 
-    # 4. A field shown by its own condition is required when shown (`app.repair.require_shown`). A flag, not a drop:
-    # its notes stay out of `dropped`, which bench.run_all counts as the hallucination proxy.
-    from app.repair import require_shown
+    # 4. A statement the plan asks as a Tak/Nie question goes (`app.repair.drop_asked_statements`, after 3: a question
+    # the conditions pass added counts only when it stays). A field shown by its own condition is required when shown
+    # (`app.repair.require_shown`). A flag, not a drop: its notes stay out of `dropped`, which bench.run_all counts as
+    # the hallucination proxy.
+    from app.repair import drop_asked_statements, require_shown
 
+    dropped += drop_asked_statements(plan, text)
     require_shown(plan)
     return plan, dropped
