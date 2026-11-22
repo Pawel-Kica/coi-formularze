@@ -268,6 +268,18 @@ def test_a_condition_quoting_the_heading_of_the_part_the_target_sits_in_is_kept(
     assert s3.show_if is None and any("condition on s3" in n for n in notes)
 
 
+def test_a_statement_printed_twice_is_kept_once_but_a_different_one_stays():
+    from app.plan import Statement
+
+    p = plan(sec("s1", [f("f4", "Nazwa inwestycji", "4. Nazwa inwestycji")]))
+    p.statements = [Statement(text="Znam regulamin przyznawania stypendiów.", quote="Nazwa inwestycji", required=False),
+                    Statement(text="Znam regulamin przyznawania nagród.", quote="Nazwa inwestycji"),
+                    Statement(text="Znam regulamin przyznawania stypendiów", quote="Nazwa inwestycji")]
+    out, notes = filter_plan(p, PAPER)
+    assert [st.text for st in out.statements] == ["Znam regulamin przyznawania stypendiów.", "Znam regulamin przyznawania nagród."]
+    assert out.statements[0].required and any(n.startswith("duplicate: statement") for n in notes)
+
+
 def test_a_condition_over_every_option_of_a_required_single_choice_is_cleared():
     # "Opinia klubu" printed in every part of a paper joining request kinds: shown for each kind = always shown
     every = Condition(field="f5", options=["Budowa nowej sieci", "Roboty inne niż wymienione"], quote="3. Rodzaj robót")

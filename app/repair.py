@@ -12,6 +12,8 @@ what the model tends to get wrong and the paper text can settle:
   once: an identical field (label, type, options, hint, condition) later in the same section, or opening
   the next section when that one repeats the title and has fields of its own; the first stays, required
   if either was, conditions move to it;
+- a statement printed twice (the same words in two consent blocks of the paper) is kept once, required if
+  either was;
 - a field of an address section that is not an address line (a choice, date, file...) moves to the section
   before it (or a section of its own there, with the address section's condition): the builder replaces an
   address section's fields with the Standards block and would lose it, e.g. the model's own "Czy adres do
@@ -167,6 +169,17 @@ def _dedupe_fields(plan: Plan, notes: list[str]) -> None:
         _drop_empty(plan)
 
 
+def _dedupe_statements(plan: Plan, notes: list[str]) -> None:
+    """The same statement twice ("Znam regulamin ..." in the adult's and the minor's consent block) is one checkbox."""
+    kept: dict[str, object] = {}
+    for st in plan.statements:
+        first = kept.setdefault(normalize(st.text), st)
+        if first is not st:
+            first.required = first.required or st.required
+            notes.append(f"duplicate: statement '{st.text[:60]}' repeats an earlier one, dropped")
+    plan.statements = list(kept.values())
+
+
 def _split_address_questions(plan: Plan, notes: list[str]) -> None:
     """Fields the Standards address block would swallow (anything but a text line) leave the address section."""
     for page in plan.pages:
@@ -261,6 +274,7 @@ def repair_plan(plan: Plan, text: str) -> list[str]:
     _clean_options(plan, text, notes)
     _dedupe_questions(plan, text, notes)
     _dedupe_fields(plan, notes)
+    _dedupe_statements(plan, notes)
     _split_address_questions(plan, notes)
     _correspondence_address(plan, text, notes)
     return notes
