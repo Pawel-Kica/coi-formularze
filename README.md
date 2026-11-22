@@ -245,7 +245,7 @@ RESULT=$(echo "$JOB" | jq -r '.result_url // empty')   # puste = plik odrzucony 
 for i in $(seq 240); do   # do 20 minut
   [ -z "$RESULT" ] && { echo "$JOB"; break; }
   CODE=$(curl -s -o wniosek.json -w '%{http_code}' "$BASE$RESULT"); [ "$CODE" != 404 ] && break; sleep 5
-done; echo "$CODE"         # 200 = JSON COI, inny kod = błąd opisany w wniosek.json
+done; echo "$CODE"         # 200 = JSON COI, inny kod = błąd opisany w wniosek.json, pusto = plik odrzucony
 ```
 
 Zadanie, którego nie ma (nieznane albo wygasłe), też daje 404 na adresie wyniku. Odróżnisz je przez `status_url`: tam 404 znaczy właśnie to, a liczące się zadanie odpowiada `pending`.
@@ -280,7 +280,7 @@ Każdy błąd to JSON z polem `detail`, zwykle `{"detail": "opis po polsku"}`.
 
 ### Przechowywanie plików
 
-- `POST /api/forms/convert`: plik jest tylko w pamięci i po odpowiedzi nie zostaje ani on, ani wynik. Na dysk na czas żądania trafiają tylko pliki tymczasowe LibreOffice i Tesseracta. Obrazy stron idą do modelu na Eden AI, nie na dysk. W pamięci procesu zostaje odczyt stron (Markdown) 16 ostatnich plików, żeby propozycje słowników nie płaciły za ten sam odczyt drugi raz; znika przy restarcie.
+- `POST /api/forms/convert`: plik jest tylko w pamięci i po odpowiedzi nie zostaje ani on, ani wynik. Jedyny wyjątek to odczyt stron (Markdown) 16 ostatnich plików w pamięci procesu, żeby propozycje słowników nie płaciły za ten sam odczyt drugi raz; znika przy restarcie. Na dysk na czas żądania trafiają tylko pliki tymczasowe LibreOffice (w tym kopia pliku biurowego do konwersji) i Tesseracta, w Dockerze w `/tmp` w pamięci. Obrazy stron idą do modelu na Eden AI, nie na dysk.
 - `POST /api/forms/jobs`: plik jest w pamięci procesu do końca zadania, także gdy kończy się ono błędem. Zostaje sam wynik JSON, przez 1 h. Restart serwera zapomina wszystkie zadania.
 - Historię zapisuje sama strona `/` przez `/api/history`; `convert` i zadania w tle jej nie używają. Zachowuje oryginał i wynik, żeby urzędnik mógł wrócić do pliku. Jest domyślnie włączona. W Dockerze leży w `/tmp` w pamięci kontenera i znika przy restarcie, a uruchomiona natywnie to plik SQLite na dysku (`HISTORY_DB`) i obok niego katalog z PDF-ami plików biurowych dla okna oryginału. `HISTORY_ENABLED=0` wyłącza ją całkiem.
 
