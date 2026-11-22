@@ -15,14 +15,13 @@ stops Qwen copying a dotted fill-in line forever; runs of dots/underscores are c
 whose answer is cut off or times out loops: it gets one retry with RETRY_FREQUENCY_PENALTY (`transcribe_page`).
 Pages are joined in order with a blank line.
 
-The upload page sends one file to /api/forms/convert and /api/dictionaries/proposals at once: `transcribe`
-keeps the last CACHE_FILES results in memory keyed by (sha256 of the bytes, extension, TRANSCRIBE_MODEL,
-TRANSCRIBE_SIDE), and a second request for a file still being read waits for that reading instead of
-paying for its own. Failures are never cached (the next request tries again).
+`transcribe` keeps the last CACHE_FILES results in memory keyed by (sha256 of the bytes, extension,
+TRANSCRIBE_MODEL, TRANSCRIBE_SIDE), and a second request for a file still being read waits for that reading
+instead of paying for its own. Failures are never cached (the next request tries again).
 
 The one other way in: an office file is read from its own text (`app.extract`, method "office-text", no model call)
 when LibreOffice loses its text (forms 2 and 8 DOCX: floating text boxes render as empty boxes, and the reader then
-invents a form for them; `text_lost`, the same test `app.history` uses to show the file's text instead of its PDF)
+invents a form for them; `text_lost`)
 or cannot convert it at all.
 """
 

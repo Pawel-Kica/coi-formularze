@@ -35,7 +35,7 @@ from rapidfuzz import fuzz, process
 
 from app.plan import FieldType, Plan, Section
 
-# Calibrated in bench/run_models.py (see bench/MODELS.md).
+# Calibrated on the 9 COI forms in every format.
 THRESHOLD = 90.0
 THRESHOLD_OCR = 85.0
 MIN_QUOTE_CHARS = 3  # after normalization; shorter quotes ("a", "1)") prove nothing
@@ -43,7 +43,7 @@ MIN_QUOTE_CHARS = 3  # after normalization; shorter quotes ("a", "1)") prove not
 
 def threshold_for(method: str) -> float:
     """Threshold for `filter_plan` by the reading method of the text: THRESHOLD_OCR for OCR text (the methods
-    "pdf-ocr" / "ocr" of earlier bench runs), else THRESHOLD."""
+    "pdf-ocr" / "ocr"), else THRESHOLD."""
     return THRESHOLD_OCR if "ocr" in method else THRESHOLD
 
 
@@ -163,85 +163,6 @@ def quote_lines(quote: str, text: str) -> list[tuple[int, int]]:
         return [span_lines(h, text) for h in hits]
     al = fuzz.partial_ratio_alignment(q, joined)
     return [span_lines((al.dest_start, al.dest_end), text)] if al and al.score >= THRESHOLD_OCR else []
-
-
-_NEAR = 6  # lines: how far on a line that is exactly the quote beats a longer line that only contains it
-# an ellipsis the model put into a quote ("należy wnieść ... przed złożeniem"); the paper text never has one, its dot
-# runs are "____" (`app.extract.normalize`, `prompts/transcribe.md`)
-_ELLIPSIS = re.compile(r"\[?\s*(?:\.{3,}|\u2026+)\s*\]?")
-_ELLIPSIS_GAP = 300  # chars of the normalized paper allowed between two parts of an elided quote
-
-
-def _elided_span(quote: str, joined: str, cursor: int) -> tuple[int, int] | None:
-    """An elided quote placed by its parts: every part (2+ words) found exactly, in order, each within
-    `_ELLIPSIS_GAP` chars after the previous one, the first after the cursor (else the last before it). The span runs from
-    the first part's start to the last part's end. None when the quote has no ellipsis or any part is missing."""
-    parts = [n for n in (normalize(x) for x in _ELLIPSIS.split(quote)) if n]
-    if len(parts) < 2 or any(len(n.split()) < 2 for n in parts):
-        return None
-    firsts = _exact_spans(parts[0], joined)
-    rest = [re.compile(rf"(?<!\w){re.escape(n)}(?!\w)") for n in parts[1:]]
-    for base in [cursor, 0] if cursor else [0]:
-        # nothing after the cursor: the occurrence nearest before it, as for an exact quote
-        for start, end in firsts if base or not cursor else firsts[::-1]:
-            if start < base:
-                continue
-            second = None
-            for rx in rest:
-                m = rx.search(joined, end)  # the first hit after the previous part is the closest one
-                if not m or m.start() > end + _ELLIPSIS_GAP:
-                    break
-                second = m.start() if second is None else second
-                end = m.end()
-            else:
-                # a first part printed again before the second ("Imię i nazwisko" of two people): its last one
-                return max(a for a, b in firsts if start <= a and b <= second), end
-    return None
-
-
-def place_quotes(items: list[tuple[str, str | None, bool]], text: str) -> dict[str, tuple[int, int]]:
-    """Where each quote sits on the paper, read in form order: one place per key, as a span of
-    `_paper_lines(text)`'s joined string (`span_lines` turns it into lines). The one walk behind both the paper
-    headings ("W dokumencie: ...", `app.headings`) and the crops of the paper ("Źródło", `app.sources`), so the two
-    never disagree.
-
-    `items` = (key, quote, moves) in form order. A label printed many times ("Miejscowość", "Numer lokalu") resolves
-    to its first occurrence after the previous quote (the cursor), else the last one before it; a line that is
-    exactly the quote, a few lines on, beats a longer line that only contains it. No exact occurrence: a quote the model
-    shortened with an ellipsis by its parts (`_elided_span`), else the best fuzzy match (OCR) after the cursor, else
-    anywhere. `moves=False` (a condition's quote) is looked up without moving the
-    cursor. Quotes not on paper, or too short to prove anything, get no key."""
-    joined, starts = _paper_lines(text)
-    out, cursor = {}, 0
-    for key, quote, moves in items:
-        q = normalize(quote or "")
-        if len(q) < MIN_QUOTE_CHARS:
-            continue
-        hits = _exact_spans(q, joined)
-        if hits:
-            ahead = [h for h in hits if h[0] >= cursor] or [max(hits)]
-            pick, first = ahead[0], span_lines(ahead[0], text)[0]
-            for h in ahead:
-                a, b = span_lines(h, text)
-                if a - first > _NEAR:
-                    break
-                if a == b and h[0] == starts[a] and h[1] == (starts[a + 1] - 1 if a + 1 < len(starts) else len(joined)):
-                    pick = h  # the whole line is the quote
-                    break
-        else:
-            pick = _elided_span(quote, joined, cursor)
-            if pick is None:
-                for base in [cursor, 0] if cursor else [0]:
-                    al = fuzz.partial_ratio_alignment(q, joined[base:])
-                    if al and al.score >= THRESHOLD_OCR:
-                        pick = (base + al.dest_start, base + al.dest_end)
-                        break
-            if pick is None:
-                continue
-        out[key] = pick
-        if moves:
-            cursor = max(cursor, pick[1])
-    return out
 
 
 def _fix_options(wanted: list[str], options: list[str]) -> list[str]:
@@ -515,8 +436,7 @@ def filter_plan(plan: Plan, text: str, threshold: float | None = None) -> tuple[
 
     # 4. A statement the plan asks as a Tak/Nie question goes (`app.repair.drop_asked_statements`, after 3: a question
     # the conditions pass added counts only when it stays). A field shown by its own condition is required when shown
-    # (`app.repair.require_shown`). A flag, not a drop: its notes stay out of `dropped`, which bench.run_all counts as
-    # the hallucination proxy.
+    # (`app.repair.require_shown`). A flag, not a drop: its notes stay out of `dropped`.
     from app.repair import drop_asked_statements, require_shown
 
     dropped += drop_asked_statements(plan, text)

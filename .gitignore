@@ -6,5 +6,3 @@ __pycache__/
 data/
 bench/runs/
 .DS_Store
-history.sqlite3
-history-pdf/

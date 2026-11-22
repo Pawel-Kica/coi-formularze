@@ -97,23 +97,6 @@ def test_spreadsheet_borders_become_fields():
         assert "[ ] Dane pełnomocnika klubu sportowego" in text
 
 
-DRIVE = Path.home() / "hacknation-2026" / "resources" / "drive-formularze"  # black-box forms, outside the repo
-needs_drive = pytest.mark.skipif(not DRIVE.is_dir(), reason="drive-formularze missing")
-
-
-@needs_drive
-def test_legacy_xls():
-    """Old Excel (BIFF, an OLE file like .doc): the same row and border rules as XLSX."""
-    path = DRIVE / "dolnoslaski-uw__Protokol_strat_-_v2021.xls"
-    doc = extract(path.read_bytes(), path.name)
-    assert doc.method == "xls"
-    assert "PROTOKÓŁ" in doc.text and "Komisja w składzie:\n1. ____\n2. ____" in doc.text
-    assert "Lp. | Miejscowość | Rodzaj | Wielkość zniszczeń | Opis zniszczeń | Uwagi | Wartość [zł]\n____" in doc.text
-    path = DRIVE / "dolnoslaski-uw__Informacja_o_stratach.xls"
-    text = extract(path.read_bytes(), path.name).text
-    assert text.startswith("Informacja o stratach\nLp | Nazwa jednostki samorządowej | Drogi | Mosty")
-
-
 GOOD_PAGE = (
     "Wniosek o wydanie zaświadczenia\nImię i nazwisko ____\nAdres zamieszkania: ul. ____ nr ____\n"
     "Kontakt: urzad@gmina.pl, https://bip.gmina.pl/index.php?id=5\nPodpis wnioskodawcy ____\n"
@@ -133,15 +116,6 @@ def test_garbled_text_layer_is_not_text():
     assert not _looks_like_text(GOOD_PAGE * 3 + CIPHER)  # a half-garbled page is left out too
     caesar = "".join(chr((ord(c) - 94) % 26 + 97) if "a" <= c <= "z" else c for c in GOOD_PAGE * 8)
     assert not _looks_like_text(caesar)  # a cipher of letters only: too few vowels
-
-
-@needs_drive
-def test_garbled_pdf_pages_are_left_out():
-    """Drive 01: pages 1-2 have a cipher text layer, page 3 is a scan; none has text to give (the pipeline reads
-    page images, "Źródło" OCRs them)."""
-    path = DRIVE / "01_zgloszenie_pobytu_stalego_gov.pdf"
-    doc = extract(path.read_bytes(), path.name)
-    assert doc.method == "pdf-text" and "3 of 3" in doc.warnings[0] and "JÊRV" not in doc.text
 
 
 @needs_data

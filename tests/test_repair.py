@@ -453,26 +453,3 @@ Miejscowość ____
     assert [x.id for x in s1.fields] == ["f1", "f2"] and CORRESPONDENCE_QUESTION not in [x.label for x in s1.fields]
     assert s2.show_if.field == "f2" and all(x.show_if is None for x in s2.fields)
 
-
-def test_gold_plans_pass_untouched():
-    """Hard check: every condition, option and field of the 9 gold plans survives the filter and the repairs."""
-    import pytest
-
-    from bench.refilter import n_conditions
-    from bench.run_all import COI, GOLD, coi_files
-    from app.extract import extract
-    from app.quotes import threshold_for
-
-    if not COI.exists():
-        pytest.skip("data/coi not linked")
-    total = 0
-    for form, path in coi_files(None, {"pdf"}):
-        gold = Plan.model_validate_json((GOLD / f"form{form}.json").read_text())
-        doc = extract(path.read_bytes(), path.name)
-        out, notes = filter_plan(gold, doc.text, threshold_for(doc.method))
-        assert not [n for n in notes if n.startswith(("condition", "options", "duplicate", "correspondence", "address"))], (form, notes)
-        assert n_conditions(out) == n_conditions(gold)
-        assert {x.id: x.required for x in fields_of(out).values()} == {x.id: x.required for x in fields_of(gold).values()}, form
-        assert len(out.statements) == len(gold.statements), form
-        total += n_conditions(out)
-    assert total == 37

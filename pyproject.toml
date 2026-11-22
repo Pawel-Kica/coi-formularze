@@ -5,7 +5,6 @@ description = "Paper form (PDF/DOC/DOCX/ODS/XLSX/XLS/JPG/PNG) -> COI e-service J
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "cryptography>=50.0.2",
     "fastapi>=0.165.0",
     "httpx>=0.28.1",
     "jsonata-python>=0.7.2",
@@ -16,11 +15,7 @@ dependencies = [
     "pillow>=13.0.0",
     "pydantic>=2.14.4",
     "pydantic-settings>=2.16.3",
-    "pyjwt>=2.15.1",
-    "pypdf>=7.1.1",
     "pypdfium2>=5.15.2",
-    "pytesseract>=0.3.13",
-    "python-docx>=1.2.0",
     "python-multipart>=0.0.34",
     "rapidfuzz>=3.14.6",
     "uvicorn>=0.54.0",
@@ -35,6 +30,3 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-# Fast by default (~5 s): OCR tests (Tesseract, ~60 s) are marked slow. All: `uv run pytest -m ""`.
-addopts = "-m 'not slow'"
-markers = ["slow: OCR on scans and images (Tesseract), run with -m slow or -m \"\""]

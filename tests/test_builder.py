@@ -1,7 +1,5 @@
-"""Builder: gold Plans of forms 1 and 5 reproduce the COI reference JSONs."""
+"""Builder: every gold Plan builds a COI JSON that passes the rules."""
 
-import glob
-import importlib.util
 import json
 from pathlib import Path
 
@@ -13,20 +11,10 @@ from app.plan import Applicant, Condition, EntityId, Page, Plan, PlanField, Sect
 from app.rules import check
 
 ROOT = Path(__file__).resolve().parents[1]
-_spec = importlib.util.spec_from_file_location("bench_score", ROOT / "bench" / "score.py")
-score = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(score)
 
 
 def gold(name: str) -> Plan:
     return Plan.model_validate_json((ROOT / "gold" / "plans" / f"{name}.json").read_text())
-
-
-def reference(n: int) -> dict:
-    found = glob.glob(str(ROOT / "data" / "coi" / f"{n}.*" / "konfiguracja*.json"))
-    if not found:
-        pytest.skip("COI reference JSONs not available (data/ symlink)")
-    return json.loads(Path(found[0]).read_text())
 
 
 def all_fields(coi: dict):
@@ -39,15 +27,6 @@ def all_fields(coi: dict):
 
 def by_tech(coi: dict) -> dict:
     return {f["techName"]: f for _, f in all_fields(coi)}
-
-
-@pytest.mark.parametrize("n", [1, 5])
-def test_gold_reproduces_reference(n):
-    coi = build(gold(f"form{n}"))
-    assert check(coi) == []
-    rep = score.score_coi(coi, reference(n))
-    for kind in ("tabs", "sections", "fields", "dependencies"):
-        assert rep["recall"][kind] >= 0.95, rep["summary"]
 
 
 @pytest.mark.parametrize("path", sorted((ROOT / "gold" / "plans").glob("*.json")), ids=lambda p: p.stem)
