@@ -40,31 +40,31 @@ h1{font-size:30px;font-weight:700;letter-spacing:-.3px}
 <div class="lane">
  <div class="lanelabel">Główna ścieżka: POST /api/forms/convert (app/pipeline.py)</div>
  <div class="row">
-  <div class="box io"><h3>Upload</h3><div class="f">app/upload.py, security.py</div>
+  <div class="box io"><h3>1. Upload</h3><div class="f">app/upload.py, security.py</div>
    <ul><li>jeden plik, tylko w pamięci</li><li>limit rozmiaru, nazwa, rozszerzenie, sygnatura bajtów</li><li>JWT przy AUTH_ENABLED=1</li></ul>
    <div class="data">bajty + nazwa</div></div>
   <div class="arrow">→</div>
-  <div class="box llm"><h3>1. Odczyt stron</h3><div class="f">app/llm/transcribe.py</div>
-   <ul><li>każdy format → obrazy stron (PDFium; pliki biurowe przez LibreOffice)</li><li>Qwen3.5-397B-A17B: jedno wywołanie na stronę, 4 naraz</li><li>wynik w pamięci podręcznej po sha256</li></ul>
+  <div class="box llm"><h3>2. Odczyt stron</h3><div class="f">app/llm/transcribe.py</div>
+   <ul><li>każdy format → obrazy stron (PDFium; pliki biurowe przez LibreOffice)</li><li>Qwen3.5-397B-A17B: jedno wywołanie na stronę, 4 naraz</li><li>odczyt 16 ostatnich plików zostaje w pamięci (sha256), słowniki nie płacą drugi raz</li></ul>
    <div class="data">Markdown stron</div></div>
   <div class="arrow">→</div>
-  <div class="box llm"><h3>2a. Planer, przebieg 1</h3><div class="f">app/llm/planner.py</div>
+  <div class="box llm"><h3>3a. Planer, przebieg 1</h3><div class="f">app/llm/planner.py</div>
    <ul><li>GLM-5.2 czyta sam Markdown</li><li>strony, sekcje, pola, opcje, oświadczenia, adresat, kto składa</li><li>odpowiedź wymuszona schematem JSON</li><li>każdy element niesie <b>cytat</b></li></ul>
    <div class="data">szkic planu</div></div>
   <div class="arrow">→</div>
-  <div class="box llm"><h3>2b. Planer, przebieg 2</h3><div class="f">app/llm/planner.py</div>
+  <div class="box llm"><h3>3b. Planer, przebieg 2</h3><div class="f">app/llm/planner.py</div>
    <ul><li>warunki „pokaż, gdy…”</li><li>schemat dopuszcza tylko istniejące pola i opcje</li><li>może dodać pytanie Tak/Nie z cytatem</li></ul>
    <div class="data">plan + warunki</div></div>
   <div class="arrow">→</div>
-  <div class="box code"><h3>3. Filtr cytatów, naprawy</h3><div class="f">app/quotes.py, repair.py</div>
+  <div class="box code"><h3>4. Filtr cytatów, naprawy</h3><div class="f">app/quotes.py, repair.py</div>
    <ul><li>cytatu nie ma w Markdownie → element wypada</li><li>opcje spoza dokumentu, podwójne pola i pytania</li><li>warunek bez oparcia → wypada, pole zostaje</li></ul>
    <div class="data">czysty plan</div></div>
   <div class="arrow">→</div>
-  <div class="box code"><h3>4. Builder</h3><div class="f">app/builder/</div>
+  <div class="box code"><h3>5. Builder</h3><div class="f">app/builder/</div>
    <ul><li>plan → JSON COI, bez modelu</li><li>strony ze Standardów: Dane (MLPZ), Kontakt i zgody, końcowa</li><li>SHOW w JSONata, walidatory, słowniki</li></ul>
    <div class="data">JSON COI + cytaty</div></div>
   <div class="arrow">→</div>
-  <div class="box code"><h3>5. Reguły COI</h3><div class="f">app/rules.py</div>
+  <div class="box code"><h3>6. Reguły COI</h3><div class="f">app/rules.py</div>
    <ul><li>schemat JSON COI</li><li>„Reguły techniczne”</li><li>jakikolwiek problem → <b>422</b>, nigdy zły JSON</li></ul>
    <div class="data">200: JSON COI</div></div>
  </div>

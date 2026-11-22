@@ -1,6 +1,8 @@
 # eFormatka: z papierowego formularza e-usługa COI
 
-Wgrywasz pusty formularz urzędowy w dowolnym formacie (PDF, skan JPG/PNG, DOC, DOCX, ODS, XLS, XLSX), a REST API zwraca JSON e-usługi COI gotowy do importu. Urzędnik dostaje ten JSON jako szkic obok oryginału i poprawia go w edytorze: pod każdym polem widzi cytat z dokumentu i „Źródło”, czyli wycinek oryginału z zaznaczonym miejscem. Model nie musi trafić wszystkiego za pierwszym razem, bo sprawdzenie i poprawka zajmują chwilę.
+Wgrywasz pusty formularz urzędowy w dowolnym formacie (PDF, skan JPG/PNG, DOC, DOCX, ODS, XLS, XLSX), a REST API zwraca JSON e-usługi COI gotowy do importu. Urzędnik dostaje ten JSON jako szkic obok oryginału i poprawia go w edytorze: pod polem widzi cytat z dokumentu, z którego pole powstało, i „Źródło”, czyli wycinek oryginału z zaznaczonym miejscem. Model nie musi trafić wszystkiego za pierwszym razem: JSON to szkic, który urzędnik sprawdza i poprawia z oryginałem przed oczami.
+
+{{ZRZUT_APLIKACJI}}
 
 ![Schemat: plik → odczyt stron → plan z cytatami → kod buduje i sprawdza JSON COI → urzędnik poprawia w przeglądarce](docs/img/prosty.png)
 
@@ -12,12 +14,13 @@ Mierzymy to, co obchodzi urzędnika: ile poprawek musi zrobić w edytorze, zanim
 
 | | |
 |---|---|
-| Poprawki urzędnika | średnio **{{POPRAWKI_SREDNIO}}** na formularz, szczegóły w tabeli niżej |
+| Poprawki urzędnika | średnio **{{POPRAWKI_SREDNIO}}** na formularz, który ma średnio {{POLA_SREDNIO}} pól; szczegóły w tabeli niżej |
+| Pliki, z których powstał JSON | **{{PLIKI_OK}}** z 69 (9 formularzy z zadania we wszystkich formatach) |
 | Problemy z regułami COI | **0**. API nie wypuszcza JSON-a, który łamie schemat COI albo „Reguły techniczne”, tylko odpowiada 422 |
 | Czas i koszt | średnio **{{CZAS_FORMULARZ}}** i **{{KOSZT_FORMULARZ}}** na formularz (modele na Eden AI) |
-| Czy sędziom można wierzyć | {{KALIBRACJA}} |
+| Kalibracja sędziów | {{KALIBRACJA}} |
 
-**Jak liczymy poprawki.** Trzech sędziów AI dostaje strony oryginału i nasz JSON jako czytelny konspekt. Każdy osobno wypisuje poprawki, które urzędnik zrobiłby w edytorze: brakujące pole, zmyślone pole, zły typ, złe opcje, zły albo brakujący warunek, złe „wymagane”. Poprawka liczy się, gdy wypiszą ją co najmniej 2 z 3 sędziów. Samych sędziów sprawdziliśmy na 10 błędach, które celowo wstawiliśmy do poprawnych JSON-ów (wiersz „Czy sędziom można wierzyć”). Przepis: `bench/JUDGE-POPRAWKI.md`.
+**Jak liczymy poprawki.** Trzech sędziów AI dostaje strony oryginału i nasz JSON jako czytelny konspekt. Każdy osobno wypisuje poprawki, które urzędnik zrobiłby w edytorze: brakujące pole, zmyślone pole, zły typ, złe opcje, zły albo brakujący warunek, złe „wymagane”. Poprawka liczy się, gdy wypiszą ją co najmniej 2 z 3 sędziów. Samych sędziów sprawdziliśmy na 10 błędach, które celowo wstawiliśmy do poprawnych JSON-ów (wiersz „Kalibracja sędziów”). Przepis: `bench/JUDGE-POPRAWKI.md`.
 
 ### Każdy formularz z zadania
 
@@ -25,7 +28,7 @@ Mierzymy to, co obchodzi urzędnika: ile poprawek musi zrobić w edytorze, zanim
 
 ### Porównanie podejść
 
-Te same dokumenty i ci sami sędziowie, od najprostszego podejścia (cały plik prosto do jednego modelu, który ma oddać JSON COI) do naszego:
+Te same dokumenty i ci sami sędziowie, od najprostszego podejścia (cały plik prosto do jednego modelu, który ma oddać JSON COI) do naszego. Przy każdym podejściu podajemy model:
 
 {{PORÓWNANIE}}
 
@@ -51,8 +54,6 @@ uv run uvicorn app.api:app --port 8000
 Strona dla urzędnika: http://localhost:8000. OpenAPI: http://localhost:8000/docs. Stan: http://localhost:8000/health. Jeden formularz trwa od pół minuty do kilku minut. Gdy klient nie może tyle czekać, jest [zadanie w tle](#zadanie-w-tle).
 
 ## Jak z tego korzystać
-
-{{ZRZUT_APLIKACJI}}
 
 1. **Wgraj plik** na http://localhost:8000: upuść go gdziekolwiek na stronie albo wybierz z dysku. Kilka plików naraz przetwarza się po kolei, a „Pobierz wszystkie” daje ZIP z ich JSON-ami.
 2. **Porównaj.** Z lewej oryginał, z prawej e-usługa tak, jak zobaczy ją obywatel. Wszystkie kroki przeklikasz bez wypełniania pól.
@@ -81,7 +82,7 @@ Do tego:
 | 5. Formaty, MIME z zawartości, nazwa pliku, limit rozmiaru | wszystko z listy zadania plus `.xls` i `.jpe` | [Walidacja i limity](#walidacja-i-limity) |
 | 5. Tylko tymczasowe przetwarzanie | `convert` trzyma plik w pamięci; `HISTORY_ENABLED=0` wyłącza historię | [Przechowywanie plików](#przechowywanie-plików) |
 | 5. Docker, konfiguracja, README | Alpine, wersje przypięte, użytkownik bez uprawnień, sekrety tylko przy starcie | [Budowanie obrazu Docker](#budowanie-obrazu-docker), [Konfiguracja](#konfiguracja) |
-| 5. Python 3.14+, open source bez copyleft, modele z otwartymi wagami | GLM-5.2 (MIT), Qwen3.5 (Apache-2.0) | [Licencje](#licencje) |
+| 5. Python 3.14+, open source bez copyleft, bez modeli dostępnych tylko przez API | GLM-5.2 (MIT) i Qwen3.5 (Apache-2.0) mają otwarte wagi. Eden AI tylko je hostuje, a dostęp dali organizatorzy zadania. Własny serwer z tymi wagami ustawia się w konfiguracji, bez zmian w kodzie | [Licencje](#licencje) |
 
 ## Architektura
 
@@ -100,7 +101,7 @@ Dlaczego tak:
 Kroki po kolei:
 1. **Upload** (`app/upload.py`). Plik idzie do pamięci, a limit rozmiaru działa w trakcie odczytu. Potem kod sprawdza nazwę, rozszerzenie i sygnaturę bajtów. Przy `AUTH_ENABLED=1` żądanie potrzebuje tokenu JWT (`app/security.py`).
 2. **Odczyt** (`app/llm/transcribe.py`). PDF renderuje PDFium, pliki biurowe najpierw zamienia na PDF LibreOffice, a wysoki skan z kilkoma stronami kod tnie na strony. Każda strona, zmniejszona do 1024 px, idzie osobno do Qwen3.5-397B-A17B, cztery naraz.
-3. **Plan** (`app/llm/planner.py`, kontrakt `app/plan.py`). GLM-5.2 czyta sam Markdown, bez trybu myślenia, a odpowiedź wymusza schemat JSON.
+3. **Plan** (`app/llm/planner.py`, kontrakt `app/plan.py`). GLM-5.2 czyta sam Markdown, bez trybu myślenia, a odpowiedź wymusza schemat JSON. Przebieg 3a ustala strukturę, przebieg 3b warunki.
 4. **Filtr cytatów i naprawy** (`app/quotes.py`, `app/repair.py`). Wypada element bez cytatu w Markdownie (dopasowanie rozmyte, `rapidfuzz`), pole, które kod i tak buduje na stronie „Dane”, i warunek bez oparcia w dokumencie (pole zostaje). Naprawy bez modelu: lista z opcją spoza dokumentu staje się polem tekstowym, podwójne pytanie i podwójne pole zostają raz, adres do korespondencji dostaje pytanie Tak/Nie, gdy dokument mówi „inny niż”.
 5. **Builder** (`app/builder/`). Plan staje się pełną konfiguracją COI. Builder zwraca też mapę dowodów: przy każdym elemencie cytat z dokumentu albo informacja, że dodał go kod.
 6. **Reguły** (`app/rules.py`). Schemat JSON COI i „Reguły techniczne”. Każdy problem kończy żądanie kodem 422.
@@ -168,7 +169,7 @@ Zmienne środowiskowe albo plik `.env` (`app/config.py`, wzór w `.env.example`)
 | `JWT_TTL_MINUTES` | `60` | Ważność wydanego tokenu |
 | `AUTH_USERNAME`, `AUTH_PASSWORD` | `admin`, brak | Login i hasło do `/api/auth/token`. Bez hasła logowanie lokalne jest wyłączone |
 | `JWT_JWKS_URL` | brak | Zewnętrzny serwer tożsamości (np. Keycloak): API sprawdza tokeny jego kluczami publicznymi, logowanie lokalne jest wyłączone |
-| `LLM_BASE_URL` | `https://api.edenai.run/v3` | API czatu zgodne z OpenAI. Własny serwer z tymi samymi wagami działa bez zmian w kodzie |
+| `LLM_BASE_URL` | `https://api.edenai.run/v3` | API czatu zgodne z OpenAI. Własny serwer z tymi samymi wagami działa bez zmian w kodzie (jego klucz idzie w `EDENAI_API_KEY`) |
 | `LLM_MODEL` | `deepinfra/zai-org/GLM-5.2` | Planer: czyta Markdown stron i pisze plan formularza |
 | `TRANSCRIBE_MODEL` | `deepinfra/Qwen/Qwen3.5-397B-A17B` | Model wizyjny, który przepisuje każdą stronę do Markdown |
 | `LLM_TIMEOUT_S` | `1200` | Limit czasu jednego wywołania planera (s) |
@@ -224,15 +225,15 @@ for i in $(seq 240); do   # do 20 minut
 done; echo "$CODE"       # 200 = JSON COI, inny kod = błąd opisany w wniosek.json
 ```
 
-Nieznane albo wygasłe zadanie też daje 404; odróżnisz je przez `status_url` (404 tylko dla nieznanego zadania).
+Zadanie, którego nie ma (nieznane albo wygasłe), też daje 404 na adresie wyniku. Odróżnisz je przez `status_url`: tam 404 znaczy właśnie to, a liczące się zadanie odpowiada `pending`.
 
 ### Błędy
 
-Każdy błąd to JSON `{"detail": "..."}`.
+Każdy błąd to JSON z polem `detail`, zwykle `{"detail": "opis po polsku"}`.
 
 | Kod | Kiedy |
 |---|---|
-| 400 | zła nazwa pliku, pusty plik, brak pola `file` albo więcej niż jeden plik |
+| 400 | zła nazwa pliku, pusty plik, brak pliku albo więcej niż jeden plik; brak `username` lub `password` przy logowaniu |
 | 401 | brak, zły lub wygasły token; zły login lub hasło (tylko przy `AUTH_ENABLED=1`) |
 | 404 | wynik zadania jeszcze się liczy albo zadanie jest nieznane; `/api/history` przy `HISTORY_ENABLED=0` |
 | 413 | plik większy niż `MAX_FILE_SIZE_MB` |
@@ -240,11 +241,11 @@ Każdy błąd to JSON `{"detail": "..."}`.
 | 422 | nie udało się odczytać formularza albo wynik łamałby reguły COI |
 | 429 | 20 zadań w tle już w toku |
 | 500 | nieoczekiwany błąd serwera (szczegóły tylko w logu) |
-| 502 / 503 / 504 | model zwrócił błąd / jest niedostępny albo brak `EDENAI_API_KEY` / nie odpowiedział na czas |
+| 502 / 503 / 504 | model zwrócił błąd / jest niedostępny albo brak `EDENAI_API_KEY` / nie odpowiedział na czas. 503 także z `/api/auth/token`, gdy logowanie lokalne jest wyłączone (brak `AUTH_PASSWORD` albo tokeny wydaje `JWT_JWKS_URL`) |
 
 ## Walidacja i limity
 
-- Jeden plik na żądanie, w polu `file`. Każda inna liczba plików to 400.
+- Jeden plik na żądanie, jako `multipart/form-data` w polu `file`. Żądanie bez pliku albo z więcej niż jednym plikiem to 400.
 - Rozszerzenia, bez względu na wielkość liter: `.pdf .doc .docx .ods .xlsx .xls .jpg .jpeg .jpe .png`. Inne to 415. `.xls` i `.jpe` to świadomy dodatek do listy z zadania, bo spotykamy je w BIP-ach gmin.
 - Zadanie wymienia DOC jako „.doc .docx”, więc oba rozszerzenia przyjmują oba formaty Worda (gminy publikują DOCX z końcówką `.doc`). Zawartość nadal musi być prawdziwym dokumentem Worda.
 - Nazwa pliku: najwyżej 250 znaków, bez `; : > < / \ | ' * % $`.
@@ -253,7 +254,7 @@ Każdy błąd to JSON `{"detail": "..."}`.
 
 ### Przechowywanie plików
 
-- `POST /api/forms/convert`: plik jest tylko w pamięci i nic nie zostaje po odpowiedzi. Na dysk na czas żądania trafiają tylko pliki tymczasowe LibreOffice i Tesseracta. Obrazy stron idą do modelu na Eden AI, nie na dysk.
+- `POST /api/forms/convert`: plik jest tylko w pamięci i po odpowiedzi nie zostaje ani on, ani wynik. Na dysk na czas żądania trafiają tylko pliki tymczasowe LibreOffice i Tesseracta. Obrazy stron idą do modelu na Eden AI, nie na dysk. W pamięci procesu zostaje odczyt stron (Markdown) 16 ostatnich plików, żeby propozycje słowników nie płaciły za ten sam odczyt drugi raz; znika przy restarcie.
 - `POST /api/forms/jobs`: plik jest w pamięci procesu do końca zadania, także po błędzie. Zostaje sam wynik JSON, przez 1 h. Restart serwera zapomina wszystkie zadania.
 - Historia strony `/` to funkcja interfejsu, nie API: zachowuje oryginał i wynik, żeby urzędnik mógł wrócić do pliku. W Dockerze leży w `/tmp` w pamięci kontenera. `HISTORY_ENABLED=0` wyłącza ją całkiem.
 
@@ -273,8 +274,9 @@ Tabele, czasy, koszty i odrzucone pomysły są w [docs/historia.md](docs/histori
 
 - Najsłabsze są warunki na długich formularzach (np. 16-stronicowy wniosek „3 w 1”). Model znajduje część zależności, resztę urzędnik ustawia w panelu „Edycja” wyborem „pokaż, gdy…”.
 - Ten sam plik wysłany dwa razy może dać trochę inny szkic, bo modele nie są powtarzalne co do bitu. Dlatego każdą zmianę mierzyliśmy na kilku dokumentach.
-- Modele działają na Eden AI, do którego dostęp dali organizatorzy zadania. Wagi są otwarte, więc te same modele postawione na własnym serwerze wystarczy wskazać w `LLM_BASE_URL` i `LLM_MODEL`.
+- Modele działają na Eden AI, do którego dostęp dali organizatorzy zadania. Wagi są otwarte, więc te same modele można postawić na własnym serwerze z API zgodnym z OpenAI: adres w `LLM_BASE_URL`, nazwy w `LLM_MODEL` i `TRANSCRIBE_MODEL`, klucz tego serwera w `EDENAI_API_KEY`.
 - Formularz dłuższy niż 30 stron jest czytany do 30. strony.
+- Zadania w tle i odczyty stron żyją w pamięci jednego procesu, więc usługa działa jako jedna instancja. Kilka instancji za load balancerem wymagałoby wspólnej kolejki zadań.
 
 ## Licencje
 

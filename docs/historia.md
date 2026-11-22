@@ -7,7 +7,7 @@ Szczegóły do skrótu w README („Jak doszliśmy do tej architektury”). Dzi�
 - `gold=` porównuje plan modelu z wzorcowym planem formularza (`gold/plans/formN.json`, uzasadnienia w `gold/notes/`). To średnia z pięciu miar: F1 pól, zgodność typów, zgodność opcji, odzysk warunków i zgodność strony „Dane” (kto składa wniosek). 1,0 = jak wzorzec. Wzorce przygotował zespół, więc `gold=` mierzy zgodność z naszymi decyzjami projektowymi. Dlatego ostateczną miarą jest liczba poprawek urzędnika liczona przez sędziów (README, „Wyniki”).
 - Do tego: czy JSON powstał, ile problemów z regułami COI, czas i koszt.
 - Uruchomienie: `uv run python -m bench.run_all` (woła modele na Edenie, więc kosztuje), ocena jednego pliku: `uv run python bench/score.py plan <nasz.json> <wzorzec.json>`.
-- Przebiegi nie są powtarzalne co do bitu: małe formularze potrafią się różnić o 0,2 `gold=`. Zysk liczyliśmy dopiero wtedy, gdy był widać na kilku dokumentach albo w dwóch przebiegach.
+- Przebiegi nie są powtarzalne co do bitu: małe formularze potrafią się różnić o 0,2 `gold=`. Zysk liczyliśmy dopiero wtedy, gdy było go widać na kilku dokumentach albo w dwóch przebiegach.
 
 ## 1. Start: lokalny qwen3 30B w Ollamie (porzucony)
 
@@ -36,6 +36,8 @@ Gdzie był sufit? Ten sam tekst i te same prompty, ale plan pisał mocniejszy mo
 | Formularz 7, skan (tekst z OCR) | 0,563 | 0,968 |
 | Formularz 8, PDF | 0,587 | 0,845 |
 | Formularz 9, PDF | 0,578 | 0,858 |
+
+Qwen na formularzu 9 to tu wcześniejszy przebieg niż w tabeli wyżej (0,603), stąd inna liczba.
 
 Wąskim gardłem był model, nie odczyt ani kod. To nas przeniosło na większe modele z otwartymi wagami.
 
