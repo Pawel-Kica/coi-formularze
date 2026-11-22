@@ -1,5 +1,10 @@
-# E-usługi w formacie COI dla formularzy 2, 3, 4, 6, 7, 8, 9
-`api/formularz-<N>.json`: surowa odpowiedź naszego API dla formularza N, bajt w bajt, bez żadnej ręcznej zmiany. To główny wynik.
-`formularz-<N>.json`: ta sama e-usługa po poprawkach, które urzędnik zrobiłby w naszym edytorze; dla formularzy 2 i 3 identyczna z `api/`, bo poprawek nie było.
-`POPRAWKI.md`: z którego pliku pochodzi każdy formularz, ile poprawek wymagał i jakich, jak to policzyliśmy.
-Wszystkie 14 plików przechodzą reguły techniczne COI bez żadnego problemu.
+# E-usługi w formacie COI dla formularzy 1-9
+
+| | Co to jest | Gdzie |
+|---|---|---|
+| **Surowe** | JSON prosto z naszego API, bajt w bajt, bez ręcznych zmian. Tak działa samo rozwiązanie. | [`api/`](api) |
+| **Poprawione** | Wersja końcowa: ten sam JSON po poprawkach, które urzędnik robi w naszym edytorze. | ten folder, `formularz-<N>.json` |
+
+- Ile poprawek wymagał każdy formularz i jakich: [`POPRAWKI.md`](POPRAWKI.md). Na formularzach 2 i 3 nie było żadnych, więc obie wersje są równe.
+- Formularze 1 i 5 to materiał referencyjny COI, bez oceny sędziów: wersja poprawiona = surowa.
+- Wszystkie pliki przechodzą reguły techniczne COI bez żadnego problemu.

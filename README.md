@@ -3,7 +3,9 @@
 Projekt na HackNation 2026, zadanie COI „Cyfryzacja Formularzy”.
 
 **Film (2:40):** https://youtu.be/S_v0vJNXzpw  
-**Prezentacja:** https://docs.google.com/presentation/d/1KXvomqc19rmjyOTTgIM4rdwm_7cLuJfp7GtJpmJxMY4/view
+**Prezentacja:** https://docs.google.com/presentation/d/1KXvomqc19rmjyOTTgIM4rdwm_7cLuJfp7GtJpmJxMY4/view  
+**Outputy surowe** (prosto z API, bez ręcznych zmian): https://github.com/Pawel-Kica/eFormatka-HackNation/tree/main/output/api  
+**Outputy poprawione** (wersja końcowa, po sprawdzeniu w edytorze): https://github.com/Pawel-Kica/eFormatka-HackNation/tree/main/output
 
 Wgrywasz pusty formularz urzędowy w dowolnym formacie (PDF, skan JPG/PNG, DOC, DOCX, ODS, XLS, XLSX), a REST API zwraca JSON e-usługi COI gotowy do importu. Urzędnik widzi go obok oryginału i poprawia w edytorze: pod polem jest cytat z dokumentu, z którego pole powstało, i „Źródło”, czyli wycinek oryginału z zaznaczonym miejscem. Dlatego model nie musi trafić wszystkiego za pierwszym razem.
 
@@ -95,8 +97,12 @@ Trzy dokumenty: formularz 3 PDF (1 strona), formularz 7 JPG (skan, 2 strony) i f
 
 ### JSON-y do oddania
 
-- `output/api/formularz-<N>.json`: główny wynik, surowy JSON z API, ten sam, który mierzą tabele wyżej.
-- `output/formularz-<N>.json`: ta sama e-usługa z naniesionymi przez nas poprawkami, które wskazali sędziowie. Ile ich było na każdym formularzu, mówi `output/POPRAWKI.md`.
+| | Co to jest | Link |
+|---|---|---|
+| **Surowe** | JSON prosto z naszego API, bajt w bajt. Tak działa samo rozwiązanie, te pliki mierzą tabele wyżej. | [`output/api/`](https://github.com/Pawel-Kica/eFormatka-HackNation/tree/main/output/api) |
+| **Poprawione** | Wersja końcowa: ten sam JSON po poprawkach, które urzędnik robi w naszym edytorze (np. dopisane brakujące pole). Ile ich było: [`POPRAWKI.md`](output/POPRAWKI.md). | [`output/`](https://github.com/Pawel-Kica/eFormatka-HackNation/tree/main/output) |
+
+Są tam wszystkie formularze 1-9. Formularze 1 i 5 to materiał referencyjny COI, bez oceny sędziów, więc ich wersja poprawiona jest równa surowej.
 
 ## Jak z tego korzystać
 
@@ -188,7 +194,7 @@ frontend/                strony statyczne bez budowania, wołają API z tego sam
   editor.js              panel „Edycja” obok podglądu
   dictionaries.html      katalog słowników (/slowniki)
 examples/                dwa puste formularze z zadania do wypróbowania API
-output/                  JSON-y do oddania (formularze 2-4 i 6-9)
+output/                  JSON-y do oddania (formularze 1-9)
 docs/                    historia pomiarów i diagramy z README
 Dockerfile, docker-compose.yml, .env.example
 ```
