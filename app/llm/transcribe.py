@@ -39,6 +39,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from functools import cache
 from pathlib import Path
 
+import httpx
 import pypdfium2 as pdfium
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -153,18 +154,19 @@ def _pdf_text(data: bytes) -> str:
 
 
 def transcribe_page(img: Image.Image, n: int = 1, total: int = 1, side: int | None = None) -> str:
-    """One page image -> its Markdown (fill-in runs collapsed to `______`). Retried once with RETRY_FREQUENCY_PENALTY
-    when the answer is empty or cut off: a cut-off answer is a loop (form 5 DOC page 1: an empty table row
-    `| | | …` copied until max_tokens, and a retry with only more room looped to 16000 tokens and timed out)."""
+    """One page image -> its Markdown (fill-in runs collapsed to `______`). One plain try, then one retry with
+    RETRY_FREQUENCY_PENALTY (2 HTTP tries) when the answer is empty, cut off or the call failed: a cut-off or timed-out
+    answer is a loop (form 5 DOC page 1: an empty table row `| | | …` copied until max_tokens; form 5 DOCX: the same
+    loop past TRANSCRIBE_TIMEOUT_S; a retry with only more room or the same call again looped once more)."""
     url = data_url(img, side or settings.transcribe_side)
     note = PAGE_NOTE.format(n=n, total=total)
     call = dict(model=settings.transcribe_model, images=[url], presence_penalty=PRESENCE_PENALTY,
-                timeout=settings.transcribe_timeout_s, tries=2)
+                timeout=settings.transcribe_timeout_s)
     try:
-        raw = chat_text(system_prompt(), note, **call).raw
-    except LLMError as e:
+        raw = chat_text(system_prompt(), note, tries=1, **call).raw
+    except (LLMError, httpx.HTTPError) as e:
         log.warning("page %d transcription failed (%s), retrying", n, e)
-        raw = chat_text(system_prompt(), note, frequency_penalty=RETRY_FREQUENCY_PENALTY, **call).raw
+        raw = chat_text(system_prompt(), note, frequency_penalty=RETRY_FREQUENCY_PENALTY, tries=2, **call).raw
     return FILL_RUN.sub("______", raw).strip()
 
 

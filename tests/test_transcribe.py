@@ -7,6 +7,7 @@ import threading
 import time
 from pathlib import Path
 
+import httpx
 import pypdfium2 as pdfium
 import pytest
 from PIL import Image
@@ -100,6 +101,20 @@ def test_cut_off_page_is_retried_once_with_a_frequency_penalty(monkeypatch):
 
     monkeypatch.setattr(tr, "chat_text", chat)
     assert tr.transcribe(a4_pdf(1), "f.pdf").text == "ok" and calls == [0.0, tr.RETRY_FREQUENCY_PENALTY]
+
+
+def test_timed_out_page_is_retried_once_with_a_frequency_penalty(monkeypatch):
+    calls = []
+
+    def chat(system, user, model=None, max_tokens=8000, images=None, presence_penalty=0.0, timeout=None, tries=3,
+             frequency_penalty=0.0):
+        calls.append((tries, frequency_penalty))
+        if len(calls) == 1:
+            raise httpx.ReadTimeout("LLM API unreachable: ReadTimeout")
+        return ChatResult(data={}, raw="ok", seconds=0.0)
+
+    monkeypatch.setattr(tr, "chat_text", chat)
+    assert tr.transcribe(a4_pdf(1), "t.pdf").text == "ok" and calls == [(1, 0.0), (2, tr.RETRY_FREQUENCY_PENALTY)]
 
 
 def test_not_an_image_is_unsupported():
