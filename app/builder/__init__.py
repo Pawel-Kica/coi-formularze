@@ -284,6 +284,16 @@ def build_with_evidence(plan: Plan) -> tuple[dict, dict]:
     return coi, _evidence(coi, plan, known)
 
 
+def blank() -> tuple[dict, dict]:
+    """A form to build by hand ("Zacznij od pustego formularza" on the upload page, `GET /api/forms/blank`): the
+    standard pages around one page with one section and one text field, no paper. Everything that is not a standard
+    page is marked as the clerk's, so the editor renames its techNames with its labels."""
+    plan = Plan(title="Nowy wniosek", addressee="", pages=[{"title": "Nowa strona", "sections": [
+        {"id": "s1", "title": "Nowa sekcja", "fields": [{"id": "f1", "label": "Nowe pole", "type": "TEXT_FIELD", "quote": ""}]}]}])
+    coi, evidence = build_with_evidence(plan)
+    return coi, {k: v if v["source"] == "code" else _ev("clerk") for k, v in evidence.items()}
+
+
 def _ev(source: str, quote: str | None = None, *, plan_id: str | None = None,
         cond: Condition | None = None) -> dict:
     """One evidence entry. `page` stays None until extraction keeps page numbers: it is the hook

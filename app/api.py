@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from app import catalog, history, pipeline, review
+from app.builder import blank
 from app.dictionaries import propose as propose_dictionaries
 from app.config import settings
 from app.extract import extract
@@ -138,6 +139,14 @@ async def check_form(coi: Annotated[dict, Body()], _user: Annotated[str, Depends
     """A COI JSON (e.g. after the clerk's edits) checked with the same rules as every convert result:
     `{"problems": [{"id": <element id or null>, "message": <Polish>, "detail": <rules line>}]}`."""
     return {"problems": explain(coi, await run_in_threadpool(check, coi))}
+
+
+@app.get("/api/forms/blank", tags=["forms"], response_description="Pusty formularz do zbudowania w edytorze")
+async def blank_form(_user: Annotated[str, Depends(current_user)]) -> dict:
+    """A form to build by hand, no file and no model: `{"coi", "evidence"}` like `convert?evidence=1`, with the
+    standard COI pages (Dane, Kontakt i zgody, finish) around one page with one text field."""
+    coi, evidence = blank()
+    return {"coi": coi, "evidence": evidence}
 
 
 @app.post(

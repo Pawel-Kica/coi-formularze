@@ -804,7 +804,8 @@ function renderLegend() {
   const count = id => { const e = evidence[id]; if (e?.source === "paper" && e.quote) n++; };
   if (cfg) { cfg.tabs.forEach(t => count(t.id)); eachField(f => count(f.id)); }
   $("#legend").replaceChildren(...(!hasEvidence()
-    ? ["Ten plik nie ma cytatów z dokumentu (wczytany JSON albo starszy wynik). Wgraj formularz ponownie, aby je zobaczyć."]
+    ? ["Bez cytatów z dokumentu: ta e-usługa przyszła jako gotowy JSON (albo to starszy wynik)."]
+    : !n ? ["Bez dokumentu: e-usługa budowana w edytorze. Strony standardowe COI dodał kod."]
     : [`Z dokumentu: ${n} ${plural(n, ["element", "elementy", "elementów"])}, pod każdym jest dosłowny cytat z formularza. Strony i sekcje bez cytatu tylko grupują pola.`]));
 }
 // Polish plural: plural(3, ["pole", "pola", "pól"]) -> "pola".

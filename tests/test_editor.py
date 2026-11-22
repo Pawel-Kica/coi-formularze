@@ -193,3 +193,17 @@ def test_convert_evidence_is_opt_in(client, auth, monkeypatch):
 def test_editor_script_served(client):
     response = client.get("/editor.js")
     assert response.status_code == 200 and "javascript" in response.headers["content-type"]
+
+
+def test_blank_form_passes_the_rules_and_belongs_to_the_clerk(client, auth):
+    """'Zacznij od pustego formularza': the standard pages around one page to build by hand, nothing from paper."""
+    assert client.get("/api/forms/blank").status_code == 401
+    data = client.get("/api/forms/blank", headers=auth).json()
+    coi, evidence = data["coi"], data["evidence"]
+    assert [t["title"] for t in coi["tabs"]] == ["Dane", "Nowa strona", "Kontakt i zgody", "Strona końcowa"]
+    assert check(coi) == []
+    assert {el["id"] for _, el in elements(coi)} == set(evidence)
+    page = coi["tabs"][1]
+    own = [page, page["questions"][0]["field"], page["questions"][0]["field"]["repeatingSectionGrid"][0]["field"]]
+    assert all(evidence[el["id"]]["source"] == "clerk" for el in own)  # the editor renames their techNames
+    assert {e["source"] for e in evidence.values()} == {"clerk", "code"}

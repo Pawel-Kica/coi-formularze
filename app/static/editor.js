@@ -338,6 +338,26 @@ function edAddSection(tabId, afterId) {
   }, "Dodano sekcję z jednym polem. Wpisz jej tytuł.");
   edShow(ed.sel);
 }
+// Adds a new page (one section with one field) right after page `tab`. The links that left `tab` leave the new page
+// now and `tab` links to it, so a branching flow of an imported JSON stays as it was. Page titles stay unique: the
+// rules refuse two pages with one title, and conditions find a page by its title.
+function edAddTab(tab) {
+  edChange(() => {
+    let title = "Nowa strona";
+    for (let n = 2; cfg.tabs.some(t => t.title === title); n++) title = `Nowa strona ${n}`;
+    const sec = edNewSection(), page = {id: edNewId(), title, type: "MAIN", questions: [{x: 0, y: 0, rows: 2, cols: 3, field: sec}]};
+    edLayoutTab(page);
+    cfg.tabs.splice(cfg.tabs.indexOf(tab) + 1, 0, page);
+    cfg.flow = cfg.flow || {links: []};
+    cfg.flow.links = cfg.flow.links || [];
+    for (const l of cfg.flow.links) if (l.source === tab.id) l.source = page.id;
+    cfg.flow.links.push({id: edNewId(), source: tab.id, target: page.id});
+    edMark(page, sec, sec.repeatingSectionGrid[0].field);
+    ed.sel = page.id;
+    ed.focusLabel = true;
+  }, "Dodano stronę z jedną sekcją i jednym polem. Wpisz jej tytuł.");
+  edShow(ed.sel);
+}
 function edMove(id, dir) {
   edChange(() => {
     const loc = edFind(id);
@@ -790,7 +810,8 @@ function edTabControls(loc) {
     if (v !== tab.title) edChange(() => edRenameTab(tab, v));
   });
   return [edRow("Tytuł strony", inp), msg,
-    h("div", {class: "ed-actions"}, edBtn("+ Dodaj sekcję na końcu strony", "addsec", () => edAddSection(tab.id, null)))];
+    h("div", {class: "ed-actions"}, edBtn("+ Dodaj sekcję na końcu strony", "addsec", () => edAddSection(tab.id, null)),
+      tab.type !== "FINISH" && edBtn("+ Dodaj stronę po tej", "addtab", () => edAddTab(tab)))];
 }
 
 function edSectionControls(loc) {

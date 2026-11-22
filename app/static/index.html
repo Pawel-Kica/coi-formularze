@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cyfryzacja formularzy | generator e-usług COI</title>
 <!-- One self-contained page served by the API at "/": log in, drop forms, check each result against its original.
-     Left column = one file at a time, or many with "Wgraj wiele plików naraz" (sent one by one), plus history (on the server,
+     Left column = one file at a time, or many with "Wgraj wiele plików naraz" (sent one by one); a COI JSON dropped there
+     and "Zacznij od pustego formularza" skip the model and open straight in the editor (openReady); plus history (on the server,
      /api/history) with a ZIP of all results. Main area = original document | e-service, one of three views: "Podgląd" (the form
      with the paper quote under every field and the paper heading of every page and section, a click on it shows that
      place in the original (showPaper), and "Źródło" next to an element shows a crop of the paper page with its quote framed,
@@ -61,6 +62,7 @@
   .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
   .batch-toggle { display: flex; gap: 8px; align-items: center; margin: 8px 0 0; font-weight: 400; font-size: .9rem; cursor: pointer; }
   .batch-toggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--navy); }
+  #blank { flex: none; width: 100%; margin-top: 10px; }
   .hist-head { display: flex; justify-content: space-between; align-items: center; margin: 14px 0 6px; }
   #zip { flex: none; width: 100%; margin-bottom: 8px; }
   ul.files .err { display: block; font-size: .8rem; color: var(--err); white-space: normal; overflow-wrap: anywhere; }
@@ -89,6 +91,9 @@
   .panes.wide { grid-template-columns: minmax(0, 1fr) minmax(820px, 1.4fr); }
   .panes.no-original { grid-template-columns: 40px minmax(0, 1fr); }
   .panes.no-original #original-pane > :not(.strip), .panes:not(.no-original) .strip { display: none; }
+  /* a form that started without paper (a COI JSON or the blank form): no original pane at all */
+  .panes.no-paper, .panes.no-paper.wide, .panes.no-paper.no-original { grid-template-columns: minmax(0, 1fr); }
+  .panes.no-paper #original-pane { display: none; }
   .strip { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 12px 0;
            border: 0; border-radius: 0; background: #f8fafc; color: var(--navy-dark); font-weight: 700; }
   .strip:hover { background: #e8f0fb; color: var(--navy-dark); }
@@ -176,11 +181,12 @@
   <section class="card" id="upload" aria-labelledby="upload-title" hidden>
     <h2 id="upload-title">Wgraj pusty formularz</h2>
     <label class="drop" id="drop">
-      <input id="file" type="file" accept=".pdf,.doc,.docx,.ods,.xlsx,.xls,.jpg,.jpeg,.jpe,.png">
+      <input id="file" type="file" accept=".pdf,.doc,.docx,.ods,.xlsx,.xls,.jpg,.jpeg,.jpe,.png,.json">
       <strong id="drop-title">Przeciągnij plik tutaj</strong> albo kliknij, aby wybrać z dysku
-      <span class="muted" style="display:block">PDF, DOC, DOCX, ODS, XLSX, XLS, JPG, PNG.<span id="drop-batch" hidden> Pliki przetworzymy po kolei, jeden po drugim.</span></span>
+      <span class="muted" style="display:block">PDF, DOC, DOCX, ODS, XLSX, XLS, JPG, PNG albo gotowy JSON e-usługi COI.<span id="drop-batch" hidden> Pliki przetworzymy po kolei, jeden po drugim.</span></span>
     </label>
     <label class="batch-toggle"><input type="checkbox" id="batch"> Wgraj wiele plików naraz</label>
+    <button type="button" id="blank" class="small" title="Zbuduj e-usługę od zera w edytorze, bez dokumentu">+ Zacznij od pustego formularza</button>
     <div class="hist-head">
       <h3 id="history-title">Historia</h3>
       <button type="button" id="clear" class="small">Wyczyść historię</button>
@@ -201,6 +207,7 @@
         <li><strong>Sprawdź e-usługę obok oryginału.</strong> Pod każdym polem jest cytat z dokumentu, z którego powstało.</li>
         <li><strong>Popraw, co trzeba, i pobierz JSON</strong> gotowy do importu w COI. Ołówek przy nazwie pola otwiera je do poprawy.</li>
       </ol>
+      <p class="muted">Masz już JSON e-usługi, np. z innego systemu? Wgraj go tak samo i pracuj na nim dalej. Bez dokumentu: „Zacznij od pustego formularza”.</p>
     </div>
     <div class="panes" id="panes" hidden>
       <div class="pane" id="original-pane" role="region" aria-labelledby="original-title">
@@ -436,10 +443,13 @@ async function addFiles(files) {
   const known = $("#file").accept.split(",");
   const wrong = files.filter((file) => !known.includes("." + file.name.split(".").pop().toLowerCase()));
   if (wrong.length) { // said here, not as a failed row whose "Spróbuj ponownie" could never work
-    $("#announce").textContent = `Ten format nie jest obsługiwany: ${wrong.map((file) => file.name).join(", ")}. Wgraj PDF, DOC, DOCX, ODS, XLSX, XLS, JPG albo PNG.`;
+    $("#announce").textContent = `Ten format nie jest obsługiwany: ${wrong.map((file) => file.name).join(", ")}. Wgraj PDF, DOC, DOCX, ODS, XLSX, XLS, JPG, PNG albo JSON e-usługi.`;
     files = files.filter((file) => !wrong.includes(file));
     if (!files.length) return;
   }
+  for (const file of files.filter(isJson)) await openJson(file); // a COI JSON never goes to the model
+  files = files.filter((file) => !isJson(file));
+  if (!files.length) return;
   const added = [];
   for (const file of files) {
     const item = { file, created: Date.now(), status: "queued", started: 0, result: null, error: "" };
@@ -451,6 +461,43 @@ async function addFiles(files) {
   select(added[0]); // the original shows at once, the e-service pane counts the seconds
   processQueue();
 }
+
+// Forms that start without paper: a COI JSON (e.g. from another system) or the blank form (GET /api/forms/blank).
+// No model: the item is done at once and opens in the preview with the "Edycja" sidebar, checked with the COI rules
+// like every result. Its history file is the JSON itself, and there is no original pane (.no-paper).
+const isJson = (file) => file.name.toLowerCase().endsWith(".json");
+
+async function openReady(file, result, evidence) {
+  const item = { file, created: Date.now(), status: "done", started: 0, result, evidence, problems: [], error: "" };
+  state.items.unshift(item);
+  await persist(item);
+  state.view = "preview";
+  select(item);
+}
+
+// A JSON file from disk: an object with a "tabs" list is enough to open it, the rules check says what else is wrong.
+async function openJson(file) {
+  let coi = null;
+  try { coi = JSON.parse(await file.text()); } catch {}
+  if (!coi || typeof coi !== "object" || !Array.isArray(coi.tabs)) {
+    $("#announce").textContent = `${file.name} nie jest JSON-em e-usługi COI (brak listy stron „tabs”).`;
+    return;
+  }
+  await openReady(file, coi, {}); // no evidence: the editor says the origin is unknown and keeps its techNames
+}
+
+$("#blank").addEventListener("click", async () => {
+  $("#announce").textContent = "";
+  try {
+    const response = await fetch("/api/forms/blank", { headers: { Authorization: `Bearer ${state.token}` } });
+    if (response.status === 401) return logout("Sesja wygasła. Zaloguj się ponownie.");
+    if (!response.ok) throw new Error();
+    const { coi, evidence } = await response.json();
+    await openReady(new File([JSON.stringify(coi, null, 2)], "Nowy formularz.json", { type: "application/json" }), coi, evidence);
+  } catch {
+    $("#announce").textContent = "Nie udało się utworzyć pustego formularza.";
+  }
+});
 
 async function processQueue() {
   if (state.busy) return;
@@ -582,6 +629,7 @@ function select(item) {
   renderFiles();
   $("#result-empty").hidden = Boolean(item);
   $("#panes").hidden = !item;
+  $("#panes").classList.toggle("no-paper", Boolean(item && isJson(item.file)));
   $("#original-name").textContent = $("#original-name").title = item ? item.file.name : "";
   if (changed) showOriginal(item);
   if (!item) return;
@@ -635,7 +683,7 @@ function showOriginal(item) {
   if (state.originalUrl) URL.revokeObjectURL(state.originalUrl);
   state.originalUrl = null;
   const pane = $("#original");
-  if (!item) return pane.replaceChildren();
+  if (!item || isJson(item.file)) return pane.replaceChildren(); // no paper behind it: the pane is hidden
   const name = item.file.name;
   const ext = name.split(".").pop().toLowerCase();
   state.originalUrl = URL.createObjectURL(MIME[ext] ? new Blob([item.file], { type: MIME[ext] }) : item.file);
@@ -844,7 +892,7 @@ function sendPreview() {
   $("#preview-frame").contentWindow.postMessage(
     { type: "coi-preview", json: selectedJson(), evidence: item.evidence || {}, doc: state.doc, key: item.id }, location.origin);
   checkRules(item, 0);
-  sendSources(item);
+  if (!isJson(item.file)) sendSources(item); // "Źródło" needs paper
 }
 
 // --- editor (the "Edycja" sidebar inside the preview frame): it sends every change, we save it and check it with the real COI rules ---
@@ -888,7 +936,7 @@ window.addEventListener("message", (event) => {
     if (item === state.selected) updateActions(); // no download of a change the rules have not seen yet
     clearTimeout(checkTimer);
     const doc = state.doc; // the check belongs to this document even if another file is opened before it starts
-    checkTimer = setTimeout(() => { checkRules(item, data.version, doc); sendSources(item, doc); }, 250);
+    checkTimer = setTimeout(() => { checkRules(item, data.version, doc); if (!isJson(item.file)) sendSources(item, doc); }, 250);
   }
 });
 
