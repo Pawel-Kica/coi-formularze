@@ -58,6 +58,9 @@ PAGE_NOTE = "Strona {n} z {total}. Przepisz tę stronę do Markdown."
 # forever at temperature 0 (cut off by max_tokens). frequency_penalty breaks the loop too but wrecks
 # tables (every "|" counts against it), presence_penalty is a flat, one-time push.
 PRESENCE_PENALTY = 1.5
+# Only for the retry of a looping page: frequency_penalty breaks any loop (form 5 DOC page 1: 517 tokens, 10 s, whole page)
+# but would bend every table of the first try.
+RETRY_FREQUENCY_PENALTY = 0.5
 FILL_RUN = re.compile(r"[.…_]{4,}")  # a dotted / underscored fill-in line, however the model copied it
 CACHE_FILES = 16  # transcriptions kept in memory, most recent first out last
 MIN_RECALL = 0.95  # share of an office file's words its LibreOffice PDF must hold (as app.history), else its own text is read
@@ -150,8 +153,9 @@ def _pdf_text(data: bytes) -> str:
 
 
 def transcribe_page(img: Image.Image, n: int = 1, total: int = 1, side: int | None = None) -> str:
-    """One page image -> its Markdown (fill-in runs collapsed to `______`). Retried once with more
-    room when the answer is empty or cut off."""
+    """One page image -> its Markdown (fill-in runs collapsed to `______`). Retried once with RETRY_FREQUENCY_PENALTY
+    when the answer is empty or cut off: a cut-off answer is a loop (form 5 DOC page 1: an empty table row
+    `| | | …` copied until max_tokens, and a retry with only more room looped to 16000 tokens and timed out)."""
     url = data_url(img, side or settings.transcribe_side)
     note = PAGE_NOTE.format(n=n, total=total)
     call = dict(model=settings.transcribe_model, images=[url], presence_penalty=PRESENCE_PENALTY,
@@ -160,7 +164,7 @@ def transcribe_page(img: Image.Image, n: int = 1, total: int = 1, side: int | No
         raw = chat_text(system_prompt(), note, **call).raw
     except LLMError as e:
         log.warning("page %d transcription failed (%s), retrying", n, e)
-        raw = chat_text(system_prompt(), note, max_tokens=16000, **call).raw
+        raw = chat_text(system_prompt(), note, frequency_penalty=RETRY_FREQUENCY_PENALTY, **call).raw
     return FILL_RUN.sub("______", raw).strip()
 
 

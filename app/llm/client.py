@@ -162,11 +162,13 @@ def chat_text(
     presence_penalty: float = 0.0,
     timeout: float | None = None,
     tries: int = MAX_TRIES,
+    frequency_penalty: float = 0.0,
 ) -> ChatResult:
     """The same deterministic call without a schema: the answer is free text (`raw`, `data` empty),
     e.g. a page transcribed to Markdown (`app.llm.transcribe`). Raises LLMError when the answer is
     empty or cut off by `max_tokens`. `timeout` (s, unset = LLM_TIMEOUT_S) and `tries` per HTTP attempt."""
-    raw, seconds, stats = _chat(system, user, model, max_tokens, 42, 0.0, images, None, presence_penalty, timeout, tries)
+    raw, seconds, stats = _chat(system, user, model, max_tokens, 42, frequency_penalty, images, None, presence_penalty,
+                                timeout, tries)
     if not raw.strip() or stats["finish_reason"] == "length":
         raise LLMError(f"model returned no usable text (finish_reason={stats['finish_reason']})")
     return ChatResult(data={}, raw=raw, seconds=seconds, prompt_tokens=stats["prompt_tokens"] or 0,

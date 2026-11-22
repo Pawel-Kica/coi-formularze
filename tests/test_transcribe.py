@@ -88,17 +88,18 @@ def test_stacked_scan_is_cut_into_pages(monkeypatch):
     assert doc.text == "## page 1\n\n## page 2" and sorted(c["user"][:12] for c in calls) == ["Strona 1 z 2", "Strona 2 z 2"]
 
 
-def test_retry_once_with_more_tokens(monkeypatch):
+def test_cut_off_page_is_retried_once_with_a_frequency_penalty(monkeypatch):
     calls = []
 
-    def chat(system, user, model=None, max_tokens=8000, images=None, presence_penalty=0.0, timeout=None, tries=3):
-        calls.append(max_tokens)
+    def chat(system, user, model=None, max_tokens=8000, images=None, presence_penalty=0.0, timeout=None, tries=3,
+             frequency_penalty=0.0):
+        calls.append(frequency_penalty)
         if len(calls) == 1:
             raise LLMError("cut off")
         return ChatResult(data={}, raw="ok", seconds=0.0)
 
     monkeypatch.setattr(tr, "chat_text", chat)
-    assert tr.transcribe(a4_pdf(1), "f.pdf").text == "ok" and calls == [8000, 16000]
+    assert tr.transcribe(a4_pdf(1), "f.pdf").text == "ok" and calls == [0.0, tr.RETRY_FREQUENCY_PENALTY]
 
 
 def test_not_an_image_is_unsupported():
