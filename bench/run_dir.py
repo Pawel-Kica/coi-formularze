@@ -1,7 +1,8 @@
 """Run the real pipeline over every file in a folder, for black-box sets without gold.
 
 For every file: transcribe (page images -> Markdown) -> make_plan -> filter_plan -> build -> check,
-2 files at a time. Saves `<out>/<file name>.txt` (the Markdown the planner read), `.plan.json`,
+2 files at a time. Saves `<out>/<file name>.txt` (the Markdown the planner read), `.raw.json` (the model's plan
+before the quote filter, for `bench.refilter`), `.plan.json`,
 `.coi.json`, `<out>/source.txt` (the source folder, for the review page `/review`) and
 `<out>/summary.json` (per file: ok/error, seconds, fields, rules problems, quote-filter drops).
 A Claude judge then compares each original with its output.
@@ -36,7 +37,9 @@ def run_file(path: Path, out: Path) -> dict:
         data = path.read_bytes()
         doc = transcribe(data, path.name)
         (out / f"{path.name}.txt").write_text(doc.text)
-        plan, dropped = filter_plan(make_plan(doc.text), doc.text)
+        raw = make_plan(doc.text)
+        (out / f"{path.name}.raw.json").write_text(raw.model_dump_json(indent=1))  # before the filter, for refilter
+        plan, dropped = filter_plan(raw, doc.text)
         coi = build(plan)
     except Exception as e:  # noqa: BLE001 - a benchmark records every failure
         return row | {"ok": False, "error": f"{type(e).__name__}: {e}"[:300], "s": round(time.time() - t)}

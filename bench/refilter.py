@@ -1,7 +1,8 @@
 """Offline check of the post-model code (quote filter + repairs): cached plans in, scores out. No model.
 
-Cached plans were saved after the quote filter of their day; running today's `filter_plan` over them
-shows what new rules drop or repair (it cannot bring back what the old filter dropped).
+Cached plans were saved after the quote filter of their day. "before" = that saved plan; "after" = today's
+`filter_plan` over the model's raw plan (`<name>.raw.json`, saved by runs since 22.11 04:00), else over the saved
+plan (then it shows only what new rules drop or repair, it cannot bring back what the old filter dropped).
 
     uv run python -m bench.refilter coi bench/runs/opt-base [--out <dir>]   # 9 COI forms vs gold/plans
     uv run python -m bench.refilter dir bench/runs/drive-baseline [--out <dir>]  # run_dir output, notes only
@@ -42,6 +43,12 @@ def paper_text(form: str, path: Path) -> tuple[str, str]:
     return doc.text, doc.method
 
 
+def raw_or(plan_path: Path, raw_name: str, saved: Plan) -> Plan:
+    """The model's plan before any filter when the run saved it, else the saved (filtered) plan."""
+    raw = plan_path.with_name(raw_name)
+    return Plan.model_validate_json(raw.read_text()) if raw.exists() else saved
+
+
 def n_conditions(plan: Plan) -> int:
     return sum(t.show_if is not None for p in plan.pages for s in p.sections for t in [s, *s.fields])
 
@@ -65,7 +72,7 @@ def run_coi(run: Path, out: Path | None, quiet: bool) -> int:
         saved = plan_path.with_name(f"{ext}.text.md")
         text, method = (saved.read_text(), "vlm-md") if saved.exists() else paper_text(form, path)
         old = Plan.model_validate_json(plan_path.read_text())
-        new, notes = filter_plan(old, text, threshold_for(method))
+        new, notes = filter_plan(raw_or(plan_path, f"{ext}.raw.json", old), text, threshold_for(method))
         gold = Plan.model_validate_json((GOLD / f"form{form}.json").read_text())
         a, b = score_plan(old, gold)["metrics"], score_plan(new, gold)["metrics"]
         problems = save(out, f"{form}.{ext}", new)
@@ -86,7 +93,7 @@ def run_dir(run: Path, out: Path | None, quiet: bool) -> int:
         name = plan_path.name.removesuffix(".plan.json")
         text = (run / f"{name}.txt").read_text()
         old = Plan.model_validate_json(plan_path.read_text())
-        new, notes = filter_plan(old, text)
+        new, notes = filter_plan(raw_or(plan_path, f"{name}.raw.json", old), text)
         problems = save(out, name, new)
         print(f"{name[:48]:48} conds={n_conditions(old)}->{n_conditions(new)} notes={len(notes)} rules={len(problems)}")
         if not quiet:

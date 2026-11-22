@@ -1,7 +1,8 @@
 """End-to-end run of the real pipeline over form files: the definition-of-done table.
 
 For every file: transcribe (page images -> Markdown) -> make_plan -> filter_plan -> build -> check. Saves
-`<out>/<set>/<form>/<ext>.text.md` (what the planner read), `.plan.json` and `.coi.json`, then prints per file:
+`<out>/<set>/<form>/<ext>.text.md` (what the planner read), `.raw.json` (the model's plan before the quote filter,
+which `bench.refilter` re-filters), `.plan.json` and `.coi.json`, then prints per file:
 JSON produced (1), COI rules problems (2), quote-filter drops (hallucination
 proxy), score vs the gold plan, for forms 1 and 5 score vs the COI reference (3)
 plus `walid=` (validator F1 vs gold/coi/formN.json, the reference with hand-added
@@ -113,7 +114,9 @@ def run_file(form: str, path: Path, out: Path, rebuild: bool = False) -> dict:
             doc = transcribe(data, path.name)
             (out / form).mkdir(parents=True, exist_ok=True)
             (out / form / f"{ext}.text.md").write_text(doc.text)  # what the planner read
-            plan, dropped = filter_plan(make_plan(doc.text), doc.text)
+            raw = make_plan(doc.text)
+            (out / form / f"{ext}.raw.json").write_text(raw.model_dump_json(indent=1))  # before the filter, for refilter
+            plan, dropped = filter_plan(raw, doc.text)
             coi = build(plan)
         except Exception as e:  # noqa: BLE001 - a benchmark records every failure
             return row | {"ok": False, "error": f"{type(e).__name__}: {e}"[:300], "s": round(time.time() - t)}
