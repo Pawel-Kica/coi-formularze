@@ -13,8 +13,8 @@
      place in the original (showPaper), and "Źródło" next to an element shows a crop of the paper page with its quote framed,
      a click on it the whole page here (sendSources, showSource); to its right, the collapsible "Edycja" sidebar of /editor.js: the pencil
      next to an element opens it there; edits are saved in history and checked with the COI rules), "JSON" (tree) and
-     "Słowniki" (bonus II proposals). The history column is always visible; when room runs out the original pane
-     gives way first (narrower, then a one-click strip), see layoutPanes.
+     "Słowniki" (bonus II proposals). The left column (upload + history) and the original pane fold to one-click strips;
+     when room runs out the left column gives way first, then the original, never the form, see layoutPanes.
      No build step and no CDN, so it works offline. -->
 <style>
   :root {
@@ -32,7 +32,14 @@
   .bar a.nav:hover { background: rgba(255,255,255,.15); }
   .pill { font-size: .85rem; padding: 2px 10px; border-radius: 999px; background: rgba(255,255,255,.15); }
   main { flex: 1; min-height: 0; padding: 12px 16px 16px; display: grid; gap: 12px;
-         grid-template-columns: clamp(220px, 20vw, 300px) minmax(0, 1fr); } /* the history column is always there */
+         grid-template-columns: clamp(220px, 20vw, 300px) minmax(0, 1fr); }
+  /* the left column folded to a strip (by hand, or by layoutPanes when the open sidebar needs the room) */
+  main.no-history { grid-template-columns: 40px minmax(0, 1fr); }
+  main.no-history #upload { padding: 0; overflow: hidden; }
+  main.no-history #upload > :not(#history-strip), main:not(.no-history) #history-strip { display: none; }
+  #history-strip { flex: 1; }
+  .upload-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .upload-head h2 { margin: 0 auto 0 0; }
   main.login { display: block; overflow: auto; }
   #login { max-width: 420px; margin: 40px auto; }
   .card { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 16px; min-height: 0; min-width: 0; }
@@ -61,15 +68,6 @@
   .drop:focus-within { outline: 3px solid #c2662d; outline-offset: 2px; }
   .drop strong { color: var(--navy); }
   .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-  /* "Wgraj pusty formularz" folds away while a document is open, so small screens keep room for the history */
-  #add { flex: none; }
-  #add > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-  #add > summary::-webkit-details-marker { display: none; }
-  #add > summary::after { content: ""; margin: 0 4px 0 auto; width: 8px; height: 8px; border: solid var(--navy);
-                          border-width: 0 2px 2px 0; transform: translateY(-2px) rotate(45deg); transition: transform .15s; }
-  #add:not([open]) > summary::after { transform: rotate(-45deg); }
-  #add > summary h2 { margin: 0; }
-  #add[open] > summary { margin-bottom: 12px; }
   #blank, #json-pick { flex: none; width: 100%; margin-top: 10px; }
   #json-pick { margin-top: 6px; }
   #history-title { margin: 14px 0 6px; }
@@ -107,7 +105,7 @@
            border: 0; border-radius: 0; background: #f8f6f2; color: var(--navy-dark); font-weight: 700; }
   .strip:hover { background: #ecebf6; color: var(--navy-dark); }
   .strip-label { writing-mode: vertical-rl; }
-  #original-collapse { padding: 2px 9px !important; font-size: 1.1rem; line-height: 1.2; }
+  #original-collapse, #history-collapse { padding: 2px 9px !important; font-size: 1.1rem; line-height: 1.2; }
   .pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
   .pane-head { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 6px 10px;
                background: #f8f6f2; border-bottom: 1px solid var(--line); min-height: 46px; }
@@ -158,7 +156,7 @@
     main { grid-template-columns: 1fr; }
     .panes, .panes.wide { grid-template-columns: 1fr; }
     .pane { height: 80vh; }
-    #original-collapse { display: none; }
+    #original-collapse, #history-collapse { display: none; }
   }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   [hidden] { display: none !important; }
@@ -188,8 +186,11 @@
   </section>
 
   <section class="card" id="upload" aria-labelledby="upload-title" hidden>
-    <details id="add" open>
-    <summary><h2 id="upload-title">Wgraj pusty formularz</h2></summary>
+    <button type="button" class="strip" id="history-strip" title="Rozwiń kolumnę z historią"><span aria-hidden="true">›</span><span class="strip-label">Historia</span></button>
+    <div class="upload-head">
+      <h2 id="upload-title">Wgraj pusty formularz</h2>
+      <button type="button" class="small" id="history-collapse" title="Zwiń kolumnę z historią" aria-label="Zwiń kolumnę z historią">‹</button>
+    </div>
     <label class="drop" id="drop">
       <input id="file" type="file" multiple accept=".pdf,.doc,.docx,.ods,.xlsx,.xls,.jpg,.jpeg,.jpe,.png,.json">
       <strong>Przeciągnij pliki tutaj</strong> albo kliknij, aby wybrać z dysku
@@ -198,7 +199,6 @@
     <button type="button" id="blank" class="small" title="Zbuduj e-usługę od zera w edytorze, bez dokumentu">+ Zacznij od pustego formularza</button>
     <button type="button" id="json-pick" class="small" title="Otwórz gotowy JSON e-usługi COI w edytorze, bez modelu">Wgraj JSON</button>
     <input id="json-file" type="file" accept=".json,application/json" multiple hidden>
-    </details>
     <h3 id="history-title">Historia</h3>
     <button type="button" id="zip" class="small" title="Pobierz ZIP z JSON-ami wszystkich gotowych plików z historii" hidden>Pobierz wszystkie</button>
     <ul class="files" id="files" aria-labelledby="history-title"></ul>
@@ -301,6 +301,8 @@ const state = {
   // with it collapsed and the original pane shown (Paweł 22.11: the original is always there first)
   sidebar: false,
   originalHidden: false, // the original pane was collapsed to its strip by hand, for the document on screen only
+  historyHidden: false, // the left column (upload + history) was collapsed to its strip by hand
+  historyPinned: false, // ...or brought back by hand while the open sidebar had folded it: it stays, the original folds instead
   history: true, // HISTORY_ENABLED on the server (GET /api/auth/config); off = nothing saved, the list lives until reload
   originalUrl: null, frameUrl: null, previewReady: false,
   doc: 0, docItem: null, // editor: which document the iframe shows (and whose edits it sends)
@@ -631,7 +633,7 @@ function renderFiles() {
 // one dropped on the embedded preview arrives as a "coi-drop" message.
 const drop = $("#drop");
 $("#file").addEventListener("change", (event) => { addFiles([...event.target.files]); event.target.value = ""; });
-window.addEventListener("dragover", (event) => { event.preventDefault(); drop.classList.add("over"); $("#add").open = true; });
+window.addEventListener("dragover", (event) => { event.preventDefault(); drop.classList.add("over"); });
 window.addEventListener("dragleave", (event) => { if (!event.relatedTarget) drop.classList.remove("over"); });
 window.addEventListener("drop", (event) => {
   event.preventDefault();
@@ -646,7 +648,6 @@ function select(item) {
   const changed = item !== state.selected;
   state.selected = item;
   if (changed) state.originalHidden = false; // a new document shows its original again
-  if (changed) $("#add").open = !item; // the upload box folds while a document is open, unfolds when none is
   if (changed && item?.status !== "done") state.view = "preview"; // a file still in the works opens in the preview when it is ready
   renderFiles();
   $("#result-empty").hidden = Boolean(item);
@@ -893,23 +894,45 @@ function showView() {
   layoutPanes();
 }
 
-// Who gets the room: the history column and the form never give way, the original pane does. It is a strip when
-// the clerk collapsed it, or when the open "Edycja" sidebar leaves it less than a readable width (a PDF page needs
-// about 400 px). The layout follows the sidebar only, the same in "Podgląd", "JSON" and "Słowniki". Below 1000 px
-// everything is stacked and nothing has to give way.
-const ORIGINAL_MIN = 400, STACKED = 1000;
-function originalRoom() {
+// Who gets the room: the form never gives way. When the open "Edycja" sidebar leaves the original less than a
+// readable width (a PDF page needs about 400 px), the left column folds to its strip first, then the original does.
+// Either can also be folded by hand. The layout follows the sidebar only, the same in "Podgląd", "JSON" and
+// "Słowniki". Below 1000 px everything is stacked and nothing has to give way.
+const ORIGINAL_MIN = 400, STACKED = 1000, STRIP = 40;
+function room() {
   const wide = state.sidebar && state.selected?.status === "done";
-  return { wide, tight: wide && $("#panes").clientWidth - 12 - 820 < ORIGINAL_MIN };  // tight: no room for both
+  const paper = Boolean(state.selected) && !isJson(state.selected.file);
+  const base = $("#panes").clientWidth + $("#upload").offsetWidth; // the panes' width if the left column took nothing
+  const column = Math.min(300, Math.max(220, innerWidth * .2)); // the left column's width, as in main's CSS
+  const fits = (left) => !wide || base - left - 12 - 820 >= ORIGINAL_MIN;
+  const historyAuto = paper && !state.historyPinned && !fits(column);
+  const historyFolded = innerWidth > STACKED && (state.historyHidden || historyAuto);
+  return { wide, historyAuto, historyFolded, tight: !fits(historyFolded ? STRIP : column) }; // tight: no room for the original
 }
 function layoutPanes() {
   const panes = $("#panes");
-  if (panes.hidden) return;
-  const { wide, tight } = originalRoom(), stacked = innerWidth <= STACKED;
+  if (!state.sidebar) state.historyPinned = false; // the next sidebar folds the left column again
+  if (panes.hidden) return void $("main").classList.toggle("no-history", innerWidth > STACKED && state.historyHidden);
+  const { wide, tight, historyAuto, historyFolded } = room(), stacked = innerWidth <= STACKED;
+  $("main").classList.toggle("no-history", historyFolded);
+  $("#history-strip").title = historyAuto && !state.historyHidden ? "Rozwiń kolumnę z historią. Oryginał zwinie się do paska, bo wszystko się nie mieści." : "Rozwiń kolumnę z historią";
   panes.classList.toggle("wide", wide);
   panes.classList.toggle("no-original", !stacked && (state.originalHidden || tight));
   $("#original-strip").title = tight && state.view === "preview" ? "Rozwiń oryginał. Panel edycji się zwinie, bo oba się nie mieszczą." : "Rozwiń oryginał";
 }
+addEventListener("resize", layoutPanes);
+$("#history-collapse").addEventListener("click", () => {
+  state.historyHidden = true;
+  state.historyPinned = false;
+  layoutPanes();
+  $("#history-strip").focus();
+});
+$("#history-strip").addEventListener("click", () => {
+  if (room().historyAuto) state.historyPinned = true;
+  state.historyHidden = false;
+  layoutPanes();
+  $("#history-collapse").focus();
+});
 new ResizeObserver(layoutPanes).observe($("#panes"));
 $("#original-collapse").addEventListener("click", () => {
   state.originalHidden = true;
@@ -919,7 +942,7 @@ $("#original-collapse").addEventListener("click", () => {
 // The strip brings the original back; when there is no room for it next to the open sidebar, the sidebar collapses.
 $("#original-strip").addEventListener("click", () => {
   state.originalHidden = false;
-  if (originalRoom().tight) $("#preview-frame").contentWindow.postMessage({ type: "coi-close", doc: state.doc }, location.origin);
+  if (room().tight) $("#preview-frame").contentWindow.postMessage({ type: "coi-close", doc: state.doc }, location.origin);
   layoutPanes();
   // focus goes to the control that is on screen once the sidebar has answered and the panes are laid out
   setTimeout(() => $($("#panes").classList.contains("no-original") ? "#original-strip" : "#original-collapse").focus(), 150);
