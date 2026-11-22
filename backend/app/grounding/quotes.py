@@ -41,12 +41,6 @@ THRESHOLD_OCR = 85.0
 MIN_QUOTE_CHARS = 3  # after normalization; shorter quotes ("a", "1)") prove nothing
 
 
-def threshold_for(method: str) -> float:
-    """Threshold for `filter_plan` by the reading method of the text: THRESHOLD_OCR for OCR text (the methods
-    "pdf-ocr" / "ocr" of earlier bench runs), else THRESHOLD."""
-    return THRESHOLD_OCR if "ocr" in method else THRESHOLD
-
-
 CHOICE_TYPES = {FieldType.RADIO, FieldType.CHECKBOX, FieldType.SELECT}
 
 # Built by code from the Standards ("Dane", contact + consent, finish page), never in `pages`.

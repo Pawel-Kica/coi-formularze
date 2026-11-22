@@ -10,10 +10,8 @@ The HTTP side is `app.api.dictionaries`.
 import json
 import sqlite3
 import time
-from collections.abc import Iterator
-from contextlib import closing, contextmanager
 
-from app.core.config import settings
+from app.storage.db import connect
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS dictionaries (
     code TEXT PRIMARY KEY,
@@ -33,13 +31,8 @@ BUILTIN = [
 _BUILTIN = {d["code"]: d for d in BUILTIN}
 
 
-@contextmanager
-def _db() -> Iterator[sqlite3.Connection]:
-    with closing(sqlite3.connect(settings.history_db)) as conn:
-        conn.row_factory = sqlite3.Row
-        conn.execute(SCHEMA)
-        with conn:
-            yield conn
+def _db():
+    return connect(SCHEMA)
 
 
 def _builtin(d: dict) -> dict:

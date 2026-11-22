@@ -21,7 +21,7 @@ import copy
 import json
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import httpx
 
@@ -40,14 +40,8 @@ class MissingKeyError(LLMError):
 class ChatResult:
     data: dict  # parsed JSON answer
     raw: str
-    seconds: float
-    prompt_tokens: int = 0
-    output_tokens: int = 0
-    stats: dict = field(default_factory=dict)
 
 
-# Per-call log (model, seconds, tokens) the bench reads. Cleared by the caller.
-CALLS: list[dict] = []
 log = logging.getLogger(__name__)
 MAX_TRIES = 3  # per call, for 429 / 5xx / transport errors
 CONNECT_TRIES = 6  # a dropped connection (venue Wi-Fi, DNS) often comes back within a minute: waits 2+4+8+16+32 s
@@ -155,15 +149,14 @@ def chat_json(
         "type": "json_schema",
         "json_schema": {"name": name, "schema": strict_schema(schema), "strict": True},
     }
-    raw, seconds, stats = _chat(system, user, model, max_tokens, seed, frequency_penalty, None, response_format)
+    raw, finish_reason = _chat(system, user, model, max_tokens, seed, frequency_penalty, None, response_format)
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as e:
-        raise LLMError(f"model returned invalid JSON (finish_reason={stats['finish_reason']}): {e}") from None
+        raise LLMError(f"model returned invalid JSON (finish_reason={finish_reason}): {e}") from None
     if not isinstance(data, dict):
         raise LLMError("model returned JSON that is not an object")
-    return ChatResult(data=data, raw=raw, seconds=seconds, prompt_tokens=stats["prompt_tokens"] or 0,
-                      output_tokens=stats["output_tokens"] or 0, stats=stats)
+    return ChatResult(data=data, raw=raw)
 
 
 def chat_text(
@@ -180,17 +173,16 @@ def chat_text(
     """The same deterministic call without a schema: the answer is free text (`raw`, `data` empty),
     e.g. a page transcribed to Markdown (`app.llm.transcribe`). Raises LLMError when the answer is
     empty or cut off by `max_tokens`. `timeout` (s, unset = LLM_TIMEOUT_S) and `tries` per HTTP attempt."""
-    raw, seconds, stats = _chat(system, user, model, max_tokens, 42, frequency_penalty, images, None, presence_penalty,
-                                timeout, tries)
-    if not raw.strip() or stats["finish_reason"] == "length":
-        raise LLMError(f"model returned no usable text (finish_reason={stats['finish_reason']})")
-    return ChatResult(data={}, raw=raw, seconds=seconds, prompt_tokens=stats["prompt_tokens"] or 0,
-                      output_tokens=stats["output_tokens"] or 0, stats=stats)
+    raw, finish_reason = _chat(system, user, model, max_tokens, 42, frequency_penalty, images, None, presence_penalty,
+                               timeout, tries)
+    if not raw.strip() or finish_reason == "length":
+        raise LLMError(f"model returned no usable text (finish_reason={finish_reason})")
+    return ChatResult(data={}, raw=raw)
 
 
 def _chat(system, user, model, max_tokens, seed, frequency_penalty, images, response_format, presence_penalty=0.0,
           timeout=None, tries=MAX_TRIES):
-    """One chat completion -> (answer text, seconds, stats); logs the call in CALLS."""
+    """One chat completion -> (answer text, finish_reason)."""
     model = model or settings.llm_model
     content = user
     if images:
@@ -209,19 +201,10 @@ def _chat(system, user, model, max_tokens, seed, frequency_penalty, images, resp
         body["frequency_penalty"] = frequency_penalty
     if presence_penalty:
         body["presence_penalty"] = presence_penalty
-    t0 = time.monotonic()
     out = _post(f"{settings.llm_base_url.rstrip('/')}/chat/completions", body, timeout, tries).json()
-    seconds = time.monotonic() - t0
     choice = (out.get("choices") or [{}])[0]
     raw = (choice.get("message") or {}).get("content") or ""
-    usage = out.get("usage") or {}
-    stats = {
-        "prompt_tokens": usage.get("prompt_tokens"),
-        "output_tokens": usage.get("completion_tokens"),
-        "finish_reason": choice.get("finish_reason"),
-    }
-    CALLS.append({"model": model, "seconds": round(seconds, 2), **stats})
-    return raw, seconds, stats
+    return raw, choice.get("finish_reason")
 
 
 def health() -> str:

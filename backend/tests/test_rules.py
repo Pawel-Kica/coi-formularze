@@ -102,7 +102,7 @@ def test_catches_bad_jsonata(coi, edit, text):
     assert has(check(c), text)[0], check(c)
 
 
-def test_query_atoms_negation():
+def test_query_atoms_parse_plain_and_repeating_conditions():
     atoms, _rest = query_atoms(
         "$not(\"Polska\" in tabs['Dane' in title].questions['a' in field.techName].field"
         ".repeatingSectionGrid['k' in field.techName].field.__userAnswer) or "
@@ -110,5 +110,4 @@ def test_query_atoms_negation():
         "[$repeatingSectionIndex]['f' in fieldTechName].answers)"
     )
     assert [tuple(a) for a in atoms] == [("Polska", "Dane", "a", "k"), ("Tak", "T", "s", "f")]
-    assert [a.negated for a in atoms] == [True, False]
     assert atoms[1].repeating and atoms[1].same_row

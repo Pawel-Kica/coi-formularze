@@ -9,12 +9,9 @@ Never calls a model. The HTTP side is `app.api.history`.
 """
 
 import json
-import sqlite3
 import time
-from collections.abc import Iterator
-from contextlib import closing, contextmanager
 
-from app.core.config import settings
+from app.storage.db import connect
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS uploads (  -- not "history": that name had per-field columns in the first version
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,14 +21,8 @@ SCHEMA = """CREATE TABLE IF NOT EXISTS uploads (  -- not "history": that name ha
 )"""
 
 
-@contextmanager
-def _db() -> Iterator[sqlite3.Connection]:
-    """One connection per call (commit on success), the table created on first use."""
-    with closing(sqlite3.connect(settings.history_db)) as conn:
-        conn.row_factory = sqlite3.Row
-        conn.execute(SCHEMA)
-        with conn:
-            yield conn
+def _db():
+    return connect(SCHEMA)
 
 
 def _split(record: dict) -> tuple[int | None, str]:

@@ -11,11 +11,6 @@ from app.coi.builder.texts import EMPTY_HTML
 from app.core.text import slugify
 
 NAMESPACE = uuid.UUID("6f1d3c2a-8b7e-5c4d-9a0b-1e2f3a4b5c6d")
-SECTION_TYPES = ("SECTION", "REPEATING_SECTION")
-BASE_KEYS = (
-    "id", "type", "techName", "title", "description", "options", "validation",
-    "readOnly", "repeatingSectionGrid", "states", "questionOrder", "tooltipMessage",
-)  # fmt: skip
 
 
 class Ctx:

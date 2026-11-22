@@ -223,11 +223,6 @@ def data_url(img: Image.Image, side: int | None = None) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def render_pages(data: bytes, filename: str = "") -> list[Image.Image]:
-    """Every page of a PDF, image or office file as an RGB image (long side RENDER_SIDE px at most)."""
-    return _render(data, filename)[0]
-
-
 def _render(data: bytes, filename: str) -> tuple[list[Image.Image], bytes | None]:
     """(page images, the LibreOffice PDF of an office file or None)."""
     if data[:5] == b"%PDF-" or (filename.lower().endswith(".pdf") and b"%PDF-" in data[:1024]):

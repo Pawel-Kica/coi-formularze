@@ -96,7 +96,7 @@ def test_make_plan_retries_pass1_and_survives_pass2_failure(monkeypatch):
         if len(calls) == 1:
             raise LLMError("model returned invalid JSON (finish_reason=length)")
         if len(calls) == 2:
-            return ChatResult(data=EXAMPLE, raw="", seconds=0)
+            return ChatResult(data=EXAMPLE, raw="")
         raise LLMError("pass 2 broken")
 
     monkeypatch.setattr(planner, "chat_json", fake_chat)

@@ -23,13 +23,6 @@ def slugify(text: str, fallback: str = "pole", max_len: int = 60) -> str:
     return slug or fallback
 
 
-def strip_html(text: str) -> str:
-    """HTML description -> plain text (tags dropped, entities and nbsp resolved)."""
-    text = re.sub(r"<img[^>]*>", " ", text or "")
-    text = re.sub(r"<[^>]+>", " ", text)
-    return re.sub(r"\s+", " ", html.unescape(text).replace("\xa0", " ")).strip()
-
-
 def html_paragraphs(text: str) -> str:
     """Plain text -> the COI description HTML (one <p> per non-empty line)."""
     paras = [p.strip() for p in (text or "").splitlines() if p.strip()]

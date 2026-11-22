@@ -309,33 +309,12 @@ def _set_answer(doc: dict, atom, value: list[str]) -> None:
 
 class Atom(tuple):
     """(option, tab title, section techName, field techName) of one JSONata condition,
-    plus the form used (repeating, same_row), whether it sits under $not, and its text."""
+    plus the form used (repeating, same_row) and its text."""
 
     repeating = False
     same_row = False
-    negated = False
     start = 0
     text = ""
-
-
-def _under_not(prefix: str) -> bool:
-    """True when the end of `prefix` is inside an odd number of open `$not(` groups."""
-    stack, quote, i = [], "", 0
-    while i < len(prefix):
-        c = prefix[i]
-        if quote:
-            if c == "\\":
-                i += 1
-            elif c == quote:
-                quote = ""
-        elif c in "\"'":
-            quote = c
-        elif c == "(":
-            stack.append(prefix[max(0, i - 4):i] == "$not")
-        elif c == ")" and stack:
-            stack.pop()
-        i += 1
-    return sum(stack) % 2 == 1
 
 
 def query_atoms(query: str) -> tuple[list[Atom], str]:
@@ -348,7 +327,6 @@ def query_atoms(query: str) -> tuple[list[Atom], str]:
             a.repeating = repeating
             a.same_row = repeating and bool(g[3])
             a.start, a.text = m.start(), m.group(0)
-            a.negated = _under_not(query[: m.start()])
             found.append(a)
     rest = ATOM_REPEATING.sub(" ", ATOM_PLAIN.sub(" ", query))
     return sorted(found, key=lambda a: a.start), rest

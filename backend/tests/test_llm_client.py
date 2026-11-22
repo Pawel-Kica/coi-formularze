@@ -1,6 +1,5 @@
 """LLM client: OpenAI-compatible request shape on Eden, per-model params, and the API key never leaks."""
 
-import json
 import logging
 
 import httpx
@@ -81,7 +80,6 @@ def test_key_never_in_errors_or_logs(monkeypatch, remote, caplog, failure):
     if isinstance(e, httpx.HTTPError):
         dumped += [repr(e.request.headers), str(e.request.headers)]
     assert not any(KEY in d for d in dumped)
-    assert KEY not in json.dumps(client.CALLS)
 
 
 def test_health_checks_the_key_without_a_call(monkeypatch, remote):

@@ -51,7 +51,7 @@ def fake_chat(calls, delays=None):
         time.sleep((delays or {}).get(n, 0))
         with lock:
             calls.append({"system": system, "user": user, "model": model, "images": images, "max_tokens": max_tokens})
-        return ChatResult(data={}, raw=f"## page {n}\n", seconds=0.0)
+        return ChatResult(data={}, raw=f"## page {n}\n")
 
     return chat
 
@@ -99,7 +99,7 @@ def test_cut_off_page_is_retried_once_with_a_frequency_penalty(monkeypatch):
         calls.append((frequency_penalty, max_tokens))
         if len(calls) == 1:
             raise LLMError("cut off")
-        return ChatResult(data={}, raw="ok", seconds=0.0)
+        return ChatResult(data={}, raw="ok")
 
     monkeypatch.setattr(tr, "chat_text", chat)
     assert tr.transcribe(a4_pdf(1), "f.pdf").text == "ok"
@@ -114,7 +114,7 @@ def test_timed_out_page_is_retried_once_with_a_frequency_penalty(monkeypatch):
         calls.append((tries, frequency_penalty))
         if len(calls) == 1:
             raise httpx.ReadTimeout("LLM API unreachable: ReadTimeout")
-        return ChatResult(data={}, raw="ok", seconds=0.0)
+        return ChatResult(data={}, raw="ok")
 
     monkeypatch.setattr(tr, "chat_text", chat)
     assert tr.transcribe(a4_pdf(1), "t.pdf").text == "ok" and calls == [(1, 0.0), (2, tr.RETRY_FREQUENCY_PENALTY)]
@@ -133,7 +133,7 @@ def test_rate_limited_page_gets_the_plain_call_again_after_a_wait(monkeypatch, e
         calls.append((tries, frequency_penalty))
         if len(calls) == 1:
             raise error
-        return ChatResult(data={}, raw="ok", seconds=0.0)
+        return ChatResult(data={}, raw="ok")
 
     monkeypatch.setattr(tr, "chat_text", chat)
     monkeypatch.setattr(tr.time, "sleep", waits.append)
@@ -198,7 +198,7 @@ def test_fill_in_runs_collapse_and_presence_penalty_sent(monkeypatch):
 
     def chat(system, user, model=None, max_tokens=8000, images=None, presence_penalty=0.0, timeout=None, tries=3):
         seen["pp"] = presence_penalty
-        return ChatResult(data={}, raw="Inny (jaki?) ....................\n__________\n", seconds=0.0)
+        return ChatResult(data={}, raw="Inny (jaki?) ....................\n__________\n")
 
     monkeypatch.setattr(tr, "chat_text", chat)
     assert tr.transcribe(a4_pdf(1), "f.pdf").text == "Inny (jaki?) ______\n______"
@@ -235,7 +235,7 @@ def test_failure_is_not_cached(monkeypatch):
         if fails["left"]:
             fails["left"] -= 1
             raise LLMError("down")
-        return ChatResult(data={}, raw="ok", seconds=0.0)
+        return ChatResult(data={}, raw="ok")
 
     monkeypatch.setattr(tr, "chat_text", chat)
     data = a4_pdf(1)
