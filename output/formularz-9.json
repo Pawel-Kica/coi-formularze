@@ -900,7 +900,7 @@
     {
      "x": 0,
      "y": 36,
-     "rows": 3,
+     "rows": 2,
      "cols": 3,
      "field": {
       "id": "f9aec684-bf2a-5da2-af75-5405eddcba7c",
@@ -933,29 +933,6 @@
          "questionOrder": 0,
          "tooltipMessage": ""
         }
-       },
-       {
-        "x": 0,
-        "y": 1,
-        "rows": 1,
-        "cols": 3,
-        "field": {
-         "id": "05e49c22-6d51-526c-8fe8-1ef17c4f7dd7",
-         "type": "TEXT_FIELD",
-         "techName": "seria_i_numer_dowodu_osobistego_pelnomocnika",
-         "title": "Seria i numer dowodu osobistego pełnomocnika",
-         "description": "",
-         "options": [],
-         "validation": [
-          "REQUIRED",
-          "SERIAL_NUMBER_ID_CARD"
-         ],
-         "readOnly": false,
-         "repeatingSectionGrid": [],
-         "states": [],
-         "questionOrder": 1,
-         "tooltipMessage": ""
-        }
        }
       ],
       "states": [
@@ -970,7 +947,7 @@
     },
     {
      "x": 0,
-     "y": 39,
+     "y": 38,
      "rows": 3,
      "cols": 3,
      "field": {
@@ -1032,7 +1009,7 @@
         "query": "(\"Pełnomocnik\" in tabs['Dane' in title].questions['podmiot_wniosku' in field.techName].field.repeatingSectionGrid['wybierz_jako_kto_wnioskujesz' in field.techName].field.__userAnswer)"
        }
       ],
-      "questionOrder": 39,
+      "questionOrder": 38,
       "tooltipMessage": ""
      }
     }
@@ -1105,7 +1082,7 @@
     {
      "x": 0,
      "y": 2,
-     "rows": 6,
+     "rows": 4,
      "cols": 3,
      "field": {
       "id": "58f66d9c-45d6-529e-a19d-66b80d970adf",
@@ -1182,66 +1159,6 @@
          "questionOrder": 2,
          "tooltipMessage": ""
         }
-       },
-       {
-        "x": 0,
-        "y": 3,
-        "rows": 1,
-        "cols": 3,
-        "field": {
-         "id": "8dc4b057-1668-5a5d-a530-859a31d87c4f",
-         "type": "RADIO",
-         "techName": "czy_kandydat_jest_niepelnoletni",
-         "title": "Czy kandydat jest niepełnoletni?",
-         "description": "",
-         "options": [
-          {
-           "id": "Tak",
-           "name": "Tak",
-           "techName": "tak"
-          },
-          {
-           "id": "Nie",
-           "name": "Nie",
-           "techName": "nie"
-          }
-         ],
-         "validation": [
-          "REQUIRED"
-         ],
-         "readOnly": false,
-         "repeatingSectionGrid": [],
-         "states": [],
-         "questionOrder": 3,
-         "tooltipMessage": ""
-        }
-       },
-       {
-        "x": 0,
-        "y": 4,
-        "rows": 1,
-        "cols": 3,
-        "field": {
-         "id": "df9f0a71-32b7-5fd7-b448-ef4fce5b03c0",
-         "type": "TEXT_FIELD",
-         "techName": "imie_i_nazwisko_rodzica_lub_opiekuna_prawnego",
-         "title": "Imię i nazwisko rodzica lub opiekuna prawnego",
-         "description": "",
-         "options": [],
-         "validation": [
-          "REQUIRED"
-         ],
-         "readOnly": false,
-         "repeatingSectionGrid": [],
-         "states": [
-          {
-           "type": "SHOW",
-           "query": "(\"Tak\" in tabs['Dane sportowca lub trenera' in title].questions['dane_kandydata' in field.techName].field.repeatingSectionGrid['czy_kandydat_jest_niepelnoletni' in field.techName].field.__userAnswer)"
-          }
-         ],
-         "questionOrder": 4,
-         "tooltipMessage": ""
-        }
        }
       ],
       "states": [],
@@ -1251,7 +1168,7 @@
     },
     {
      "x": 0,
-     "y": 8,
+     "y": 6,
      "rows": 10,
      "cols": 3,
      "field": {
@@ -1497,13 +1414,13 @@
        }
       ],
       "states": [],
-      "questionOrder": 8,
+      "questionOrder": 6,
       "tooltipMessage": ""
      }
     },
     {
      "x": 0,
-     "y": 18,
+     "y": 16,
      "rows": 2,
      "cols": 3,
      "field": {
@@ -1551,13 +1468,13 @@
        }
       ],
       "states": [],
-      "questionOrder": 18,
+      "questionOrder": 16,
       "tooltipMessage": ""
      }
     },
     {
      "x": 0,
-     "y": 20,
+     "y": 18,
      "rows": 10,
      "cols": 3,
      "field": {
@@ -1808,13 +1725,13 @@
         "query": "(\"Tak\" in tabs['Dane sportowca lub trenera' in title].questions['czy_adres_do_korespondencji_rozni_sie_od_adresu_zameldowania' in field.techName].field.repeatingSectionGrid['czy_adres_do_korespondencji_rozni_sie_od_adresu_zameldowania_2' in field.techName].field.__userAnswer)"
        }
       ],
-      "questionOrder": 20,
+      "questionOrder": 18,
       "tooltipMessage": ""
      }
     },
     {
      "x": 0,
-     "y": 30,
+     "y": 28,
      "rows": 4,
      "cols": 3,
      "field": {
@@ -2020,7 +1937,7 @@
         "query": "(\"Stypendium sportowe\" in tabs['Dane sportowca lub trenera' in title].questions['rodzaj_wniosku' in field.techName].field.repeatingSectionGrid['wybierz_rodzaj_wniosku' in field.techName].field.__userAnswer)"
        }
       ],
-      "questionOrder": 30,
+      "questionOrder": 28,
       "tooltipMessage": ""
      }
     }
@@ -2063,12 +1980,7 @@
          ],
          "readOnly": false,
          "repeatingSectionGrid": [],
-         "states": [
-          {
-           "type": "SHOW",
-           "query": "(\"Stypendium sportowe\" in tabs['Dane sportowca lub trenera' in title].questions['rodzaj_wniosku' in field.techName].field.repeatingSectionGrid['wybierz_rodzaj_wniosku' in field.techName].field.__userAnswer) or (\"Nagroda sportowa\" in tabs['Dane sportowca lub trenera' in title].questions['rodzaj_wniosku' in field.techName].field.repeatingSectionGrid['wybierz_rodzaj_wniosku' in field.techName].field.__userAnswer)"
-          }
-         ],
+         "states": [],
          "questionOrder": 0,
          "tooltipMessage": ""
         }
@@ -2194,12 +2106,7 @@
          ],
          "readOnly": false,
          "repeatingSectionGrid": [],
-         "states": [
-          {
-           "type": "SHOW",
-           "query": "(\"Stypendium sportowe\" in tabs['Dane sportowca lub trenera' in title].questions['rodzaj_wniosku' in field.techName].field.repeatingSectionGrid['wybierz_rodzaj_wniosku' in field.techName].field.__userAnswer) or (\"Nagroda sportowa\" in tabs['Dane sportowca lub trenera' in title].questions['rodzaj_wniosku' in field.techName].field.repeatingSectionGrid['wybierz_rodzaj_wniosku' in field.techName].field.__userAnswer)"
-          }
-         ],
+         "states": [],
          "questionOrder": 0,
          "tooltipMessage": ""
         }

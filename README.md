@@ -4,8 +4,8 @@ Projekt na HackNation 2026, zadanie COI „Cyfryzacja Formularzy”.
 
 **Film (2:40):** https://youtu.be/S_v0vJNXzpw  
 **Prezentacja:** https://docs.google.com/presentation/d/1KXvomqc19rmjyOTTgIM4rdwm_7cLuJfp7GtJpmJxMY4/view  
-**Outputy surowe** (prosto z API, bez ręcznych zmian): https://github.com/Pawel-Kica/eFormatka-HackNation/tree/main/output/api  
-**Outputy poprawione** (wersja końcowa, po sprawdzeniu w edytorze): https://github.com/Pawel-Kica/eFormatka-HackNation/tree/main/output
+**Outputy surowe** (prosto z API, bez ręcznych zmian): https://github.com/Pawel-Kica/eFormatka-HackNation/tree/main/output  
+**Outputy poprawione** (po weryfikacji przez nas w edytorze): https://github.com/Pawel-Kica/eFormatka-HackNation/tree/main/output/adjusted
 
 Wgrywasz pusty formularz urzędowy w dowolnym formacie (PDF, skan JPG/PNG, DOC, DOCX, ODS, XLS, XLSX), a REST API zwraca JSON e-usługi COI gotowy do importu. Urzędnik widzi go obok oryginału i poprawia w edytorze: pod polem jest cytat z dokumentu, z którego pole powstało, i „Źródło”, czyli wycinek oryginału z zaznaczonym miejscem. Dlatego model nie musi trafić wszystkiego za pierwszym razem.
 
@@ -26,7 +26,7 @@ docker compose up -d --build --wait     # pierwsza budowa: około 3 minut (Libre
 curl -X POST http://localhost:8000/api/forms/convert -F "file=@examples/formularz-3.jpeg" -o formularz-3.json
 ```
 
-Po około 20 sekundach `formularz-3.json` zawiera JSON e-usługi COI gotowy do importu. Powstał ze skanu „Wniosku o wydanie zaświadczenia”, na którym sędziowie nie policzyli żadnej poprawki urzędnika. Nasz wynik dla tego pliku leży w `output/api/formularz-3.json`, a drugi przykład to `examples/formularz-2.pdf`. Własny plik podajesz tak samo: `-F "file=@ścieżka/do/pliku.pdf"`.
+Po około 20 sekundach `formularz-3.json` zawiera JSON e-usługi COI gotowy do importu. Powstał ze skanu „Wniosku o wydanie zaświadczenia”, na którym sędziowie nie policzyli żadnej poprawki urzędnika. Nasz wynik dla tego pliku leży w `output/formularz-3.json`, a drugi przykład to `examples/formularz-2.pdf`. Własny plik podajesz tak samo: `-F "file=@ścieżka/do/pliku.pdf"`.
 
 - Strona dla urzędnika jest pod http://localhost:8000. Wgraj tam ten sam plik, a zobaczysz go obok e-usługi z edytorem.
 - OpenAPI: http://localhost:8000/docs. Stan: http://localhost:8000/health (`"llm": "ok"` oznacza, że klucz jest wczytany).
@@ -99,8 +99,8 @@ Trzy dokumenty: formularz 3 PDF (1 strona), formularz 7 JPG (skan, 2 strony) i f
 
 | | Co to jest | Link |
 |---|---|---|
-| **Surowe** | JSON prosto z naszego API, bajt w bajt. Tak działa samo rozwiązanie, te pliki mierzą tabele wyżej. | [`output/api/`](https://github.com/Pawel-Kica/eFormatka-HackNation/tree/main/output/api) |
-| **Poprawione** | Wersja końcowa: ten sam JSON po poprawkach, które urzędnik robi w naszym edytorze (np. dopisane brakujące pole). Ile ich było: [`POPRAWKI.md`](output/POPRAWKI.md). | [`output/`](https://github.com/Pawel-Kica/eFormatka-HackNation/tree/main/output) |
+| **Surowe** | JSON prosto z naszego API, bajt w bajt. Tak działa samo rozwiązanie, te pliki mierzą tabele wyżej. | [`output/`](https://github.com/Pawel-Kica/eFormatka-HackNation/tree/main/output) |
+| **Poprawione** | Ten sam JSON po weryfikacji przez nas w edytorze: poprawki, które urzędnik by zrobił (np. dopisane brakujące pole). Ile ich było: [`POPRAWKI.md`](output/POPRAWKI.md). | [`output/adjusted/`](https://github.com/Pawel-Kica/eFormatka-HackNation/tree/main/output/adjusted) |
 
 Są tam wszystkie formularze 1-9. Formularze 1 i 5 to materiał referencyjny COI, bez oceny sędziów, więc ich wersja poprawiona jest równa surowej.
 

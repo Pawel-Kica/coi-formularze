@@ -1230,7 +1230,7 @@
     {
      "x": 0,
      "y": 9,
-     "rows": 4,
+     "rows": 5,
      "cols": 3,
      "field": {
       "id": "42c0c38c-0431-53f0-97c8-d41a9fe11528",
@@ -1305,6 +1305,28 @@
          "repeatingSectionGrid": [],
          "states": [],
          "questionOrder": 2,
+         "tooltipMessage": ""
+        }
+       },
+       {
+        "x": 0,
+        "y": 3,
+        "rows": 1,
+        "cols": 3,
+        "field": {
+         "id": "1759e556-0f3a-54f0-8aeb-fc0c1badbfa9",
+         "type": "FILE_UPLOADER",
+         "techName": "plik_ze_zbiorczym_oswiadczeniem_osoby_odpowiedzialnej",
+         "title": "Plik ze zbiorczym oświadczeniem osoby odpowiedzialnej",
+         "description": "Oświadczenie z punktu 4 wniosku podpisane przez osobę odpowiedzialną.",
+         "options": [],
+         "validation": [
+          "REQUIRED"
+         ],
+         "readOnly": false,
+         "repeatingSectionGrid": [],
+         "states": [],
+         "questionOrder": 3,
          "tooltipMessage": ""
         }
        }

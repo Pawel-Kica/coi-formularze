@@ -1099,7 +1099,7 @@
     {
      "x": 0,
      "y": 3,
-     "rows": 13,
+     "rows": 12,
      "cols": 3,
      "field": {
       "id": "822f3bed-f160-5412-9403-c2c60ae8453a",
@@ -1197,13 +1197,15 @@
         "rows": 1,
         "cols": 3,
         "field": {
-         "id": "3acb55de-3387-50c8-a909-10da8af2a301",
+         "id": "16114b48-3286-5f66-8ea7-c3920d1f133a",
          "type": "TEXT_FIELD",
-         "techName": "adres_poprzedniego_wlasciciela",
-         "title": "Adres poprzedniego właściciela",
+         "techName": "rasa_psa",
+         "title": "Rasa psa",
          "description": "",
          "options": [],
-         "validation": [],
+         "validation": [
+          "REQUIRED"
+         ],
          "readOnly": false,
          "repeatingSectionGrid": [],
          "states": [],
@@ -1217,10 +1219,10 @@
         "rows": 1,
         "cols": 3,
         "field": {
-         "id": "16114b48-3286-5f66-8ea7-c3920d1f133a",
-         "type": "TEXT_FIELD",
-         "techName": "rasa_psa",
-         "title": "Rasa psa",
+         "id": "dfea056c-75bc-5ed9-b9d7-592a4541d1f0",
+         "type": "DATEPICKER",
+         "techName": "data_urodzenia_psa",
+         "title": "Data urodzenia psa",
          "description": "",
          "options": [],
          "validation": [
@@ -1239,28 +1241,6 @@
         "rows": 1,
         "cols": 3,
         "field": {
-         "id": "dfea056c-75bc-5ed9-b9d7-592a4541d1f0",
-         "type": "DATEPICKER",
-         "techName": "data_urodzenia_psa",
-         "title": "Data urodzenia psa",
-         "description": "",
-         "options": [],
-         "validation": [
-          "REQUIRED"
-         ],
-         "readOnly": false,
-         "repeatingSectionGrid": [],
-         "states": [],
-         "questionOrder": 6,
-         "tooltipMessage": ""
-        }
-       },
-       {
-        "x": 0,
-        "y": 7,
-        "rows": 1,
-        "cols": 3,
-        "field": {
          "id": "c69cddb5-4d75-548a-a7dc-53662b54f677",
          "type": "DATEPICKER",
          "techName": "data_szczepienia_psa",
@@ -1271,13 +1251,13 @@
          "readOnly": false,
          "repeatingSectionGrid": [],
          "states": [],
-         "questionOrder": 7,
+         "questionOrder": 6,
          "tooltipMessage": ""
         }
        },
        {
         "x": 0,
-        "y": 8,
+        "y": 7,
         "rows": 1,
         "cols": 3,
         "field": {
@@ -1304,13 +1284,13 @@
          "readOnly": false,
          "repeatingSectionGrid": [],
          "states": [],
-         "questionOrder": 8,
+         "questionOrder": 7,
          "tooltipMessage": ""
         }
        },
        {
         "x": 0,
-        "y": 9,
+        "y": 8,
         "rows": 1,
         "cols": 3,
         "field": {
@@ -1342,13 +1322,13 @@
          "readOnly": false,
          "repeatingSectionGrid": [],
          "states": [],
-         "questionOrder": 9,
+         "questionOrder": 8,
          "tooltipMessage": ""
         }
        },
        {
         "x": 0,
-        "y": 10,
+        "y": 9,
         "rows": 1,
         "cols": 3,
         "field": {
@@ -1369,13 +1349,13 @@
            "query": "(\"Mikroprocesor\" in tabs['Wniosek' in title].questions['informacja_o_posiadanym_psie' in field.techName].field.__userAnswer[$repeatingSectionIndex]['sposob_oznakowania_psa' in fieldTechName].answers)"
           }
          ],
-         "questionOrder": 10,
+         "questionOrder": 9,
          "tooltipMessage": ""
         }
        },
        {
         "x": 0,
-        "y": 11,
+        "y": 10,
         "rows": 1,
         "cols": 3,
         "field": {
@@ -1396,7 +1376,7 @@
            "query": "(\"Tatuaż\" in tabs['Wniosek' in title].questions['informacja_o_posiadanym_psie' in field.techName].field.__userAnswer[$repeatingSectionIndex]['sposob_oznakowania_psa' in fieldTechName].answers)"
           }
          ],
-         "questionOrder": 11,
+         "questionOrder": 10,
          "tooltipMessage": ""
         }
        }
@@ -1408,7 +1388,7 @@
     },
     {
      "x": 0,
-     "y": 16,
+     "y": 15,
      "rows": 10,
      "cols": 3,
      "field": {
@@ -1654,13 +1634,13 @@
        }
       ],
       "states": [],
-      "questionOrder": 16,
+      "questionOrder": 15,
       "tooltipMessage": ""
      }
     },
     {
      "x": 0,
-     "y": 26,
+     "y": 25,
      "rows": 2,
      "cols": 3,
      "field": {
@@ -1697,13 +1677,13 @@
        }
       ],
       "states": [],
-      "questionOrder": 26,
+      "questionOrder": 25,
       "tooltipMessage": ""
      }
     },
     {
      "x": 0,
-     "y": 28,
+     "y": 27,
      "rows": 2,
      "cols": 3,
      "field": {
@@ -1740,13 +1720,13 @@
        }
       ],
       "states": [],
-      "questionOrder": 28,
+      "questionOrder": 27,
       "tooltipMessage": ""
      }
     },
     {
      "x": 0,
-     "y": 30,
+     "y": 29,
      "rows": 3,
      "cols": 3,
      "field": {
@@ -1803,7 +1783,7 @@
        }
       ],
       "states": [],
-      "questionOrder": 30,
+      "questionOrder": 29,
       "tooltipMessage": ""
      }
     }

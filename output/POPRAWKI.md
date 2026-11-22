@@ -17,7 +17,7 @@ Dla każdego formularza oceniliśmy dwa pliki z najlepszym wynikiem automatyczne
 | 9. Wniosek o stypendium, nagrodę lub wyróżnienie sportowe | `Wniosek o przyznanie stypendium.ods` | 4 | brakujący warunek 2, brakujące pole 2 |
 | razem | | 13 | brakujące pole 5, brakujący warunek 4, złe „wymagane” 4 |
 
-Formularze 1 i 5 to materiał referencyjny COI (mają wzorcowe JSON-y od organizatorów), więc nie przechodziły oceny sędziów. Dla kompletu dołączyliśmy ich JSON z API, zrobiony z pliku PDF, bez poprawek: `formularz-1.json` i `formularz-5.json` są równe tym w `api/`.
+Formularze 1 i 5 to materiał referencyjny COI (mają wzorcowe JSON-y od organizatorów), więc nie przechodziły oceny sędziów. Dla kompletu dołączyliśmy ich JSON z API, zrobiony z pliku PDF, bez poprawek: `adjusted/formularz-1.json` i `adjusted/formularz-5.json` są równe surowym.
 
 ## Formularz 2
 Bez poprawek.

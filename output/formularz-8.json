@@ -2051,7 +2051,7 @@
     {
      "x": 0,
      "y": 20,
-     "rows": 6,
+     "rows": 5,
      "cols": 3,
      "field": {
       "id": "73b1d07d-b238-5aec-aa6d-ff24dc67cc83",
@@ -2184,33 +2184,6 @@
           }
          ],
          "questionOrder": 3,
-         "tooltipMessage": ""
-        }
-       },
-       {
-        "x": 0,
-        "y": 4,
-        "rows": 1,
-        "cols": 3,
-        "field": {
-         "id": "abd4bc08-ca4c-56d0-8769-d98083e16642",
-         "type": "DATEPICKER",
-         "techName": "data_wystapienia_zmiany_danych_korekta",
-         "title": "Data wystąpienia zmiany danych (korekta deklaracji)",
-         "description": "",
-         "options": [],
-         "validation": [
-          "REQUIRED"
-         ],
-         "readOnly": false,
-         "repeatingSectionGrid": [],
-         "states": [
-          {
-           "type": "SHOW",
-           "query": "(\"Korekta złożonej deklaracji\" in tabs['Dane deklaracji' in title].questions['okolicznosci_zlozenia_deklaracji' in field.techName].field.repeatingSectionGrid['z_jakiego_powodu_skladasz_deklaracje' in field.techName].field.__userAnswer)"
-          }
-         ],
-         "questionOrder": 4,
          "tooltipMessage": ""
         }
        }
@@ -2485,6 +2458,71 @@
      "rows": 3,
      "cols": 3,
      "field": {
+      "id": "17bbb5a7-0dbd-5a46-b097-5976c7138eeb",
+      "type": "SECTION",
+      "techName": "miejsce_gromadzenia_odpadow",
+      "title": "Miejsce gromadzenia odpadów",
+      "description": "<html><head></head><body><p>Wypełnij w przypadku nieruchomości zabudowanej budynkiem wielolokalowym, jeżeli poszczególne budynki lub ich części posiadają przyporządkowane im oddzielne miejsca gromadzenia odpadów komunalnych.</p></body></html>",
+      "options": [],
+      "validation": [],
+      "readOnly": false,
+      "repeatingSectionGrid": [
+       {
+        "x": 0,
+        "y": 0,
+        "rows": 1,
+        "cols": 3,
+        "field": {
+         "id": "21d9f921-4e9f-5714-b292-ec1b034a207d",
+         "type": "TEXT_FIELD",
+         "techName": "adres_lub_opis_miejsca_lokalizacji_pojemnikow",
+         "title": "Adres lub opis miejsca lokalizacji pojemników",
+         "description": "",
+         "options": [],
+         "validation": [
+          "REQUIRED"
+         ],
+         "readOnly": false,
+         "repeatingSectionGrid": [],
+         "states": [],
+         "questionOrder": 0,
+         "tooltipMessage": ""
+        }
+       },
+       {
+        "x": 0,
+        "y": 1,
+        "rows": 1,
+        "cols": 3,
+        "field": {
+         "id": "2e2c7e83-d648-5ad3-a3a8-af18d3a8406b",
+         "type": "TEXT_FIELD",
+         "techName": "numery_dzialek_geodezyjnych",
+         "title": "Numery działek geodezyjnych",
+         "description": "",
+         "options": [],
+         "validation": [
+          "REQUIRED"
+         ],
+         "readOnly": false,
+         "repeatingSectionGrid": [],
+         "states": [],
+         "questionOrder": 1,
+         "tooltipMessage": ""
+        }
+       }
+      ],
+      "states": [],
+      "questionOrder": 10,
+      "tooltipMessage": ""
+     }
+    },
+    {
+     "x": 0,
+     "y": 13,
+     "rows": 3,
+     "cols": 3,
+     "field": {
       "id": "aae0aa49-fadb-569f-8d8e-b96159b8ceba",
       "type": "SECTION",
       "techName": "rodzaj_nieruchomosci",
@@ -2562,76 +2600,6 @@
        }
       ],
       "states": [],
-      "questionOrder": 10,
-      "tooltipMessage": ""
-     }
-    },
-    {
-     "x": 0,
-     "y": 13,
-     "rows": 3,
-     "cols": 3,
-     "field": {
-      "id": "17bbb5a7-0dbd-5a46-b097-5976c7138eeb",
-      "type": "SECTION",
-      "techName": "miejsce_gromadzenia_odpadow",
-      "title": "Miejsce gromadzenia odpadów",
-      "description": "<html><head></head><body><p>Wypełnij w przypadku nieruchomości zabudowanej budynkiem wielolokalowym, jeżeli poszczególne budynki lub ich części posiadają przyporządkowane im oddzielne miejsca gromadzenia odpadów komunalnych.</p></body></html>",
-      "options": [],
-      "validation": [],
-      "readOnly": false,
-      "repeatingSectionGrid": [
-       {
-        "x": 0,
-        "y": 0,
-        "rows": 1,
-        "cols": 3,
-        "field": {
-         "id": "21d9f921-4e9f-5714-b292-ec1b034a207d",
-         "type": "TEXT_FIELD",
-         "techName": "adres_lub_opis_miejsca_lokalizacji_pojemnikow",
-         "title": "Adres lub opis miejsca lokalizacji pojemników",
-         "description": "",
-         "options": [],
-         "validation": [
-          "REQUIRED"
-         ],
-         "readOnly": false,
-         "repeatingSectionGrid": [],
-         "states": [],
-         "questionOrder": 0,
-         "tooltipMessage": ""
-        }
-       },
-       {
-        "x": 0,
-        "y": 1,
-        "rows": 1,
-        "cols": 3,
-        "field": {
-         "id": "2e2c7e83-d648-5ad3-a3a8-af18d3a8406b",
-         "type": "TEXT_FIELD",
-         "techName": "numery_dzialek_geodezyjnych",
-         "title": "Numery działek geodezyjnych",
-         "description": "",
-         "options": [],
-         "validation": [
-          "REQUIRED"
-         ],
-         "readOnly": false,
-         "repeatingSectionGrid": [],
-         "states": [],
-         "questionOrder": 1,
-         "tooltipMessage": ""
-        }
-       }
-      ],
-      "states": [
-       {
-        "type": "SHOW",
-        "query": "(\"Nieruchomość zabudowana budynkiem mieszkalnym wielorodzinnym\" in tabs['Nieruchomość' in title].questions['rodzaj_nieruchomosci' in field.techName].field.repeatingSectionGrid['jaki_jest_rodzaj_nieruchomosci' in field.techName].field.__userAnswer)"
-       }
-      ],
       "questionOrder": 13,
       "tooltipMessage": ""
      }
@@ -2960,12 +2928,7 @@
         }
        }
       ],
-      "states": [
-       {
-        "type": "SHOW",
-        "query": "$not(\"Tak\" in tabs['Nieruchomość' in title].questions['przydomowy_kompostownik' in field.techName].field.repeatingSectionGrid['czy_nieruchomosc_jest_wyposazona_w_przydomowy_kompostownik' in field.techName].field.__userAnswer)"
-       }
-      ],
+      "states": [],
       "questionOrder": 0,
       "tooltipMessage": ""
      }

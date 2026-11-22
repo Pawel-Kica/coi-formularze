@@ -1725,7 +1725,9 @@
          "title": "Długość",
          "description": "",
          "options": [],
-         "validation": [],
+         "validation": [
+          "REQUIRED"
+         ],
          "readOnly": false,
          "repeatingSectionGrid": [],
          "states": [],
@@ -1745,7 +1747,9 @@
          "title": "Szerokość",
          "description": "",
          "options": [],
-         "validation": [],
+         "validation": [
+          "REQUIRED"
+         ],
          "readOnly": false,
          "repeatingSectionGrid": [],
          "states": [],
@@ -1765,7 +1769,9 @@
          "title": "Powierzchnia razem (m²)",
          "description": "",
          "options": [],
-         "validation": [],
+         "validation": [
+          "REQUIRED"
+         ],
          "readOnly": false,
          "repeatingSectionGrid": [],
          "states": [],
@@ -1806,7 +1812,9 @@
          "title": "Długość",
          "description": "",
          "options": [],
-         "validation": [],
+         "validation": [
+          "REQUIRED"
+         ],
          "readOnly": false,
          "repeatingSectionGrid": [],
          "states": [],
@@ -1826,7 +1834,9 @@
          "title": "Szerokość",
          "description": "",
          "options": [],
-         "validation": [],
+         "validation": [
+          "REQUIRED"
+         ],
          "readOnly": false,
          "repeatingSectionGrid": [],
          "states": [],
@@ -1846,7 +1856,9 @@
          "title": "Powierzchnia razem (m²)",
          "description": "",
          "options": [],
-         "validation": [],
+         "validation": [
+          "REQUIRED"
+         ],
          "readOnly": false,
          "repeatingSectionGrid": [],
          "states": [],
@@ -1887,7 +1899,9 @@
          "title": "Długość",
          "description": "",
          "options": [],
-         "validation": [],
+         "validation": [
+          "REQUIRED"
+         ],
          "readOnly": false,
          "repeatingSectionGrid": [],
          "states": [],
@@ -1907,7 +1921,9 @@
          "title": "Szerokość",
          "description": "",
          "options": [],
-         "validation": [],
+         "validation": [
+          "REQUIRED"
+         ],
          "readOnly": false,
          "repeatingSectionGrid": [],
          "states": [],
@@ -1927,7 +1943,9 @@
          "title": "Powierzchnia razem (m²)",
          "description": "",
          "options": [],
-         "validation": [],
+         "validation": [
+          "REQUIRED"
+         ],
          "readOnly": false,
          "repeatingSectionGrid": [],
          "states": [],
@@ -1968,7 +1986,9 @@
          "title": "Długość",
          "description": "",
          "options": [],
-         "validation": [],
+         "validation": [
+          "REQUIRED"
+         ],
          "readOnly": false,
          "repeatingSectionGrid": [],
          "states": [],
@@ -1988,7 +2008,9 @@
          "title": "Szerokość",
          "description": "",
          "options": [],
-         "validation": [],
+         "validation": [
+          "REQUIRED"
+         ],
          "readOnly": false,
          "repeatingSectionGrid": [],
          "states": [],
@@ -2008,7 +2030,9 @@
          "title": "Powierzchnia razem (m²)",
          "description": "",
          "options": [],
-         "validation": [],
+         "validation": [
+          "REQUIRED"
+         ],
          "readOnly": false,
          "repeatingSectionGrid": [],
          "states": [],
