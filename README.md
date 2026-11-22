@@ -24,7 +24,7 @@ Mierzymy to, co obchodzi urzędnika: ile poprawek musi zrobić w edytorze, zanim
 
 **Jak liczymy poprawki** (przepis: `bench/JUDGE-POPRAWKI.md`):
 - Trzech sędziów AI dostaje strony oryginału i nasz JSON jako czytelny konspekt. Każdy osobno wypisuje poprawki, które urzędnik zrobiłby w edytorze: brakujące pole, zmyślone pole, zły typ, złe opcje, zły albo brakujący warunek, złe „wymagane”. Poprawka liczy się, gdy wypiszą ją co najmniej 2 z 3 sędziów.
-- Liczy się tylko to, czy e-usługa pyta o to samo co papier. Sędziowie nie liczą stron standardowych COI (Dane, Kontakt i zgody, strona końcowa), tekstów informacyjnych, walidatorów, brzmienia etykiet, kolejności pól ani podziału na strony.
+- Liczy się tylko to, czy e-usługa pyta o to samo co papier. Sędziowie nie liczą stron standardowych COI (Dane, Kontakt i zgody, strona końcowa; poza oświadczeniami z papieru), tekstów informacyjnych, walidatorów, brzmienia etykiet, kolejności pól ani podziału na strony.
 - Sędziami są mocniejsze modele zamknięte, inne niż nasz planer i odczyt, więc nie oceniają samych siebie. Służą tylko do pomiaru i nie ma ich w produkcie (pkt 5 zadania pozwala używać takich modeli przy testowaniu).
 - Samych sędziów sprawdziliśmy tak: nasz wzorcowy plan formularza zbudowaliśmy w e-usługę dwa razy, czystą i z celowo wstawionymi błędami (`bench/poprawki.py plant`: usunięte pola, złe typy, usunięty albo zły warunek, zmyślone pole, ucięta lista opcji, zdjęte „wymagane”). Panel ocenił obie wersje, nie wiedząc o błędach.
   - Na czystej wersji nie policzył żadnej poprawki.

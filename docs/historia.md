@@ -131,5 +131,5 @@ Końcowa wersja, 7 formularzy do cyfryzacji w każdym formacie, w jakim przyszł
 | 9 | 0,791 | 0,752 | 0,873 | 0,874 | 0,870 | 0,801 | 0,823 | | 0,828 | 0,827 |
 
 - Z każdego formularza sędziowie ocenili 2 pliki z najwyższą `gold=` i do `output/` trafił ten z mniejszą liczbą poprawek urzędnika (README, „Wyniki”).
-- Formularz 6 ma znaną słabość: na DOC, DOCX, ODS, JPEG i JPG (0,69-0,72) model czyta drugi wiersz tabeli zajęcia pasa jako osobne pola, a naprawa podwójnych pól je usuwa; PDF, PNG i XLSX mają 0,92-0,94.
+- Formularz 6: na DOC, DOCX, ODS, JPEG i JPG `gold=` wynosi 0,69-0,72, a na PDF, PNG i XLSX 0,92-0,94. Tę różnicę robi sama ocena, nie e-usługa. We wszystkich 8 planach są oba warunki załączników (projekt organizacji ruchu przy „Tak”, informacja o zabezpieczeniu robót przy „Nie”). Na tych 5 formatach model przepisał jednak pytanie o wpływ na ruch drogowy pełnym zdaniem z papieru, ocena nie dopasowała go do krótszego pytania wzorca i liczy oba warunki jako brak. Pola wychodzą podobnie we wszystkich formatach. Osobną, prawdziwą sprawą są 4 poprawki „wymagane” z tabeli w README.
 - Pozostałe różnice między formatami jednego formularza to w dużej części zmienność modeli: przebiegi nie są powtarzalne co do bitu, a małe formularze różnią się między przebiegami nawet o 0,2 `gold=`. Z jednego przebiegu nie wnioskujemy więc, który format jest gorszy.
