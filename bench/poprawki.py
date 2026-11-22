@@ -3,7 +3,7 @@
     uv run python -I bench/poprawki.py pick <run_all run> [--forms 2,3,4,6,7,8,9]   # best file per form
     uv run python -I bench/poprawki.py kit <run_dir> --files 3/pdf,8/pdf [--out <dir>]
     uv run python -I bench/poprawki.py kit <file.coi.json> --form 3 [--out <dir>]
-    uv run python -I bench/poprawki.py count <kit_dir>
+    uv run python -I bench/poprawki.py count <kit_dir> [--run <run_all run>]   # --run: TABLE.md with gold=
     uv run python -I bench/poprawki.py plant <form> --out <dir>/form3-planted.coi.json
     uv run python -I bench/poprawki.py calib <clean kit> <planted kit> --key <key.json>
 
@@ -282,7 +282,34 @@ def cmd_count(a) -> int:
             print(f"  [{c['category']}] {c['element']}: {c['fix']}  (sędziowie {c['judges']})")
     (kit / "count.json").write_text(json.dumps(result, ensure_ascii=False, indent=1))
     print(f"\n-> {kit / 'count.json'}")
+    if a.run:
+        (kit / "TABLE.md").write_text(table(result, Path(a.run).expanduser()))
+        print(f"-> {kit / 'TABLE.md'}")
     return 0
+
+
+def file_gold(run: Path, form: str, ext: str) -> float | None:
+    """gold= of one file of a `bench.run_all` run (its cached plan vs the gold plan)."""
+    from bench.score import score_plan
+
+    plan, gold = run / "coi" / form / f"{ext}.plan.json", GOLD / f"form{form}.json"
+    if not plan.exists() or not gold.exists():
+        return None
+    return round(score_plan(Plan.model_validate_json(plan.read_text()),
+                            Plan.model_validate_json(gold.read_text()))["metrics"]["score"], 3)
+
+
+def table(result: dict, run: Path) -> str:
+    """count.json of `bench.run_all` kits (`<form>-<ext>`) -> markdown: form, file, gold=, corrections by category."""
+    lines = ["| Form | File | gold= | Clerk corrections | By category |", "|---|---|---|---|---|"]
+    detail = []
+    for kit_id, r in sorted(result.items(), key=lambda kv: int(kv[0].split("-")[0])):
+        form, ext = kit_id.split("-", 1)
+        cats = ", ".join(f"{c} {n}" for c, n in sorted(r["by_category"].items())) or "-"
+        lines.append(f"| {form} | {ext} | {file_gold(run, form, ext)} | {r['counted']} | {cats} |")
+        detail += [f"- {kit_id} [{c['category']}] {c['element']}: {c['fix']} (judges {c['judges']})" for c in r["corrections"]]
+    total = sum(r["counted"] for r in result.values())
+    return "\n".join(lines + [f"| all | | | {total} | |", "", *detail, ""])
 
 
 # --- plant ----------------------------------------------------------------------------
@@ -544,6 +571,7 @@ def main() -> int:
     k.add_argument("--out")
     c = sub.add_parser("count")
     c.add_argument("kit_dir")
+    c.add_argument("--run", help="the bench.run_all run of the kits: also write TABLE.md with gold=")
     p = sub.add_parser("plant")
     p.add_argument("form")
     p.add_argument("--out", required=True)
