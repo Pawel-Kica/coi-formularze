@@ -1,6 +1,6 @@
 [project]
 name = "coi-formularze"
-version = "0.1.0"
+version = "0.2.0"
 description = "Paper form (PDF/DOC/DOCX/ODS/XLSX/XLS/JPG/PNG) -> COI e-service JSON, read and planned by open-weights models on Eden AI"
 readme = "README.md"
 requires-python = ">=3.14"

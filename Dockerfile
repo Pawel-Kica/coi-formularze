@@ -18,6 +18,8 @@ RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev --no-ins
 # --- runtime: venv + code, no build tools, no secrets ---
 FROM python:${PYTHON_VERSION}-slim-${DEBIAN_VERSION}
 ARG LIBREOFFICE=1
+ARG VERSION
+LABEL org.opencontainers.image.title=coi-formularze org.opencontainers.image.version=${VERSION}
 RUN apt-get update \
     && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-pol \
     && if [ "$LIBREOFFICE" = "1" ]; then \
@@ -27,6 +29,7 @@ RUN apt-get update \
     && useradd -M -u 10001 app
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
+COPY backend/pyproject.toml ./
 COPY backend/app ./app
 COPY frontend ./frontend
 # Code is root-owned and read-only for `app`. Every write goes to /tmp: Tesseract and LibreOffice
