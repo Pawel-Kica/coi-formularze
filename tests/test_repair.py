@@ -239,6 +239,35 @@ def test_correspondence_address_without_a_rule_on_paper_is_dropped_but_not_a_thi
     assert len(out.pages[0].sections) == 2
 
 
+PARTS = """Rodzaje wniosków:
+I. Wniosek o przyznanie stypendium sportowego
+II. Wniosek o przyznanie nagrody sportowej
+## I. Wniosek o przyznanie stypendium sportowego
+Imię ____
+Dyscypliny sportowe: [ ] piłka nożna [ ] karate
+## II. Wniosek o przyznanie nagrody sportowej
+Imię ____
+Opis zdobytej nagrody ____
+"""
+
+
+def test_a_condition_quoting_the_heading_of_the_part_the_target_sits_in_is_kept():
+    # the trigger quotes the list item, the condition the same words printed again as the part heading
+    kind = f("f1", "O co wnioskujesz?", "I. Wniosek o przyznanie stypendium sportowego", FieldType.RADIO,
+             ["Stypendium sportowe", "Nagroda sportowa"])
+    heading = "I. Wniosek o przyznanie stypendium sportowego"
+    disc = f("f2", "Dyscypliny", "Dyscypliny sportowe:", FieldType.CHECKBOX, ["Piłka nożna", "Karate"])
+    prize = f("f3", "Opis nagrody", "Opis zdobytej nagrody")
+    p = plan(sec("s1", [kind]), sec("s4", [f("f4", "Imię", "Imię")]),
+             sec("s2", [disc], show_if=Condition(field="f1", options=["Stypendium sportowe"], quote=heading)),
+             sec("s3", [prize], show_if=Condition(field="f1", options=["Stypendium sportowe"], quote=heading)))
+    out, notes = filter_plan(p, PARTS)
+    s1, s4, s2, s3 = out.pages[0].sections
+    assert s2.show_if is not None
+    # the part I heading does not reach a target printed under part II
+    assert s3.show_if is None and any("condition on s3" in n for n in notes)
+
+
 def test_a_condition_over_every_option_of_a_required_single_choice_is_cleared():
     # "Opinia klubu" printed in every part of a paper joining request kinds: shown for each kind = always shown
     every = Condition(field="f5", options=["Budowa nowej sieci", "Roboty inne niż wymienione"], quote="3. Rodzaj robót")

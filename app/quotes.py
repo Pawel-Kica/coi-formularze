@@ -264,13 +264,39 @@ def _overlap(a: list[tuple[int, int]], b: list[tuple[int, int]], reach: int = 0)
     return any(y0 <= x0 <= y1 + reach or x0 <= y0 <= x1 for x0, x1 in a for y0, y1 in b)
 
 
+@lru_cache(maxsize=16)
+def _norm_lines(text: str) -> tuple[str, ...]:
+    """The paper's non-empty lines, normalized (the line numbers of `quote_lines`)."""
+    return tuple(n for n in (normalize(line) for line in text.splitlines()) if n)
+
+
+def _under_heading(q: str, target_line: int, text: str) -> bool:
+    """A paper joining parts lists them first ("I. Wniosek o stypendium", "II. Wniosek o nagrodę") and prints each
+    again as the heading of its part. True when the line that is or starts with `q` (3+ words) is printed again after
+    that list and is the nearest such heading above the target: the nearest later printing of it or of a list
+    neighbour is its own."""
+    lines = _norm_lines(text)
+
+    def hit(line: str) -> bool:
+        return line == q or line.startswith(q + " ")
+
+    occ = [i for i, line in enumerate(lines) if hit(line)]
+    if len(q.split()) < 3 or len(occ) < 2:
+        return False
+    first = occ[0]
+    # the list = up to 3 lines around its first printing, never past its next printing (the part heading)
+    siblings = {lines[i] for i in range(max(0, first - 3), min(occ[1], first + 4)) if not hit(lines[i])}
+    heads = [i for i in range(first + 1, min(target_line, len(lines))) if hit(lines[i]) or lines[i] in siblings]
+    return bool(heads) and hit(lines[heads[-1]])
+
+
 def _supported(c, trig, target, text: str, next_section: bool | None) -> bool:
     """Is the condition backed by more than the trigger itself? The model likes to hang fields on an
     unrelated question and "prove" it with that question's own line. Supported when the quote
     - has a conditional word, or is some other paper line than the trigger's question / the chosen option;
     - or repeats the trigger, but the target sits on the chosen option's paper line ("[ ] tatuaż ____"),
       for a Tak/Nie trigger up to 2 lines below the question, or (a section) right after the trigger's
-      section.
+      section, or in the part of the paper the quote heads (`_under_heading`).
     `next_section`: for a section target, whether it directly follows the trigger's section; else None.
     A quote we cannot place on the paper counts as supported."""
     if _CONDITIONAL.search(unicodedata.normalize("NFKC", c.quote).lower()):
@@ -285,6 +311,8 @@ def _supported(c, trig, target, text: str, next_section: bool | None) -> bool:
     if not repeats or not quote_at or next_section:
         return True
     target_at = quote_lines(target.quote if next_section is None else target.fields[0].quote, text)
+    if target_at and _under_heading(q, target_at[0][0], text):
+        return True
     if {normalize(o) for o in trig.options} <= _YES_NO:
         return _overlap(target_at, quote_at, reach=2)
     return _overlap(target_at, quote_at + [at for o in c.options for at in quote_lines(o, text)])
