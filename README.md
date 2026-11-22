@@ -22,7 +22,7 @@ Mierzymy to, co obchodzi urzędnika: ile poprawek musi zrobić w edytorze, zanim
 | Czas i koszt | średnio **{{CZAS_FORMULARZ}}** i **{{KOSZT_FORMULARZ}}** na formularz (modele na Eden AI). Koszt rośnie ze stronami: jedno wywołanie odczytu na stronę i dwa przebiegi planera na formularz |
 | Kalibracja sędziów | {{KALIBRACJA}} (10 błędów podrzuconych do poprawnych JSON-ów) |
 
-**Jak liczymy poprawki.** Trzech sędziów AI dostaje strony oryginału i nasz JSON jako czytelny konspekt. Każdy osobno wypisuje poprawki, które urzędnik zrobiłby w edytorze: brakujące pole, zmyślone pole, zły typ, złe opcje, zły albo brakujący warunek, złe „wymagane”. Poprawka liczy się, gdy wypiszą ją co najmniej 2 z 3 sędziów. Sędziami są inne, mocniejsze modele niż nasz planer i odczyt, więc nie oceniają samych siebie. Służą tylko do pomiaru i nie ma ich w produkcie (pkt 5 zadania pozwala używać takich modeli przy testowaniu). Samych sędziów sprawdziliśmy na 10 błędach, które celowo wstawiliśmy do poprawnych JSON-ów (wiersz „Kalibracja sędziów”). Przepis: `bench/JUDGE-POPRAWKI.md`.
+**Jak liczymy poprawki.** Trzech sędziów AI dostaje strony oryginału i nasz JSON jako czytelny konspekt. Każdy osobno wypisuje poprawki, które urzędnik zrobiłby w edytorze: brakujące pole, zmyślone pole, zły typ, złe opcje, zły albo brakujący warunek, złe „wymagane”. Poprawka liczy się, gdy wypiszą ją co najmniej 2 z 3 sędziów. Sędziami są mocniejsze modele zamknięte, inne niż nasz planer i odczyt, więc nie oceniają samych siebie. Służą tylko do pomiaru i nie ma ich w produkcie (pkt 5 zadania pozwala używać takich modeli przy testowaniu). Samych sędziów sprawdziliśmy na 10 błędach, które celowo wstawiliśmy do poprawnych JSON-ów: ile z nich znaleźli i ile poprawek wymyślili ponad to, czego nie było w czystej wersji (wiersz „Kalibracja sędziów”). Przepis: `bench/JUDGE-POPRAWKI.md`.
 
 ### Każdy formularz z zadania
 
@@ -43,7 +43,7 @@ Te same dokumenty i ci sami sędziowie, od najprostszego podejścia (cały plik 
 
 ## Szybki start
 
-Docker 23+ i klucz Eden AI:
+Docker 23+ i klucz Eden AI (od organizatorów zadania albo z własnego konta Eden AI):
 
 ```bash
 cp .env.example .env          # wpisz EDENAI_API_KEY, to jedyny wymagany sekret
@@ -87,7 +87,7 @@ Do tego:
 | 3.3.III Zależności | warunki „pokaż, gdy…” na polach i sekcjach, każdy z cytatem; sekcje powtarzalne. Schemat COI nie ma warunku na stronie, więc przejście zależne od odpowiedzi to warunki na sekcjach | `app/llm/planner.py`, `app/builder/` |
 | 3.3.IV Frontend | strona `/`: upload, kilka plików naraz, historia, JSON | [Jak z tego korzystać](#jak-z-tego-korzystać) |
 | 3.3.V Wizualizacja e-usługi | podgląd tak, jak widzi go obywatel, z edytorem; osobno `/preview` | `app/static/preview.html` |
-| 3.3.VI Walidacje i UX (w kryteriach oceny, pkt 8, to punkt V „Walidacje pól”) | walidatory COI z etykiet (PESEL, NIP, REGON, kod pocztowy, e-mail, ePUAP, ADE, dowód osobisty), „wymagane”, przy telefonie numer kierunkowy i podpowiedź formatu; batch i ZIP | `app/builder/` |
+| 3.3.VI Walidacje i UX (w kryteriach oceny punkt V) | walidatory COI z etykiet (PESEL, NIP, REGON, kod pocztowy, e-mail, ePUAP, ADE, dowód osobisty), „wymagane”, przy telefonie numer kierunkowy i podpowiedź formatu; batch i ZIP | `app/builder/` |
 | 5. Formaty, MIME z zawartości, nazwa pliku, limit rozmiaru | wszystko z listy zadania plus `.xls` i `.jpe` | [Walidacja i limity](#walidacja-i-limity) |
 | 5. Tylko tymczasowe przetwarzanie | `convert` trzyma plik tylko w pamięci. Historia strony jest domyślnie włączona; `HISTORY_ENABLED=0` ją wyłącza, kosztem „Źródła” | [Przechowywanie plików](#przechowywanie-plików) |
 | 5. Docker, konfiguracja, README | Alpine, wersje przypięte, użytkownik bez uprawnień, sekrety tylko przy starcie | [Budowanie obrazu Docker](#budowanie-obrazu-docker), [Konfiguracja](#konfiguracja) |
@@ -97,10 +97,10 @@ Do tego:
 
 ![Architektura: upload, odczyt stron, planer w 2 przebiegach, filtr cytatów, builder, reguły COI; modele na Eden AI, słowniki, strona dla urzędnika; pętla jakości](docs/img/architektura.png)
 
-Model czyta dokument, a kod pilnuje formatu COI. Modele oddają tylko Markdown stron i krótki plan formularza. Wszystko po nich to deterministyczny kod z testami. Kroki skleja `app/pipeline.py`, REST jest w `app/api.py`.
+Model czyta dokument, a kod pilnuje formatu COI. Modele oddają tylko Markdown stron i plan formularza. Wszystko po nich to deterministyczny kod z testami. Kroki skleja `app/pipeline.py`, REST jest w `app/api.py`.
 
 Dlaczego tak:
-- **Jedna ścieżka odczytu dla każdego formatu.** Każdy plik staje się obrazami stron, a Qwen3.5 przepisuje każdą stronę do Markdown. Skan, PDF i Word idą tą samą drogą, bez osobnego kodu na skany. Obrazy wygrały z odczytem tekstu w pomiarze, najmocniej na skanach ([historia](#jak-doszliśmy-do-tej-architektury)).
+- **Jedna ścieżka odczytu dla każdego formatu.** Każdy plik staje się obrazami stron, a Qwen3.5 przepisuje każdą stronę do Markdown. Skan, PDF i Word idą tą samą drogą, bez osobnego kodu na skany. W pomiarze obrazy wyraźnie wygrały na skanach, a na PDF z warstwą tekstu wyszedł prawie remis ([historia](#jak-doszliśmy-do-tej-architektury)).
 - **Każde pole, warunek i oświadczenie planu niesie cytat z dokumentu.** Kod wyrzuca te, których cytatu nie ma w odczytanym tekście, i opcje, których nie ma w dokumencie, więc model nie doda pola, którego na papierze nie ma. Ten sam cytat urzędnik widzi pod polem, a „Źródło” pokazuje go w oryginale.
 - **JSON COI pisze kod, nie model.** UUID, `techName`, siatkę, warunki JSONata, walidatory, słowniki i strony ze Standardów COI (Dane, Kontakt i zgody, strona końcowa) builder składa z gotowych klocków. Dlatego struktura zgadza się ze schematem COI, a reguły COI i tak sprawdzamy jeszcze raz przed odpowiedzią.
 - **Dwa przebiegi planera.** Najpierw struktura (strony, sekcje, pola, opcje, oświadczenia), potem warunki. W drugim przebiegu schemat odpowiedzi dopuszcza tylko istniejące pola i opcje oraz nowe pytania Tak/Nie z cytatem; pytanie, którego żaden warunek nie używa, kod wyrzuca.
@@ -111,7 +111,7 @@ Kroki po kolei:
 1. **Upload** (`app/upload.py`). Plik idzie do pamięci, a limit rozmiaru działa w trakcie odczytu. Potem kod sprawdza nazwę, rozszerzenie i sygnaturę bajtów. Przy `AUTH_ENABLED=1` żądanie potrzebuje tokenu JWT (`app/security.py`).
 2. **Odczyt** (`app/llm/transcribe.py`). PDF renderuje PDFium, pliki biurowe najpierw zamienia na PDF LibreOffice, a wysoki skan z kilkoma stronami kod tnie na strony. Każda strona, zmniejszona do 1024 px, idzie osobno do Qwen3.5-397B-A17B, cztery naraz.
 3. **Plan** (`app/llm/planner.py`, kontrakt `app/plan.py`). GLM-5.2 czyta sam Markdown, bez trybu myślenia, a odpowiedź wymusza schemat JSON. Przebieg 3a ustala strukturę, przebieg 3b warunki.
-4. **Filtr cytatów i naprawy** (`app/quotes.py`, `app/repair.py`). Wypada element bez cytatu w Markdownie (dopasowanie rozmyte, `rapidfuzz`), pole, które kod i tak buduje na stronie „Dane”, i warunek bez oparcia w dokumencie (pole zostaje). Naprawy bez modelu: lista z opcją spoza dokumentu staje się polem tekstowym, podwójne pytanie i podwójne pole zostają raz, adres do korespondencji dostaje pytanie Tak/Nie, gdy dokument mówi „inny niż”.
+4. **Filtr cytatów i naprawy** (`app/quotes.py`, `app/repair.py`). Wypada element bez cytatu w Markdownie (dopasowanie rozmyte, `rapidfuzz`), pole, które kod i tak buduje na stronie „Dane”, i warunek bez oparcia w dokumencie (pole zostaje). Naprawy bez modelu: lista rozwijana z opcją spoza dokumentu staje się polem tekstowym, z pól wyboru zmyślone opcje wypadają, podwójne pytanie i podwójne pole zostają raz, adres do korespondencji dostaje pytanie Tak/Nie, gdy dokument mówi „inny niż”.
 5. **Builder** (`app/builder/`). Plan staje się pełną konfiguracją COI. Builder zwraca też mapę dowodów: przy każdym elemencie cytat z dokumentu albo informacja, skąd jest (stronę lub sekcję bez cytatu ułożył model, strony ze Standardów dodał kod).
 6. **Reguły** (`app/rules.py`). Schemat JSON COI i „Reguły techniczne”. Każdy problem kończy żądanie kodem 422.
 
@@ -128,7 +128,7 @@ docker build -t coi-formularze:0.1.0 .
 Obraz buduje też `docker compose build`. Potrzebny jest Docker 23+, bo `Dockerfile` używa `RUN --mount=type=cache` (BuildKit).
 
 - Oficjalny obraz `python:3.14.10-alpine3.24` w obu etapach budowy. `uv==0.13.9` instaluje zależności dokładnie z `uv.lock` (z hashami), a do obrazu końcowego trafia tylko środowisko i kod `app/`.
-- LibreOffice Writer i Calc z fontami Liberation zamieniają pliki biurowe na obrazy stron. Lżejszy obraz bez nich (`--build-arg LIBREOFFICE=0`) przyjmie tylko PDF, JPG i PNG.
+- LibreOffice Writer i Calc z fontami Liberation zamieniają pliki biurowe na obrazy stron. Lżejszy obraz bez nich (`--build-arg LIBREOFFICE=0`) przetworzy tylko PDF, JPG i PNG; plik biurowy przejdzie kontrolę, ale skończy się błędem 422.
 - Tesseract z danymi `pol`, tylko do ramek słów na skanach.
 - Proces działa jako użytkownik bez uprawnień (UID 10001), wystawia tylko port 8000 i ma `HEALTHCHECK` na `/health`.
 - Sekrety przychodzą tylko przy uruchomieniu, z `.env`. `.dockerignore` wyklucza `.env`, więc plik nie trafia do obrazu.
@@ -143,7 +143,7 @@ cp .env.example .env          # wpisz EDENAI_API_KEY; z AUTH_ENABLED=1 także JW
 docker compose up -d --build  # strona http://localhost:8000, OpenAPI /docs, stan /health
 ```
 
-`docker-compose.yml` (Compose 2.24+) dodaje system plików tylko do odczytu, `cap_drop: ALL` i `no-new-privileges`. Kontener zapisuje tylko do `/tmp` w pamięci (tmpfs, 1 GB): pliki tymczasowe LibreOffice i Tesseracta oraz historię strony, która znika przy restarcie. Modele są na Eden AI, więc kontener potrzebuje tylko klucza i internetu.
+`docker-compose.yml` (Compose 2.24+) dodaje system plików tylko do odczytu, `cap_drop: ALL` i `no-new-privileges`. Kontener zapisuje tylko do `/tmp` w pamięci (tmpfs, 1 GB): pliki tymczasowe LibreOffice i Tesseracta oraz historię strony i katalog słowników, które znikają przy restarcie (trwały wolumin dla `HISTORY_DB` to zmienia). Modele są na Eden AI, więc kontener potrzebuje tylko klucza i internetu.
 
 ### Bez compose (`docker run`)
 
@@ -273,10 +273,10 @@ Każdy błąd to JSON z polem `detail`, zwykle `{"detail": "opis po polsku"}`.
 
 ## Jak doszliśmy do tej architektury
 
-Każdy krok rozstrzygnął pomiar na formularzach COI z zadania:
-1. **Lokalny model był za słaby.** Zaczęliśmy od qwen3 30B na laptopie. Działał od pliku do JSON-a, ale mocniejszy model zamknięty na tym samym tekście i promptach (tylko pomiar, nie produkt) pokazał, że wąskim gardłem jest model, nie odczyt ani kod.
-2. **Obrazy stron zamiast tekstu.** Na Eden AI porównaliśmy tekst z naszej ekstrakcji i Tesseracta z obrazami stron przepisanymi przez Qwen3.5. Obrazy wygrały, najmocniej na skanach, i zostały jedyną ścieżką.
-3. **GLM-5.2 jako planer.** Na tym samym Markdownie porównaliśmy cztery modele. GLM-5.2 dał najlepszy plan, 10 razy szybciej niż Qwen3.5 w tej roli i za podobne pieniądze.
+Każdy krok rozstrzygnął pomiar na formularzach COI z zadania. Miarą była `gold=`: zgodność planu z naszym wzorcem formularza (1,0 = jak wzorzec), szybsza i tańsza niż poprawki liczone przez sędziów w „Wynikach”.
+1. **Lokalny model był za słaby.** Zaczęliśmy od qwen3 30B na laptopie. Działał od pliku do JSON-a, ale mocniejszy model zamknięty na tym samym tekście i promptach (tylko pomiar, nie produkt) pokazał, że wąskim gardłem jest model, nie odczyt ani kod. Ten model pomagał też pisać wzorce, więc jego wynik jest raczej zawyżony, ale różnica była duża.
+2. **Obrazy stron zamiast tekstu.** Na Eden AI porównaliśmy tekst z naszej ekstrakcji i Tesseracta z obrazami stron przepisanymi przez Qwen3.5. Na skanach obrazy wyraźnie wygrały, na PDF z warstwą tekstu wyszedł prawie remis, więc zostały jedyną ścieżką: jedna droga dla każdego formatu.
+3. **GLM-5.2 jako planer.** Na tym samym Markdownie formularza 3 w trzech formatach porównaliśmy cztery modele. GLM-5.2 dał najlepszy plan, 10 razy szybciej niż Qwen3.5 w tej roli i za podobne pieniądze.
 4. **Potem pętla jakości.** Każdą zmianę promptu albo kodu po modelu mierzyliśmy, zanim weszła: najpierw zgodnością z naszym wzorcem (`gold=`), w końcowej fazie także liczbą poprawek urzędnika. Problemów z regułami COI nie mogło przybyć.
 
 ![Trzy pomiary: lokalny model wobec mocniejszego, tekst wobec obrazów stron, cztery planery](docs/img/historia.png)
@@ -285,8 +285,9 @@ Tabele, czasy, koszty i odrzucone pomysły są w [docs/historia.md](docs/histori
 
 ## Wdrożenie
 
-- Jeden obraz Docker: Alpine, proces bez uprawnień, system plików tylko do odczytu, jedyny sekret to klucz do modeli. Baza danych nie jest potrzebna: SQLite trzyma tylko historię strony i katalog słowników.
-- Logowanie przez JWT: własny login albo tokeny z serwera tożsamości urzędu (np. Keycloak) przez `JWT_JWKS_URL`.
+- Jeden obraz Docker: Alpine, proces bez uprawnień, system plików tylko do odczytu, jedyny sekret to klucz do modeli. Baza danych nie jest potrzebna: SQLite trzyma tylko historię strony i katalog słowników (na trwałym woluminie przetrwają restart).
+- Logowanie przez JWT: własny login albo tokeny z serwera tożsamości urzędu (np. Keycloak) przez `JWT_JWKS_URL`. Domyślnie API jest otwarte (`AUTH_ENABLED=0`), we wdrożeniu trzeba ustawić `1`.
+- Do modeli idą tylko strony pustego formularza, bez danych obywateli.
 - Koszt płaci się raz na formularz, przy cyfryzacji, a nie przy każdym wniosku obywatela: {{KOSZT_FORMULARZ}} za formularz, więcej przy dłuższych.
 - Integracja z innym systemem: REST, zadania w tle dla długich formularzy, a `POST /api/forms/check` sprawdza reguły COI w JSON-ie z dowolnego źródła.
 - Testy: ponad 400, bez sieci, `uv run pytest` w kilkanaście sekund.
@@ -294,7 +295,7 @@ Tabele, czasy, koszty i odrzucone pomysły są w [docs/historia.md](docs/histori
 ## Znane ograniczenia
 
 - Najsłabsze są warunki na długich formularzach (np. 16-stronicowy wniosek „3 w 1”). Model znajduje część zależności, resztę urzędnik ustawia w panelu „Edycja” wyborem „pokaż, gdy…”.
-- Ten sam plik wysłany dwa razy może dać trochę inny szkic, bo modele nie są powtarzalne co do bitu. Dlatego każdą zmianę mierzyliśmy na kilku dokumentach.
+- Ten sam plik wysłany dwa razy może dać trochę inny szkic, bo modele nie są powtarzalne co do bitu.
 - Modele działają na Eden AI, czyli przez zewnętrzne API, do którego dostęp dali organizatorzy zadania. Wagi są otwarte, więc te same modele można postawić na własnym serwerze z API zgodnym z OpenAI: adres w `LLM_BASE_URL`, nazwy w `LLM_MODEL` i `TRANSCRIBE_MODEL`, klucz tego serwera w `EDENAI_API_KEY`. Tej drogi nie testowaliśmy, a oba modele są duże, więc potrzebują serwera z kilkoma GPU.
 - Formularz dłuższy niż 30 stron jest czytany do 30. strony.
 - Gdy model odda w przebiegu warunków odpowiedź, której nie da się użyć, formularz wychodzi bez warunków (API odpowiada 200), a urzędnik dodaje je w edytorze.

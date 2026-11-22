@@ -112,6 +112,6 @@ Rola składającego na formularzu 8 i rodzaj wniosku na formularzu 9 pojawiły s
 
 ## 6. Od pliku do JSON-a przez działające API
 
-Formularz 7 (skan JPG) przez API w końcowej konfiguracji: `POST /api/forms/convert?evidence=1` dał JSON po 28 s, `POST /api/forms/check` 0 problemów z regułami COI. W środku: 4 kroki, 16 sekcji, 58 pól (w tym 7 list, 6 pól wyboru, 4 załączniki), sekcja powtarzalna dla kolejnych psów, 27 warunków pokazania. Propozycje słowników z tego samego odczytu stron: „Rasy psów”, „Płci psów”, „Sposoby oznakowania zwierząt”.
+Formularz 7 (skan JPG) przez API w końcowej konfiguracji: `POST /api/forms/convert?evidence=1` dał JSON po 28 s (inny przebieg niż w kroku 5; czasy na Edenie mocno się wahają), `POST /api/forms/check` 0 problemów z regułami COI. W środku: 4 kroki, 16 sekcji, 58 pól (w tym 7 list, 6 pól wyboru, 4 załączniki), sekcja powtarzalna dla kolejnych psów, 27 warunków pokazania. Propozycje słowników z tego samego odczytu stron: „Rasy psów”, „Płci psów”, „Sposoby oznakowania zwierząt”.
 
 Obraz Dockera (z LibreOffice) wstaje z samym `EDENAI_API_KEY` w `.env`, odpowiada na `/health` i zamienia DOCX formularza 9 na 24 obrazy stron w 1,3 s, bez wywołania modelu (LibreOffice łamie ten DOCX na więcej stron niż 16 w PDF-ie).
