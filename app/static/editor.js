@@ -1083,7 +1083,7 @@ body:not(.sidebar) .ed-sel.ed-bad{outline:2px solid #b3261e}
 .ed-prob{color:#b3261e;font-weight:600;font-size:13px;margin:.3rem 0 0}
 .card>.ed-prob{margin:-.6rem 0 1rem}
 .ed-dot{color:#b3261e;font-size:12px;margin-left:.15rem}
-.stepper .ed-dot{position:absolute;top:-5px;left:calc(50% + 6px);margin:0;font-size:12px;line-height:1}
+.stepper .ed-dot{position:absolute;top:-4px;left:calc(50% + 5px);width:11px;height:11px;margin:0;border-radius:50%;background:#b3261e;box-shadow:0 0 0 2px #fff;font-size:0;line-height:0}  /* a red badge on the step's circle */
 @media (max-width:560px){  /* a phone-wide frame: the open sidebar becomes a sheet at the bottom */
   body.ed-on.sidebar{padding-right:0;padding-bottom:55vh}
   body.sidebar #edPanel{top:auto;left:0;width:auto;height:55vh;border-left:0;border-top:1px solid #ddd7cc}

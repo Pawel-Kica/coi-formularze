@@ -54,8 +54,10 @@ body.notes h1:has(+.legend:not(:empty)){margin-bottom:.5rem}  /* the legend only
    button (a preview opens any step); many steps scroll sideways with the current one kept in view */
 .stepper{list-style:none;display:flex;padding:6px 0 .25rem;margin:0 0 1.6rem;overflow-x:auto;scrollbar-width:thin;position:relative}
 .stepper li{position:relative;flex:1 1 0;min-width:96px;max-width:150px;text-align:center}
-.stepper.over{-webkit-mask:linear-gradient(to right,transparent,#000 48px,#000 calc(100% - 48px),transparent);mask:linear-gradient(to right,transparent,#000 48px,#000 calc(100% - 48px),transparent)}
-.stepper.over li{min-width:124px}
+.stepper.over{--fl:#000;--fr:#000;-webkit-mask:linear-gradient(to right,var(--fl),#000 48px,#000 calc(100% - 48px),var(--fr));mask:linear-gradient(to right,var(--fl),#000 48px,#000 calc(100% - 48px),var(--fr))}
+.stepper.more-l{--fl:transparent}
+.stepper.more-r{--fr:transparent}
+.stepper.over li{min-width:136px}
 .stepper li:first-child{margin-left:auto}
 .stepper li:last-child{margin-right:auto}
 .stepper li::before{content:"";position:absolute;top:8.5px;left:0;right:0;height:4px;background:var(--line)}
@@ -70,7 +72,7 @@ body.notes h1:has(+.legend:not(:empty)){margin-bottom:.5rem}  /* the legend only
 .stepper .dot{flex:none;width:21px;height:21px;border-radius:50%;border:2px solid var(--line);background:#fff}
 .stepper .cur .dot{border-color:var(--gov);background:radial-gradient(circle,var(--gov) 0 4px,#fff 4.6px)}
 .stepper .done .dot{border-color:var(--gov);background:var(--gov) var(--check) center/11px no-repeat}
-.stepper .lbl{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:break-word}
+.stepper .lbl{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:break-word}
 .stepper .cur .lbl{font-weight:700;color:var(--ink)}
 :root{--check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpath d='M1 5.2 4.4 8.5 11 1.5' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --chevron:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 8'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%232251a2' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -86,7 +88,7 @@ body:not(.notes):not(.conds) #pageHeading{position:absolute;width:1px;height:1px
 .card h4{font-size:1rem;margin:0 0 .75rem;color:var(--ink)}
 .cell>label,.group>legend{display:block;margin-bottom:.5rem;font-size:16px;line-height:1.4;padding:0;color:var(--txt)}
 input[type=text],input[type=date],textarea,select{width:100%;font:inherit;padding:.6rem .75rem;border:2px solid var(--ctrl);border-radius:4px;background-color:#fff;color:var(--ink);min-height:48px}
-:is(input,textarea,select)[aria-required=true]{border-color:var(--ink)}
+:is(input:not([type=checkbox],[type=radio]),textarea,select):required:invalid{border-color:var(--ink)}  /* required and still empty: dark, like the form-viewer; filled: grey */
 :is(input,textarea,select):hover:not(.ro):not(:disabled){border-color:var(--gov)}
 select{appearance:none;-webkit-appearance:none;padding-right:2.6rem;background:#fff var(--chevron) right .9rem center/14px 8px no-repeat;cursor:pointer}
 textarea{min-height:6rem}
@@ -99,7 +101,7 @@ input.ro,textarea.ro,select:disabled{background-color:var(--ro);background-image
 .choice input[type=radio]{border-radius:50%}
 .choice input[type=checkbox]{border-radius:3px}
 .choice input:hover:not(:disabled){border-color:var(--gov)}
-.choice input[type=radio]:checked{border-color:var(--gov);background:radial-gradient(circle,var(--gov) 0 6px,#fff 6.6px)}
+.choice input[type=radio]:checked{border-color:var(--gov);background:var(--gov)}
 .choice input[type=checkbox]:checked{border-color:var(--gov);background:var(--gov) var(--check) center/12px no-repeat}
 .choice input:disabled{opacity:.55;cursor:default}
 .choice label{cursor:pointer}
@@ -226,7 +228,10 @@ body.techmode .tech{display:block}
 @media (max-width:600px){  /* a narrow pane (the sidebar open on a small screen): less room above the first card */
   .wrap{padding-top:1.25rem}
   h1{font-size:1.2rem;margin-bottom:1.1rem}
-  .stepper{margin-bottom:1.1rem}
+  .stepper{margin-bottom:.8rem}
+  .nav .spacer{flex-basis:100%;height:0;order:1}  /* "Przerwij wypełnianie" on its own row under "Wstecz" | "Dalej" of equal width */
+  .nav .btn-link{order:2}
+  .nav :is(.btn,.btn-outline){flex:1}
   .stepper li>:first-child{font-size:14px}
 }
 @media (max-width:640px){
@@ -1275,6 +1280,14 @@ function fitStepper() {
   if (!ol) return;
   ol.classList.toggle("over", ol.children.length * 96 > ol.clientWidth);
   if (at && ol.classList.contains("over")) ol.scrollLeft = at.offsetLeft - (ol.clientWidth - at.offsetWidth) / 2;
+  fadeStepper();
+  ol.onscroll = fadeStepper;
+}
+// A faded edge only on the side where more steps are hidden.
+function fadeStepper() {
+  const ol = $("#stepNav .stepper");
+  ol.classList.toggle("more-l", ol.scrollLeft > 1);
+  ol.classList.toggle("more-r", ol.scrollLeft < ol.scrollWidth - ol.clientWidth - 1);
 }
 new ResizeObserver(fitStepper).observe($("#stepNav"));
 
@@ -1305,7 +1318,7 @@ function renderPage() {
       const given = answers;  // the drawn page writes into these very objects: kept as they are when the clerk says no
       resetAnswers();
       if (JSON.stringify(given) !== JSON.stringify(answers) && !confirm("Wyczyścić odpowiedzi w podglądzie i wrócić do pierwszego kroku?")) { answers = given; return; }
-      go(0); $("#live").textContent = "Odpowiedzi wyczyszczone, krok 1";
+      foldedRows.clear(); go(0); $("#live").textContent = "Odpowiedzi wyczyszczone, krok 1";
     }}, "Przerwij wypełnianie"),
     h("span", {class: "spacer"}),
     pageIdx > 0 && h("button", {type: "button", class: "btn-outline", onclick: () => go(pageIdx - 1)}, "Wstecz"),
