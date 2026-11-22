@@ -164,6 +164,37 @@ def quote_lines(quote: str, text: str) -> list[tuple[int, int]]:
 
 
 _NEAR = 6  # lines: how far on a line that is exactly the quote beats a longer line that only contains it
+# an ellipsis the model put into a quote ("należy wnieść ... przed złożeniem"); the paper text never has one, its dot
+# runs are "____" (`app.extract.normalize`, `prompts/transcribe.md`)
+_ELLIPSIS = re.compile(r"\[?\s*(?:\.{3,}|\u2026+)\s*\]?")
+_ELLIPSIS_GAP = 300  # chars of the normalized paper allowed between two parts of an elided quote
+
+
+def _elided_span(quote: str, joined: str, cursor: int) -> tuple[int, int] | None:
+    """An elided quote placed by its parts: every part (2+ words) found exactly, in order, each within
+    `_ELLIPSIS_GAP` chars after the previous one, the first after the cursor (else the last before it). The span runs from
+    the first part's start to the last part's end. None when the quote has no ellipsis or any part is missing."""
+    parts = [n for n in (normalize(x) for x in _ELLIPSIS.split(quote)) if n]
+    if len(parts) < 2 or any(len(n.split()) < 2 for n in parts):
+        return None
+    firsts = _exact_spans(parts[0], joined)
+    rest = [re.compile(rf"(?<!\w){re.escape(n)}(?!\w)") for n in parts[1:]]
+    for base in [cursor, 0] if cursor else [0]:
+        # nothing after the cursor: the occurrence nearest before it, as for an exact quote
+        for start, end in firsts if base or not cursor else firsts[::-1]:
+            if start < base:
+                continue
+            second = None
+            for rx in rest:
+                m = rx.search(joined, end)  # the first hit after the previous part is the closest one
+                if not m or m.start() > end + _ELLIPSIS_GAP:
+                    break
+                second = m.start() if second is None else second
+                end = m.end()
+            else:
+                # a first part printed again before the second ("Imię i nazwisko" of two people): its last one
+                return max(a for a, b in firsts if start <= a and b <= second), end
+    return None
 
 
 def place_quotes(items: list[tuple[str, str | None, bool]], text: str) -> dict[str, tuple[int, int]]:
@@ -174,8 +205,9 @@ def place_quotes(items: list[tuple[str, str | None, bool]], text: str) -> dict[s
 
     `items` = (key, quote, moves) in form order. A label printed many times ("Miejscowość", "Numer lokalu") resolves
     to its first occurrence after the previous quote (the cursor), else the last one before it; a line that is
-    exactly the quote, a few lines on, beats a longer line that only contains it. No exact occurrence: the best fuzzy
-    match (OCR) after the cursor, else anywhere. `moves=False` (a condition's quote) is looked up without moving the
+    exactly the quote, a few lines on, beats a longer line that only contains it. No exact occurrence: a quote the model
+    shortened with an ellipsis by its parts (`_elided_span`), else the best fuzzy match (OCR) after the cursor, else
+    anywhere. `moves=False` (a condition's quote) is looked up without moving the
     cursor. Quotes not on paper, or too short to prove anything, get no key."""
     joined, starts = _paper_lines(text)
     out, cursor = {}, 0
@@ -195,12 +227,13 @@ def place_quotes(items: list[tuple[str, str | None, bool]], text: str) -> dict[s
                     pick = h  # the whole line is the quote
                     break
         else:
-            pick = None
-            for base in [cursor, 0] if cursor else [0]:
-                al = fuzz.partial_ratio_alignment(q, joined[base:])
-                if al and al.score >= THRESHOLD_OCR:
-                    pick = (base + al.dest_start, base + al.dest_end)
-                    break
+            pick = _elided_span(quote, joined, cursor)
+            if pick is None:
+                for base in [cursor, 0] if cursor else [0]:
+                    al = fuzz.partial_ratio_alignment(q, joined[base:])
+                    if al and al.score >= THRESHOLD_OCR:
+                        pick = (base + al.dest_start, base + al.dest_end)
+                        break
             if pick is None:
                 continue
         out[key] = pick
