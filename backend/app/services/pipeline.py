@@ -39,7 +39,7 @@ def convert_with_evidence(data: bytes, filename: str) -> tuple[dict, dict]:
         except Exception as error:
             log.warning("conversion failed after %.1f s: %s: %s", time.monotonic() - started, type(error).__name__, error)
             raise
-        fields = sum(len(q["field"]["repeatingSectionGrid"]) for t in coi["tabs"] for q in t["questions"])
+        fields = sum(len(q.get("field", {}).get("repeatingSectionGrid", [])) for t in coi["tabs"] for q in t["questions"])
         log.info("converted in %.1f s: %d pages, %d fields in the e-service", time.monotonic() - started,
                  len(coi["tabs"]), fields)
         return coi, evidence

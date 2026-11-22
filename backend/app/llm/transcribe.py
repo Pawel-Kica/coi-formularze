@@ -141,7 +141,12 @@ def _transcribe(data: bytes, filename: str) -> Document:
     log.info("transcribing %d pages with %s", len(pages), settings.transcribe_model)
     with ThreadPoolExecutor(max(1, settings.transcribe_workers)) as pool:  # bound: page logs name the file too
         futures = [pool.submit(bound(transcribe_page), page, i + 1, len(pages)) for i, page in enumerate(pages)]
-        texts = [f.result() for f in futures]
+        try:
+            texts = [f.result() for f in futures]
+        except BaseException:
+            for f in futures:  # a failed page fails the file: pages not started yet are never sent (and billed)
+                f.cancel()
+            raise
     return Document(text="\n\n".join(texts), method="vlm-md", pages=texts)
 
 

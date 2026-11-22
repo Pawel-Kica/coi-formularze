@@ -156,6 +156,21 @@ def test_bad_request_is_not_retried(monkeypatch):
     assert len(calls) == 1
 
 
+def test_failed_page_stops_pages_not_started(monkeypatch):
+    calls = []
+
+    def chat(system, user, **kw):
+        calls.append(user)
+        raise httpx.HTTPStatusError("LLM API returned HTTP 400", request=httpx.Request("POST", "http://x"),
+                                    response=httpx.Response(400))
+
+    monkeypatch.setattr(tr, "chat_text", chat)
+    monkeypatch.setattr(settings, "transcribe_workers", 1)
+    with pytest.raises(httpx.HTTPStatusError):
+        tr.transcribe(a4_pdf(5), "bad.pdf")
+    assert len(calls) <= 2  # page 1 fails; at most the page the worker already took runs, never all 5
+
+
 def test_not_an_image_is_unsupported():
     with pytest.raises(UnsupportedFile):
         tr.transcribe(b"hello, not a form", "x.txt")
