@@ -393,9 +393,9 @@ async function loadHistory() {
     state.items.push(item);
   }
   renderFiles();
+  // back on the page: the start screen (upload), not the last result; only a run still going opens again
   const running = state.items.find((i) => i.status === "queued");
-  const newest = state.items.find((i) => i.status === "done");
-  if (!state.selected && (running || newest)) select(running ?? newest); // back on the page: the run (or last result) is open
+  if (!state.selected && running) select(running);
   processQueue();
 }
 
