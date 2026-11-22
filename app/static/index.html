@@ -353,8 +353,8 @@ function persist(item) {
   if (item.deleted) return Promise.resolve();
   item.saving = (item.saving ?? Promise.resolve()).then(async () => {
     if (item.deleted) return;
-    const { id, file, created, status, result, error, evidence, problems, checking } = item;
-    const record = { file, created, status, result, error, evidence, problems, checking };
+    const { id, file, created, status, result, error, evidence, problems, checking, job, started } = item;
+    const record = { file, created, status, result, error, evidence, problems, checking, job, started };
     if (id !== undefined) record.id = id;
     try {
       item.id = await store("put", record);
@@ -378,17 +378,16 @@ async function loadHistory() {
     return { ...record, file: new File([blob], file_name, { type: file_type }) };
   }));
   for (const record of items) {
-    const item = { ...record, started: 0 };
+    const item = { started: 0, ...record };
     if (item.checking) Object.assign(item, { checking: false, checkFailed: true }); // closed before the rules saw the last edit
-    if (item.status === "queued" || item.status === "working") { // page closed mid-run: mark it, never re-send
-      Object.assign(item, { status: "interrupted", error: "Przetwarzanie przerwane (strona została zamknięta lub odświeżona)." });
-      persist(item);
-    }
+    if (item.status === "working") item.status = "queued"; // page closed mid-run: convert() picks its job up again
     state.items.push(item);
   }
   renderFiles();
+  const running = state.items.find((i) => i.status === "queued");
   const newest = state.items.find((i) => i.status === "done");
-  if (newest && !state.selected) select(newest); // back on the page: the last result is already open
+  if (!state.selected && (running || newest)) select(running ?? newest); // back on the page: the run (or last result) is open
+  processQueue();
 }
 
 // --- login ---
@@ -515,30 +514,41 @@ async function processQueue() {
   state.busy = false;
 }
 
+const POLL_MS = 2000;
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// One file as a server job: POST /api/forms/jobs?evidence=1 ({coi, evidence}: the editor shows the paper quotes),
+// then its result URL until it stops being 404. The job id is saved with the record, so a reload (or another
+// browser) picks up the same run instead of losing it; a job the server forgot (restart, 1 h after its end) is
+// sent again on its own.
 async function convert(item) {
+  if (!item.job) item.started = Date.now(); // a resumed job keeps counting from its real start
   item.status = "working";
-  item.started = Date.now();
   persist(item);
   renderFiles();
   if (item === state.selected) select(item);
   const ticker = setInterval(() => { renderFiles(); if (item === state.selected) renderNote(item); }, 1000);
+  const headers = { Authorization: `Bearer ${state.token}` };
   try {
-    const body = new FormData();
-    body.append("file", item.file);
-    const response = await fetch("/api/forms/convert?evidence=1", { // {coi, evidence}: the editor shows the paper quotes
-      method: "POST", headers: { Authorization: `Bearer ${state.token}` }, body,
-    });
-    const data = await response.json().catch(() => ({}));
-    if (response.status === 401) {
-      item.status = "queued"; // retried after the next login
-      logout("Sesja wygasła. Zaloguj się ponownie.");
-    } else if (response.ok) {
-      Object.assign(item, { status: "done", result: data.coi, evidence: data.evidence, problems: [] });
-    } else {
-      Object.assign(item, { status: "error", error: detail(data, response) });
+    if (!item.job) {
+      const body = new FormData();
+      body.append("file", item.file);
+      const response = await fetch("/api/forms/jobs?evidence=1", { method: "POST", headers, body });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) item.job = data.id;
+      else settle(item, response, data);
+      persist(item);
+    }
+    while (item.status === "working" && !item.deleted) {
+      let response;
+      try { response = await fetch(`/api/forms/jobs/${item.job}/result`, { headers }); } catch { await pause(POLL_MS); continue; } // server restarting
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 404 && response.headers.has("Retry-After")) await pause(POLL_MS); // still running
+      else if (response.status === 404) Object.assign(item, { status: "queued", job: null }); // forgotten: send again
+      else settle(item, response, data);
     }
   } catch {
-    Object.assign(item, { status: "error", error: "Brak połączenia z serwerem." });
+    Object.assign(item, { status: "error", job: null, error: "Brak połączenia z serwerem." });
   }
   clearInterval(ticker);
   if (item.status !== "queued") checkModel(); // after a failure and after the success that follows it
@@ -549,6 +559,18 @@ async function convert(item) {
     if (item === state.selected || !state.selected || state.selected.status !== "done") select(item);
   }
   renderFiles();
+}
+
+// A job's answer (or a refused upload) -> the item's status: done, error, or queued again after a lost login.
+function settle(item, response, data) {
+  if (response.status === 401) {
+    item.status = "queued"; // resumed after the next login, the job id stays
+    logout("Sesja wygasła. Zaloguj się ponownie.");
+  } else if (response.ok) {
+    Object.assign(item, { status: "done", job: null, result: data.coi, evidence: data.evidence, problems: [] });
+  } else {
+    Object.assign(item, { status: "error", job: null, error: detail(data, response) });
+  }
 }
 
 async function removeItem(item) {

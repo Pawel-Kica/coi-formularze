@@ -62,8 +62,12 @@ _lock = Lock()
 router = APIRouter(prefix="/api/forms/jobs", tags=["forms"], dependencies=[Depends(current_user)])
 
 
-def _run(data: bytes, filename: str) -> dict:
-    return pipeline.convert(data, filename)  # through the module, so tests can monkeypatch it
+def _run(data: bytes, filename: str, evidence: bool) -> dict:
+    """The bare COI JSON, or `{"coi", "evidence"}` like `convert?evidence=1` (the upload page)."""
+    if evidence:  # through the module, so tests can monkeypatch it
+        coi, ev = pipeline.convert_with_evidence(data, filename)
+        return {"coi": coi, "evidence": ev}
+    return pipeline.convert(data, filename)
 
 
 def _finish(job: Job, future: Future) -> None:
@@ -93,9 +97,10 @@ def _job(job_id: str) -> Job:
 
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED, openapi_extra=_FILE_BODY, response_description="Zadanie przyjęte")
-async def create_job(request: Request, response: Response) -> dict:
+async def create_job(request: Request, response: Response, evidence: bool = False) -> dict:
     """One blank form (multipart field `file`), checked like `/api/forms/convert` (400/413/415 right away),
-    then converted in the background: `{"id", "status_url", "result_url"}`, `Location` = `result_url`."""
+    then converted in the background: `{"id", "status_url", "result_url"}`, `Location` = `result_url`.
+    `?evidence=1` makes the result `{"coi", "evidence"}` like `convert?evidence=1` (the upload page)."""
     filename, data = await read_single_file(request, settings.max_file_size_bytes)
     validate_upload(filename, data)
     _expire()
@@ -104,7 +109,7 @@ async def create_job(request: Request, response: Response) -> dict:
             raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Za dużo zadań w kolejce. Spróbuj za chwilę.")
         job_id = uuid.uuid4().hex
         job = _jobs[job_id] = Job()
-        future = _executor.submit(_run, data, filename)
+        future = _executor.submit(_run, data, filename, evidence)
     future.add_done_callback(lambda done: _finish(job, done))
     urls = {"status_url": f"/api/forms/jobs/{job_id}", "result_url": f"/api/forms/jobs/{job_id}/result"}
     response.headers["Location"] = urls["result_url"]

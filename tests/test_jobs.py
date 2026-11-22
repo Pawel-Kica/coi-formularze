@@ -123,3 +123,10 @@ def test_jobs_need_a_token_when_auth_is_on(client, monkeypatch):
     monkeypatch.setattr(settings, "auth_enabled", True)
     assert submit(client).status_code == 401
     assert client.get("/api/forms/jobs/x/result").status_code == 401
+
+
+def test_evidence_job_answers_like_convert_with_evidence(client, monkeypatch):
+    monkeypatch.setattr(pipeline, "convert_with_evidence", lambda data, filename: (COI, {"form": "quote"}))
+    job_id = client.post("/api/forms/jobs?evidence=1", files={"file": ("a.pdf", PDF)}).json()["id"]
+    wait_done(client, job_id)
+    assert client.get(f"/api/forms/jobs/{job_id}/result").json() == {"coi": COI, "evidence": {"form": "quote"}}
