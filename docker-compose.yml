@@ -7,7 +7,8 @@ services:
       context: .
       args:
         LIBREOFFICE: ${LIBREOFFICE:-1}  # LibreOffice in the image: office files become page images
-    image: coi-formularze:0.1.0
+        VERSION: 0.2.0  # the image's org.opencontainers.image.version label
+    image: coi-formularze:0.2.0  # = version in backend/pyproject.toml (tests/test_version.py)
     ports:
       - "8000:8000"
     env_file:

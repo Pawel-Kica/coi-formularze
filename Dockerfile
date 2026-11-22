@@ -1,12 +1,13 @@
-# COI Cyfryzacja Formularzy API. Only the official python Alpine image (every locked dependency
-# has a musl wheel), dependencies from uv.lock, Tesseract with Polish data ("Źródło" on scans), non-root.
-# LibreOffice (DOC/DOCX/ODS/XLS/XLSX -> PDF -> page images for the vision model) is in by default;
-# LIBREOFFICE=0 builds a lighter image: PDF and images still become page images, office files are read as their own text.
+# COI Cyfryzacja Formularzy API. Only the official python Debian slim image (Alpine has no headless LibreOffice: its
+# package pulls in Qt, GTK, GStreamer and Mesa/LLVM, ~1 GB), dependencies from uv.lock, Tesseract with Polish data
+# ("Źródło" on scans), non-root. LibreOffice (DOC/DOCX/ODS/XLS/XLSX -> PDF -> page images for the vision model) is in by
+# default, as the -nogui packages; LIBREOFFICE=0 builds a lighter image: PDF and images still become page images, office
+# files are read as their own text.
 ARG PYTHON_VERSION=3.14.10
-ARG ALPINE_VERSION=3.24
+ARG DEBIAN_VERSION=trixie
 
 # --- build: install locked dependencies into /app/.venv ---
-FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION} AS build
+FROM python:${PYTHON_VERSION}-slim-${DEBIAN_VERSION} AS build
 ARG UV_VERSION=0.13.9
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 RUN --mount=type=cache,target=/root/.cache/pip pip install "uv==${UV_VERSION}"
@@ -15,15 +16,20 @@ COPY backend/pyproject.toml backend/uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev --no-install-project
 
 # --- runtime: venv + code, no build tools, no secrets ---
-FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION}
+FROM python:${PYTHON_VERSION}-slim-${DEBIAN_VERSION}
 ARG LIBREOFFICE=1
-RUN apk add --no-cache tesseract-ocr tesseract-ocr-data-pol \
+ARG VERSION
+LABEL org.opencontainers.image.title=coi-formularze org.opencontainers.image.version=${VERSION}
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-pol \
     && if [ "$LIBREOFFICE" = "1" ]; then \
-         apk add --no-cache libreoffice-writer libreoffice-calc font-liberation; \
+         apt-get install -y --no-install-recommends libreoffice-writer-nogui libreoffice-calc-nogui fonts-liberation; \
        fi \
-    && adduser -D -H -u 10001 app
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -M -u 10001 app
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
+COPY backend/pyproject.toml ./
 COPY backend/app ./app
 COPY frontend ./frontend
 # Code is root-owned and read-only for `app`. Every write goes to /tmp: Tesseract and LibreOffice

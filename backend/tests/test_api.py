@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from app.api.upload import MIME_BY_EXTENSION, sniff_mime, validate_upload
-from app.core.config import settings
+from app.core.config import VERSION, settings
 from app.llm.client import MissingKeyError
 from app.main import app
 from app.services import pipeline
@@ -278,7 +278,7 @@ def test_health_says_whether_the_key_is_set(client, monkeypatch):
     monkeypatch.setattr(settings, "edenai_api_key", None)
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "llm": "no_api_key", "llm_model": settings.llm_model,
+    assert response.json() == {"status": "ok", "version": VERSION, "llm": "no_api_key", "llm_model": settings.llm_model,
                                "transcribe_model": settings.transcribe_model}
 
 

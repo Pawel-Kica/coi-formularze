@@ -1,8 +1,7 @@
-"""Stacked page images (Pillow + numpy): `split_pages` cuts a tall image of n stacked A4 pages into n pages,
+"""Stacked page images (Pillow): `split_pages` cuts a tall image of n stacked A4 pages into n pages,
 overlapping at each cut. Used before transcription (`app.llm.transcribe`) and for "Źródło" (`app.document.sources`).
 """
 
-import numpy as np
 from PIL import Image
 
 A4 = 297 / 210
@@ -16,7 +15,7 @@ def split_pages(img: Image.Image) -> list[Image.Image]:
     n = round(h / (w * A4))
     if n < 2:
         return [img]
-    rows = np.asarray(img.convert("L").resize((1, h), Image.Resampling.BOX)).ravel().tolist()  # mean per row
+    rows = list(img.convert("L").resize((1, h), Image.Resampling.BOX).get_flattened_data())  # mean per row
     page_h = h / n
     cuts = [0]
     for k in range(1, n):
