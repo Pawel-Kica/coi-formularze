@@ -3,7 +3,7 @@
 Projekt na HackNation 2026, zadanie COI „Cyfryzacja Formularzy”.
 
 **Film (2:40):** https://youtu.be/S_v0vJNXzpw  
-**Prezentacja:** [docs/prezentacja.pdf](docs/prezentacja.pdf)
+**Prezentacja:** https://docs.google.com/presentation/d/1KXvomqc19rmjyOTTgIM4rdwm_7cLuJfp7GtJpmJxMY4/view
 
 Wgrywasz pusty formularz urzędowy w dowolnym formacie (PDF, skan JPG/PNG, DOC, DOCX, ODS, XLS, XLSX), a REST API zwraca JSON e-usługi COI gotowy do importu. Urzędnik widzi go obok oryginału i poprawia w edytorze: pod polem jest cytat z dokumentu, z którego pole powstało, i „Źródło”, czyli wycinek oryginału z zaznaczonym miejscem. Dlatego model nie musi trafić wszystkiego za pierwszym razem.
 
