@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8">
-<meta name="render" content="1600x1000">
+<meta name="render" content="1600x1080">
 <!-- Kroki 1-3 w szczegółach (README, „Architektura”). Render: python3 docs/img/render.py odczyt -->
 <style>
   *{box-sizing:border-box}
@@ -34,7 +34,7 @@
   .pass div{flex:1;background:#fbefe6;border:2px solid #c2662d;border-radius:12px;padding:10px 14px;font-size:16px;line-height:1.42}
 </style></head><body><div class="wrap">
   <h1>Kroki 1-3: jak plik staje się planem formularza</h1>
-  <p class="sub">Granatowe = kod (zawsze tak samo). Miedziane = model z otwartymi wagami na Eden AI. Jedna ścieżka odczytu dla każdego formatu.</p>
+  <p class="sub">Granatowe = kod (zawsze tak samo). Miedziane = model z otwartymi wagami na Eden AI. Jedna ścieżka odczytu dla każdego formatu. Wyjątek: plik biurowy, któremu LibreOffice zgubi tekst, planer czyta z jego własnego tekstu.</p>
   <div class="grid">
    <div>
     <div class="step"><div class="n">1</div><div class="body">
@@ -54,14 +54,14 @@
           <h3>2a. Plik → obrazy stron</h3>
           <span class="tag">kod, narzędzia open source</span>
           <div class="r"><span class="k">PDF</span><span class="v">strony renderuje PDFium (pypdfium2), także PDF ze skanem</span></div>
-          <div class="r"><span class="k">DOC, DOCX, ODS, XLS, XLSX</span><span class="v">LibreOffice bez okna → PDF → obrazy stron</span></div>
+          <div class="r"><span class="k">DOC, DOCX, ODS, XLS, XLSX</span><span class="v">LibreOffice bez okna → PDF → obrazy stron; gdy w PDF brakuje tekstu pliku albo konwersja się nie uda: tekst z samego pliku, bez kroku 2b</span></div>
           <div class="r"><span class="k">JPG, PNG</span><span class="v">obraz tak, jak jest; wysoki skan cięty na strony</span></div>
           <div class="r"><span class="k">każda strona</span><span class="v">zmniejszona do 1024 px na dłuższym boku, najwyżej 30 stron</span></div>
         </div>
         <div class="lane ai">
           <h3>2b. Obraz strony → Markdown</h3>
           <span class="tag">Qwen3.5-397B-A17B na Eden AI</span>
-          <div class="r"><span class="k">każda strona</span><span class="v">osobno do modelu wizyjnego, 4 strony naraz; odpowiedzi są krótkie, a ucięta dostaje drugą próbę</span></div>
+          <div class="r"><span class="k">każda strona</span><span class="v">osobno do modelu wizyjnego, 4 strony naraz; odpowiedzi są krótkie; strona, na której model się zapętli (odpowiedź ucięta albo po limicie czasu), dostaje drugą próbę z karą za powtórzenia</span></div>
           <div class="r"><span class="k">wynik</span><span class="v">nagłówki, pola, kratki i tabele; wykropkowanie to <code>______</code>; strony sklejone w kolejności</span></div>
           <div class="note">Ten sam odczyt, bez drugiego wywołania, czytają też propozycje słowników (bonus II).</div>
         </div>

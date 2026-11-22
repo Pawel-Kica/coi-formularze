@@ -66,7 +66,7 @@ A = tekst z naszej ekstrakcji i Tesseracta. B = obraz każdej strony przepisany 
 - Obrazy wygrywają na skanach. Na PDF z warstwą tekstu zysk jest mniejszy, a na formularzu 3 to remis. Długi formularz 8 (PDF, 1 przebieg) też remisuje: A 0,64 (268 s, 0,055 $), B 0,65 (279 s, 0,084 $).
 - Wszystkie 16 JSON-ów przeszło reguły COI.
 
-Decyzja: zostaje tylko B. Jedna ścieżka dla każdego formatu, bez osobnego kodu na skany. Tesseract już nie czyta treści, zostały mu ramki słów do „Źródła”.
+Decyzja: zostaje tylko B. Jedna ścieżka dla każdego formatu, bez osobnego kodu na skany. Później doszedł jeden wyjątek: plik biurowy, w którego PDF z LibreOffice zginął tekst (LibreOffice gubi pola tekstowe DOCX formularzy 2 i 8), planer czyta z tekstu samego pliku. Tesseract już nie czyta treści, zostały mu ramki słów do „Źródła”.
 
 ## 4. Planer: ten sam Markdown, cztery modele
 
@@ -115,3 +115,20 @@ Rola składającego na formularzu 8 i rodzaj wniosku na formularzu 9 pojawiły s
 Formularz 7 (skan JPG) przez API w końcowej konfiguracji: `POST /api/forms/convert?evidence=1` dał JSON po 28 s (inny przebieg niż w kroku 5; czasy na Edenie mocno się wahają), `POST /api/forms/check` 0 problemów z regułami COI. W środku: 4 kroki, 16 sekcji, 58 pól (w tym 7 list, 6 pól wyboru, 4 załączniki), sekcja powtarzalna dla kolejnych psów, 27 warunków pokazania. Propozycje słowników z tego samego odczytu stron: „Rasy psów”, „Płci psów”, „Sposoby oznakowania zwierząt”.
 
 Obraz Dockera (z LibreOffice) wstaje z samym `EDENAI_API_KEY` w `.env`, odpowiada na `/health` i zamienia DOCX formularza 9 na 24 obrazy stron w 1,3 s, bez wywołania modelu (LibreOffice łamie ten DOCX na więcej stron niż 16 w PDF-ie).
+
+## 7. Końcowy pomiar: każdy plik każdego formularza
+
+Końcowa wersja, 7 formularzy do cyfryzacji w każdym formacie, w jakim przyszły: 54 pliki, 54 JSON-y, w każdym 0 problemów z regułami COI. W komórce `gold=`; średnio 0,849. Formularz 7 nie ma w paczce DOCX, XLSX ani JPEG, ma za to JPE.
+
+| Formularz | PDF | DOC | DOCX | ODS | XLSX | JPEG | JPG | JPE | PNG | Średnio |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2 | 1,000 | 1,000 | 0,960 | 1,000 | 1,000 | 1,000 | 1,000 | | 1,000 | 0,995 |
+| 3 | 0,933 | 0,933 | 0,933 | 0,933 | 0,967 | 0,967 | 0,967 | | 0,967 | 0,950 |
+| 4 | 0,780 | 0,930 | 0,750 | 0,750 | 0,800 | 0,730 | 0,710 | | 0,710 | 0,770 |
+| 6 | 0,943 | 0,716 | 0,702 | 0,693 | 0,922 | 0,714 | 0,710 | | 0,916 | 0,789 |
+| 7 | 0,921 | 0,916 | | 0,881 | | | 0,799 | 0,943 | 0,915 | 0,896 |
+| 8 | 0,771 | 0,655 | 0,743 | 0,718 | 0,705 | 0,756 | 0,746 | | 0,744 | 0,730 |
+| 9 | 0,791 | 0,752 | 0,873 | 0,874 | 0,870 | 0,801 | 0,823 | | 0,828 | 0,827 |
+
+- Z każdego formularza sędziowie ocenili 2 pliki z najwyższą `gold=` i do `output/` trafił ten z mniejszą liczbą poprawek urzędnika (README, „Wyniki”).
+- Różnice między formatami jednego formularza są w dużej części zmiennością modeli: przebiegi nie są powtarzalne co do bitu, a małe formularze różnią się między przebiegami nawet o 0,2 `gold=`. Z jednego przebiegu nie wnioskujemy więc, który format jest gorszy.

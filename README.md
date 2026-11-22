@@ -4,7 +4,7 @@ Projekt na HackNation 2026, zadanie COI „Cyfryzacja Formularzy”.
 
 Wgrywasz pusty formularz urzędowy w dowolnym formacie (PDF, skan JPG/PNG, DOC, DOCX, ODS, XLS, XLSX), a REST API zwraca JSON e-usługi COI gotowy do importu. Urzędnik widzi go obok oryginału i poprawia w edytorze: pod polem jest cytat z dokumentu, z którego pole powstało, i „Źródło”, czyli wycinek oryginału z zaznaczonym miejscem. Dlatego model nie musi trafić wszystkiego za pierwszym razem.
 
-{{ZRZUT_APLIKACJI}}
+![Strona dla urzędnika: z lewej skan formularza 7, z prawej e-usługa z krokami u góry, pod polem cytat z dokumentu i „Źródło”, czyli wycinek skanu z ramką na tym cytacie](docs/img/aplikacja.png)
 
 ![Schemat: plik → odczyt stron → plan z cytatami → kod buduje i sprawdza JSON COI → urzędnik poprawia w przeglądarce](docs/img/prosty.png)
 
@@ -16,33 +16,58 @@ Mierzymy to, co obchodzi urzędnika: ile poprawek musi zrobić w edytorze, zanim
 
 | Miara | Wynik |
 |---|---|
-| Poprawki urzędnika | średnio **{{POPRAWKI_SREDNIO}}** na formularz (e-usługa ma średnio {{POLA_SREDNIO}} pól); szczegóły w tabeli niżej |
-| Pliki, z których powstał JSON | **{{PLIKI_OK}}** z 69 (9 formularzy z zadania we wszystkich formatach) |
+| Poprawki urzędnika | średnio **1,9** na formularz: 13 na 7 formularzach, przed końcową pętlą jakości 19. Formularz ma średnio 24 pola z dokumentu (razem ze stronami standardowymi COI około 70 pól i tekstów); szczegóły w tabeli niżej |
+| Pliki, z których powstał JSON | **54** z 54: 7 formularzy do cyfryzacji z zadania w każdym formacie, w jakim przyszły (PDF, DOC, DOCX, ODS, XLSX, JPEG, JPG, JPE, PNG). Formularze 1 i 5 to materiał referencyjny COI z gotowym JSON-em |
 | Problemy z regułami COI | **0** w każdym z tych JSON-ów. API nie wypuszcza JSON-a, który łamie schemat COI albo „Reguły techniczne”, tylko odpowiada 422; taki plik liczy się jako porażka w wierszu wyżej |
-| Czas i koszt | średnio **{{CZAS_FORMULARZ}}** i **{{KOSZT_FORMULARZ}}** na formularz (modele na Eden AI). Koszt rośnie ze stronami: jedno wywołanie odczytu na stronę i dwa przebiegi planera na formularz |
-| Kalibracja sędziów | {{KALIBRACJA}} (10 błędów podrzuconych do poprawnych JSON-ów) |
+| Czas i koszt | średnio **50 s** i **0,025 $** na formularz według cennika Eden AI (od 19 s i 0,012 $ za 1 stronę do 98 s i 0,051 $ za 6-stronicową deklarację). Koszt rośnie ze stronami: jedno wywołanie odczytu na stronę i dwa przebiegi planera na formularz |
+| Kalibracja sędziów | z 10 błędów podrzuconych do poprawnej e-usługi znaleźli 10 (formularz 8) i 9 (formularz 7), a zmyślonych poprawek było 0 |
 
 **Jak liczymy poprawki** (przepis: `bench/JUDGE-POPRAWKI.md`):
 - Trzech sędziów AI dostaje strony oryginału i nasz JSON jako czytelny konspekt. Każdy osobno wypisuje poprawki, które urzędnik zrobiłby w edytorze: brakujące pole, zmyślone pole, zły typ, złe opcje, zły albo brakujący warunek, złe „wymagane”. Poprawka liczy się, gdy wypiszą ją co najmniej 2 z 3 sędziów.
 - Sędziami są mocniejsze modele zamknięte, inne niż nasz planer i odczyt, więc nie oceniają samych siebie. Służą tylko do pomiaru i nie ma ich w produkcie (pkt 5 zadania pozwala używać takich modeli przy testowaniu).
-- Samych sędziów sprawdziliśmy na 10 błędach, które celowo wstawiliśmy do poprawnych JSON-ów: ile z nich znaleźli i ile poprawek wymyślili ponad to, czego nie było w czystej wersji (wiersz „Kalibracja sędziów”).
+- Samych sędziów sprawdziliśmy tak: nasz wzorcowy plan formularza zbudowaliśmy w e-usługę dwa razy, czystą i z celowo wstawionymi błędami (`bench/poprawki.py plant`: usunięte pola, złe typy, usunięty albo zły warunek, zmyślone pole, ucięta lista opcji, zdjęte „wymagane”). Panel ocenił obie wersje, nie wiedząc o błędach. Na czystej wersji nie wypisał żadnej poprawki. Na formularzach 8 i 7 znalazł 19 z 20 błędów; ominął zdjęte „wymagane” przy potwierdzeniu przelewu, którego papier wprost nie każe dołączać. Na formularzu 3 (1 strona, 3 rzeczy do wypełnienia) znalazł 4 z 4 błędów w elementach z papieru. Pozostałe 3 z 7 trafiły w pytanie o opłatę i załącznik z potwierdzeniem zapłaty, które dodał tylko nasz wzorzec, oraz w warunek przy tekście informacyjnym, którego sędziowie z zasady nie oceniają; słusznie ich nie policzyli.
 
 ### Każdy formularz z zadania
 
-{{POPRAWKI_TABELA}}
+| Formularz | Plik | Poprawki urzędnika | Jakie | Drugi oceniony plik | Pola z dokumentu | Czas | Koszt |
+|---|---|---|---|---|---|---|---|
+| 2. Zwrot opłaty skarbowej | PDF | **0** | | JPEG: 0 | 7 | 22 s | 0,013 $ |
+| 3. Wydanie zaświadczenia | JPEG (obraz) | **0** | | JPG: 0 | 6 | 19 s | 0,012 $ |
+| 4. Wynajęcie świetlicy wiejskiej | DOC | **1** | brakujące pole: załącznik z oświadczeniem osoby odpowiedzialnej | XLSX: 1 | 10 | 19 s | 0,012 $ |
+| 6. Zajęcie pasa drogowego | PDF | **4** | złe „wymagane” 4 razy: cztery warianty tabeli zajęcia pasa (jezdnia do 20%, 20-50%, ponad 50% szerokości, chodnik) są wymagane, a wnioskodawca wypełnia tylko ten, który go dotyczy | XLSX: 4 | 31 | 59 s | 0,020 $ |
+| 7. Psy ras agresywnych | JPE (obraz 2 stron) | **1** | brakujące pole: adres poprzedniego właściciela psa | PDF: 2 | 22 | 46 s | 0,020 $ |
+| 8. Deklaracja opłaty za odpady, 6 stron | JPEG (obraz 6 stron) | **3** | 2 brakujące warunki (miejsce gromadzenia odpadów tylko przy budynku wielorodzinnym, obliczenie opłaty ukryte przy kompostowniku), brakujące pole: data zmiany przy korekcie | PDF: 4 | 60 | 98 s | 0,051 $ |
+| 9. Stypendium sportowe, 3 wnioski w 1 | ODS | **4** | 2 brakujące warunki (rubryki tylko przy stypendium lub nagrodzie), 2 brakujące pola (dowód pełnomocnika klubu, rodzic niepełnoletniego kandydata) | DOCX: 9 | 32 | 87 s | 0,048 $ |
+| **Średnio** | | **1,9** | | 2,9 | 24 | 50 s | 0,025 $ |
 
-Na tych 9 formularzach stroiliśmy prompty i kod, więc to wynik na znanych dokumentach. {{SPOZA_ZADANIA}}
+- Każdy formularz przyszedł w 6-9 formatach. Wszystkie 54 pliki dały JSON bez problemów z regułami COI, a ich zgodność z naszym wzorcem (`gold=`) jest w [docs/historia.md](docs/historia.md#7-końcowy-pomiar-każdy-plik-każdego-formularza). Sędziowie ocenili po 2 pliki na formularz, te z najwyższą zgodnością. Tabela pokazuje lepszy z nich i ten trafił do `output/`; drugi stoi w kolumnie „Drugi oceniony plik” (razem 20 poprawek zamiast 13). Najwięcej poprawek, 9, wymagał DOCX formularza 9.
+- Przed końcową pętlą jakości ten sam panel liczył na tych formularzach 19 poprawek. Zysk dały formularze 8 (8 → 3) i 9 (7 → 4). Formularz 6 się pogorszył (2 → 4): zniknęły 2 stare poprawki przy załącznikach, doszły 4 przy wariantach tabeli.
+- „Pola z dokumentu” to pola na stronach formularza, bez stron standardowych COI. Czas i koszt to cały przebieg pliku: odczyt stron, 2 przebiegi planera i kod.
+- Na tych formularzach stroiliśmy prompty i kod, więc to wynik na znanych dokumentach.
 
 ### Porównanie podejść
 
 Te same dokumenty i ci sami sędziowie, od najprostszego podejścia (cały plik prosto do jednego modelu, który ma oddać JSON COI) do naszego. Przy każdym podejściu podajemy model. Miara: poprawki urzędnika, mniej = lepiej.
 
-{{PORÓWNANIE}}
+Trzy dokumenty: formularz 3 PDF (1 strona), formularz 7 JPG (skan, 2 strony) i formularz 8 PDF (6 stron). Sędziowie oceniali każdy wynik pod losową nazwą, nie wiedząc, które podejście go dało. W podejściach 1-4 model dostał w prompcie dokumenty COI (reguły techniczne, opis i schemat JSON, słowniki, Standardy) i wzorcowy JSON formularza 1 (`bench/arms_direct.md`).
+
+| Podejście | Model | Poprawki urzędnika: formularz 3 / 7 / 8 | Razem | Problemy z regułami COI | Czas razem | Koszt razem |
+|---|---|---|---|---|---|---|
+| 1. Cały plik do jednego modelu, który oddaje JSON COI | Mistral Large 3 | 3 / 11 / 16 | 30 | 55 | 340 s | 0,104 $ |
+| 2. Obrazy stron do jednego modelu wizyjnego, który oddaje JSON COI | Qwen3.5-397B-A17B | 7 / 13 / 18 | 38 | 20 | 1634 s | 0,205 $ |
+| 3. Nasz odczyt stron, potem jeden model pisze cały JSON COI | GLM-5.2 | 2 / 1 / 19 | 22 | 64 | 513 s | 0,200 $ |
+| 4. To samo z trybem myślenia | GLM-5.2 | 0 / 1 / 21 | 22 | 11 | 605 s | 0,184 $ |
+| **Nasze**: odczyt stron, plan w 2 przebiegach, JSON składa kod | Qwen3.5 + GLM-5.2 | 0 / 1 / 5 | **6** | **0** | 337 s | **0,087 $** |
+
+- Jeden model piszący cały JSON (3 i 4) dorównuje nam na krótkich formularzach, ale na 6-stronicowej deklaracji potrzebuje 19-21 poprawek wobec naszych 5. Na dłuższych formularzach jego JSON łamie reguły COI (4-52 problemów: powtórzone identyfikatory, warunki na opcjach, których nie ma). Kosztuje też ponad 2 razy więcej, bo pisze 7-20 tys. tokenów JSON-a, a nasz planer 1-6 tys. tokenów planu.
+- Nasze bez filtra cytatów i napraw daje na tych 3 dokumentach prawie to samo (różnica jednego pola na formularzu 8), też bez problemów z regułami. Te reguły to siatka bezpieczeństwa na trudniejsze przypadki (na formularzu 9 poprawiają 3 warunki). Zero problemów z regułami daje builder: format COI pisze kod, nie model.
+- Porównanie zrobiliśmy przed końcowymi poprawkami, więc nasze liczby różnią się trochę od tabeli wyżej. Nasze 267 s na formularzu 8 to wolny moment Edenu; spokojny przebieg trwa około 100 s.
+- Przepis i surowe liczby: `bench/ARMS.md`, kod: `bench/arms.py`.
 
 ### JSON-y do oddania
 
-- `output/api/<formularz>.json`: główny wynik, surowy JSON z API, ten sam, który mierzą tabele wyżej.
-- `output/<formularz>.json`: ta sama e-usługa z naniesionymi przez nas poprawkami, które wskazali sędziowie. Ile ich było na każdym formularzu, mówi `output/POPRAWKI.md`.
+- `output/api/formularz-<N>.json`: główny wynik, surowy JSON z API, ten sam, który mierzą tabele wyżej.
+- `output/formularz-<N>.json`: ta sama e-usługa z naniesionymi przez nas poprawkami, które wskazali sędziowie. Ile ich było na każdym formularzu, mówi `output/POPRAWKI.md`.
 
 ## Szybki start
 
@@ -103,7 +128,7 @@ Do tego:
 Model czyta dokument, a kod pilnuje formatu COI. Modele oddają tylko Markdown stron i plan formularza. Wszystko po nich to deterministyczny kod z testami. Kroki skleja `app/pipeline.py`, REST jest w `app/api.py`.
 
 Dlaczego tak:
-- **Jedna ścieżka odczytu dla każdego formatu.** Każdy plik staje się obrazami stron, a Qwen3.5 przepisuje każdą stronę do Markdown. Skan, PDF i Word idą tą samą drogą, bez osobnego kodu na skany. W pomiarze obrazy wyraźnie wygrały na skanach, a na PDF z warstwą tekstu zysk był mniejszy (remis na formularzach 3 i 8, +0,10 na formularzu 7) ([historia](#jak-doszliśmy-do-tej-architektury)).
+- **Jedna ścieżka odczytu dla każdego formatu.** Każdy plik staje się obrazami stron, a Qwen3.5 przepisuje każdą stronę do Markdown. Skan, PDF i Word idą tą samą drogą, bez osobnego kodu na skany. Jedyny wyjątek to plik biurowy, któremu LibreOffice zgubi tekst przy zamianie na PDF: wtedy planer dostaje tekst z samego pliku. W pomiarze obrazy wyraźnie wygrały na skanach, a na PDF z warstwą tekstu zysk był mniejszy (remis na formularzach 3 i 8, +0,10 na formularzu 7) ([historia](#jak-doszliśmy-do-tej-architektury)).
 - **Każde pole, warunek i oświadczenie planu niesie cytat z dokumentu.** Kod wyrzuca te, których cytatu nie ma w odczytanym tekście, i naprawia zmyślone opcje, więc model nie doda pola, którego na papierze nie ma. Ten sam cytat urzędnik widzi pod polem, a „Źródło” pokazuje go w oryginale.
 - **JSON COI pisze kod, nie model.** UUID, `techName`, siatkę, warunki JSONata, walidatory, słowniki i strony ze Standardów COI (Dane, Kontakt i zgody, strona końcowa) builder składa z gotowych klocków. Dlatego struktura zgadza się ze schematem COI, a reguły COI i tak sprawdzamy jeszcze raz przed odpowiedzią.
 - **Dwa przebiegi planera.** Najpierw struktura (strony, sekcje, pola, opcje, oświadczenia), potem warunki. W drugim przebiegu schemat odpowiedzi dopuszcza tylko istniejące pola i opcje oraz nowe pytania Tak/Nie z cytatem; pytanie, którego żaden warunek nie używa, kod wyrzuca.
@@ -112,7 +137,7 @@ Dlaczego tak:
 
 Kroki po kolei:
 1. **Upload** (`app/upload.py`). Plik idzie do pamięci, a limit rozmiaru działa w trakcie odczytu. Potem kod sprawdza nazwę, rozszerzenie i sygnaturę bajtów. Przy `AUTH_ENABLED=1` żądanie potrzebuje tokenu JWT (`app/security.py`).
-2. **Odczyt** (`app/llm/transcribe.py`). PDF renderuje PDFium, pliki biurowe najpierw zamienia na PDF LibreOffice, a wysoki skan z kilkoma stronami kod tnie na strony. Każda strona, zmniejszona do 1024 px, idzie osobno do Qwen3.5-397B-A17B, cztery naraz.
+2. **Odczyt** (`app/llm/transcribe.py`). PDF renderuje PDFium, pliki biurowe najpierw zamienia na PDF LibreOffice, a wysoki skan z kilkoma stronami kod tnie na strony. Każda strona, zmniejszona do 1024 px, idzie osobno do Qwen3.5-397B-A17B, cztery naraz. Gdy model zapętli się na stronie (np. w kółko przepisuje pusty wiersz tabeli) i odpowiedź się utnie albo przekroczy limit czasu, strona idzie jeszcze raz z karą za powtórzenia (`frequency_penalty`). Gdy w PDF z LibreOffice brakuje tekstu pliku (LibreOffice gubi pola tekstowe niektórych DOCX, strony wychodzą puste) albo LibreOffice nie umie pliku zamienić, kod nie wysyła obrazów stron, tylko daje plannerowi tekst odczytany z samego pliku.
 3. **Plan** (`app/llm/planner.py`, kontrakt `app/plan.py`). GLM-5.2 czyta sam Markdown, bez trybu myślenia, a odpowiedź wymusza schemat JSON. Przebieg 3a ustala strukturę, przebieg 3b warunki.
 4. **Filtr cytatów i naprawy** (`app/quotes.py`, `app/repair.py`). Wypadają:
    - element bez cytatu w Markdownie (dopasowanie rozmyte, `rapidfuzz`);
@@ -139,7 +164,7 @@ docker build -t coi-formularze:0.1.0 .
 Obraz buduje też `docker compose build`. Potrzebny jest Docker 23+, bo `Dockerfile` używa `RUN --mount=type=cache` (BuildKit).
 
 - Oficjalny obraz `python:3.14.10-alpine3.24` w obu etapach budowy. `uv==0.13.9` instaluje zależności dokładnie z `uv.lock` (z hashami), a do obrazu końcowego trafia tylko środowisko i kod `app/`.
-- LibreOffice Writer i Calc z fontami Liberation zamieniają pliki biurowe na obrazy stron. Lżejszy obraz bez nich (`--build-arg LIBREOFFICE=0`) przetworzy tylko PDF, JPG i PNG; plik biurowy przejdzie kontrolę, ale skończy się błędem 422.
+- LibreOffice Writer i Calc z fontami Liberation zamieniają pliki biurowe na obrazy stron. Lżejszy obraz bez nich (`--build-arg LIBREOFFICE=0`) czyta jako obrazy stron tylko PDF, JPG i PNG. Plik biurowy planer dostaje wtedy jako sam tekst pliku, bez obrazów stron, a plik bez tekstu kończy się błędem 422.
 - Tesseract z danymi `pol`, tylko do ramek słów na skanach.
 - Proces działa jako użytkownik bez uprawnień (UID 10001), wystawia tylko port 8000 i ma `HEALTHCHECK` na `/health`.
 - Sekrety przychodzą tylko przy uruchomieniu, z `.env`. `.dockerignore` wyklucza `.env`, więc plik nie trafia do obrazu.
@@ -195,7 +220,7 @@ Zmienne środowiskowe albo plik `.env` (`app/config.py`, wzór w `.env.example`)
 | `LLM_TIMEOUT_S` | `1200` | Limit czasu jednego wywołania planera (s) |
 | `TRANSCRIBE_SIDE` | `1024` | Dłuższy bok obrazu strony wysyłanego do przepisania (px) |
 | `TRANSCRIBE_WORKERS` | `4` | Ile stron przepisywanych naraz |
-| `TRANSCRIBE_TIMEOUT_S` | `180` | Limit czasu jednej strony (s), potem jedna ponowna próba |
+| `TRANSCRIBE_TIMEOUT_S` | `180` | Limit czasu jednej strony (s). Strona ucięta albo po limicie dostaje jedną ponowną próbę z karą za powtórzenia |
 | `SOFFICE` | `soffice` | Program LibreOffice (na macOS kod sprawdza też ścieżkę aplikacji) |
 | `HISTORY_ENABLED` | `1` | `0` = serwer nie zapisuje wgranych plików ani wyników, `/api/history` odpowiada 404, a strona działa bez „Źródła”. W pamięci procesu zostają tylko wynik zadania w tle (1 h) i odczyt 16 ostatnich plików ([Przechowywanie plików](#przechowywanie-plików)). Katalog słowników zostaje, bo trzyma tylko nazwy i wartości |
 | `HISTORY_DB` | `history.sqlite3`, w Dockerze `/tmp/history.sqlite3` | Plik SQLite z historią strony i katalogiem słowników; obok niego katalog `<nazwa>-pdf` z PDF-ami plików biurowych |
@@ -288,7 +313,7 @@ Każdy błąd to JSON z polem `detail`, zwykle `{"detail": "opis po polsku"}`.
 
 Każdy krok rozstrzygnął pomiar na formularzach COI z zadania. Miarą była `gold=`: zgodność planu z naszym wzorcem formularza (1,0 = jak wzorzec), szybsza i tańsza niż poprawki liczone przez sędziów w „Wynikach”.
 1. **Lokalny model był za słaby.** Zaczęliśmy od qwen3 30B na laptopie. Działał od pliku do JSON-a, ale mocniejszy model zamknięty na tym samym tekście i promptach (tylko pomiar, nie produkt) pokazał, że wąskim gardłem jest model, nie odczyt ani kod. Ten model pomagał też pisać wzorce, więc jego wynik jest raczej zawyżony, ale różnica była duża.
-2. **Obrazy stron zamiast tekstu.** Na Eden AI porównaliśmy tekst z naszej ekstrakcji i Tesseracta z obrazami stron przepisanymi przez Qwen3.5. Na skanach obrazy wyraźnie wygrały, na PDF z warstwą tekstu zysk był mniejszy, więc zostały jedyną ścieżką: jedna droga dla każdego formatu.
+2. **Obrazy stron zamiast tekstu.** Na Eden AI porównaliśmy tekst z naszej ekstrakcji i Tesseracta z obrazami stron przepisanymi przez Qwen3.5. Na skanach obrazy wyraźnie wygrały, na PDF z warstwą tekstu zysk był mniejszy, więc zostały jedyną ścieżką: jedna droga dla każdego formatu (poza plikiem biurowym, któremu LibreOffice zgubi tekst).
 3. **GLM-5.2 jako planer.** Na tym samym Markdownie formularza 3 w trzech formatach porównaliśmy cztery modele. GLM-5.2 dał najlepszy plan, 10 razy szybciej niż Qwen3.5 w tej roli i za podobne pieniądze.
 4. **Potem pętla jakości.** Każdą zmianę promptu albo kodu po modelu mierzyliśmy, zanim weszła: najpierw zgodnością z naszym wzorcem (`gold=`), w końcowej fazie także liczbą poprawek urzędnika. Problemów z regułami COI nie mogło przybyć.
 
@@ -301,7 +326,7 @@ Tabele, czasy, koszty i odrzucone pomysły są w [docs/historia.md](docs/histori
 - Jeden obraz Docker: Alpine, proces bez uprawnień, system plików tylko do odczytu, jedyny wymagany sekret to klucz do modeli. Baza danych nie jest potrzebna: SQLite trzyma tylko historię strony i katalog słowników (na trwałym woluminie przetrwają restart).
 - Logowanie przez JWT: własny login albo tokeny z serwera tożsamości urzędu (np. Keycloak) przez `JWT_JWKS_URL`. Domyślnie API jest otwarte (`AUTH_ENABLED=0`), we wdrożeniu trzeba ustawić `1`.
 - Do modeli idą tylko strony pustego formularza, bez danych obywateli.
-- Koszt płaci się raz na formularz, przy cyfryzacji, a nie przy każdym wniosku obywatela: {{KOSZT_FORMULARZ}} za formularz, więcej przy dłuższych.
+- Koszt płaci się raz na formularz, przy cyfryzacji, a nie przy każdym wniosku obywatela: średnio 0,025 $ za formularz, około 0,05 $ za najdłuższe formularze z zadania.
 - Integracja z innym systemem: REST, zadania w tle dla długich formularzy, a `POST /api/forms/check` sprawdza reguły COI w JSON-ie z dowolnego źródła.
 - Testy: ponad 400, bez sieci, `uv run pytest` w kilkanaście sekund.
 
