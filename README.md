@@ -55,9 +55,9 @@ Model czyta papier, a kod pilnuje formatu COI. Modele zwracają tylko Markdown s
 1. **Upload** (`app/upload.py`). Plik trafia strumieniowo do pamięci. Limit rozmiaru jest liczony w trakcie odczytu. Potem kod sprawdza nazwę, rozszerzenie i sygnaturę bajtów. Przy `AUTH_ENABLED=1` żądanie potrzebuje tokenu JWT (`app/security.py`).
 2. **Odczyt** (`app/llm/transcribe.py`). Jedna ścieżka dla każdego formatu: plik staje się obrazami stron, a model wizyjny przepisuje każdą stronę do Markdown.
    - PDF (z tekstem albo ze skanem) renderuje PDFium (`pypdfium2`).
-   - DOC, DOCX, ODS, XLS i XLSX najpierw zamienia na PDF LibreOffice bez okna (headless).
+   - DOC, DOCX, ODS, XLS i XLSX najpierw zamienia na PDF LibreOffice bez okna (headless). Gdy w tym PDF brakuje tekstu pliku (LibreOffice gubi pola tekstowe niektórych DOCX, całe strony wychodzą puste), kod nie wysyła obrazów stron, tylko daje plannerowi tekst odczytany z samego pliku.
    - JPG i PNG idą tak, jak są. Wysoki obraz z kilkoma stronami jedna pod drugą kod tnie na strony A4.
-   - Każda strona, zmniejszona do 1024 px na dłuższym boku, idzie osobno do Qwen3.5-397B-A17B. Jedno wywołanie na stronę daje krótkie odpowiedzi, więc nic się nie ucina. Cztery strony lecą naraz.
+   - Każda strona, zmniejszona do 1024 px na dłuższym boku, idzie osobno do Qwen3.5-397B-A17B. Jedno wywołanie na stronę daje krótkie odpowiedzi. Cztery strony lecą naraz. Gdy model zapętli się na stronie (np. przepisuje w kółko pusty wiersz tabeli) i odpowiedź się utnie albo przekroczy limit czasu, strona idzie jeszcze raz z karą za powtórzenia (`frequency_penalty`).
    - Wynik to Markdown: nagłówki, pola, kratki i tabele. Wykropkowanie do wypełnienia to `______`. Strony są sklejone w kolejności.
 3. **Plan od modelu** (`app/llm/planner.py`, klient `app/llm/client.py`). GLM-5.2 czyta sam Markdown, bez obrazów. Dwa wywołania bez trybu myślenia, a odpowiedź wymusza schemat JSON.
    - Przebieg 1 ustala strukturę: strony, sekcje, pola z typami i opcjami, oświadczenia, adresata, kto może złożyć wniosek i czy przez pełnomocnika.
