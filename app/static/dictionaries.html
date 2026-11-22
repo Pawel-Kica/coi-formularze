@@ -10,13 +10,13 @@
      "?kod=<code>" opens that dictionary. No build step, same look as the upload page. -->
 <style>
   :root {
-    --navy: #0052a5; --navy-dark: #003b78; --text: #1b1b1b; --muted: #5a6470;
-    --line: #d5dbe3; --bg: #f4f6f9; --ok: #1a7f37; --err: #b3261e; --warn: #9a4d00;
+    --navy: #2b2f6b; --navy-dark: #1c1f4d; --text: #1d1c26; --muted: #5a6470;
+    --line: #ddd7cc; --bg: #f1ede6; --ok: #1a7f37; --err: #b3261e; --warn: #9a4d00;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--text);
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); line-height: 1.5; min-height: 100vh; }
-  header { background: var(--navy); color: #fff; }
+  header { background: var(--navy-dark); color: #fff; }
   .bar { padding: 10px 16px; display: flex; gap: 16px; align-items: center; }
   .bar h1 { font-size: 1.15rem; margin: 0; flex: 1; }
   .bar h1 a { color: inherit; text-decoration: none; }
@@ -34,24 +34,24 @@
   button.danger { border-color: var(--err); color: var(--err); }
   button.danger:hover { background: var(--err); color: #fff; }
   button:disabled { opacity: .45; pointer-events: none; }
-  :focus-visible { outline: 3px solid #ffb800; outline-offset: 2px; }
+  :focus-visible { outline: 3px solid #c2662d; outline-offset: 2px; }
   input[type=text] { font: inherit; padding: 6px 10px; border: 1px solid #8a94a0; border-radius: 4px; width: 100%; }
   .muted { color: var(--muted); font-size: .9rem; }
   .error { color: var(--err); }
   ul.list { list-style: none; margin: 0; padding: 0; }
   ul.list li { margin-bottom: 4px; }
   ul.list button { width: 100%; text-align: left; border-color: var(--line); color: var(--text); padding: 6px 10px; display: flex; gap: 8px; justify-content: space-between; }
-  ul.list button:hover { background: #eef3f9; color: var(--text); border-color: var(--line); }
-  ul.list button[aria-pressed=true] { border-color: var(--navy); box-shadow: inset 4px 0 0 var(--navy); background: #f3f7fc; }
+  ul.list button:hover { background: #ecebf6; color: var(--text); border-color: var(--line); }
+  ul.list button[aria-pressed=true] { border-color: var(--navy); box-shadow: inset 4px 0 0 var(--navy); background: #f6f5fb; }
   ul.list .count { color: var(--muted); font-size: .85rem; white-space: nowrap; }
-  .chip { font-size: .75rem; padding: 1px 8px; border-radius: 999px; background: #e8f0fa; color: var(--navy-dark); white-space: nowrap; }
+  .chip { font-size: .75rem; padding: 1px 8px; border-radius: 999px; background: #ecebf6; color: var(--navy-dark); white-space: nowrap; }
   .chip.fill { background: #fff3e0; color: var(--warn); }
   .head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
   .head h2 { margin-right: auto; }
   dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 12px 0 16px; font-size: .95rem; }
   dt { color: var(--muted); }
   dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
-  code { font-size: .9rem; background: #f3f5f8; padding: 1px 5px; border-radius: 3px; }
+  code { font-size: .9rem; background: #f8f6f2; padding: 1px 5px; border-radius: 3px; }
   ol.values { margin: 0 0 12px; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 6px; }
   ol.values li { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-bottom: 1px solid var(--line); }
   ol.values li:last-child { border-bottom: 0; }

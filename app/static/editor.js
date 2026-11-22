@@ -1020,23 +1020,23 @@ const ED_CSS = `
 body.ed-on{padding-right:40px}
 body.ed-on .issues{display:none}  /* the sidebar lists what the COI rules found; the preview's own notes would say it twice */
 body.ed-on.sidebar{padding-right:340px}
-#edPanel{position:fixed;top:0;right:0;bottom:0;width:40px;background:#fff;border-left:1px solid #c5ccd6;box-shadow:-4px 0 16px rgba(16,24,40,.06);overflow:auto;font-size:15px;z-index:20}
+#edPanel{position:fixed;top:0;right:0;bottom:0;width:40px;background:#fff;border-left:1px solid #ddd7cc;box-shadow:-4px 0 16px rgba(16,24,40,.06);overflow:auto;font-size:15px;z-index:20}
 body:not(.ed-on) #edPanel{display:none}
 body.sidebar #edPanel{width:340px}
 body:not(.sidebar) #edPanel>:not(#edStrip),body.sidebar #edStrip{display:none}
-#edStrip{display:flex;flex-direction:column;align-items:center;gap:.6rem;width:100%;height:100%;padding:.8rem 0;background:#f8fafc;border:0;color:#003a80;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
-#edStrip:hover{background:#e8f0fb}
+#edStrip{display:flex;flex-direction:column;align-items:center;gap:.6rem;width:100%;height:100%;padding:.8rem 0;background:#f8f6f2;border:0;color:#1c1f4d;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
+#edStrip:hover{background:#ecebf6}
 .ed-strip-label{writing-mode:vertical-rl}
 #edClose{min-width:34px;font-size:18px;line-height:1;padding:.2rem .5rem}
 .ed-top{position:sticky;top:0;z-index:1;background:#fff}
-.ed-head{display:flex;align-items:center;gap:.5rem;padding:.6rem 1rem;border-bottom:1px solid #e3e7ec}
+.ed-head{display:flex;align-items:center;gap:.5rem;padding:.6rem 1rem;border-bottom:1px solid #ddd7cc}
 .ed-head h2{font-size:1.05rem;margin:0 auto 0 0}
-.ed-btn{background:#fff;color:#003a80;border:1px solid #003a80;border-radius:4px;padding:.3rem .65rem;font:inherit;font-size:14px;cursor:pointer;min-height:34px}
-.ed-btn:hover{background:#e8f0fb}
+.ed-btn{background:#fff;color:#1c1f4d;border:1px solid #1c1f4d;border-radius:4px;padding:.3rem .65rem;font:inherit;font-size:14px;cursor:pointer;min-height:34px}
+.ed-btn:hover{background:#ecebf6}
 .ed-btn:disabled{opacity:.4;cursor:default;background:#fff}
 .ed-btn.danger{color:#b3261e;border-color:#b3261e}
 .ed-btn.danger:hover{background:#fdecea}
-.ed-status{height:2.4rem;line-height:2.4rem;padding:0 1rem;font-size:14px;font-weight:600;border-bottom:1px solid #e3e7ec;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ed-status{height:2.4rem;line-height:2.4rem;padding:0 1rem;font-size:14px;font-weight:600;border-bottom:1px solid #ddd7cc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ed-status.ok{background:#e6f4ea;color:#14532d}
 .ed-status.bad{background:#fdecea;color:#8c1d18}
 .ed-status.wait{background:#f3f4f6;color:#4b5563}
@@ -1047,7 +1047,7 @@ body:not(.sidebar) #edPanel>:not(#edStrip),body.sidebar #edStrip{display:none}
 .ed-row{margin:0 0 .9rem}
 .ed-row>label,.ed-label{display:block;font-weight:600;font-size:14px;margin-bottom:.25rem}
 .ed-check{display:flex;align-items:center;gap:.5rem}
-.ed-check input{width:20px;height:20px;margin:0;accent-color:#0052a5}
+.ed-check input{width:20px;height:20px;margin:0;accent-color:#2b2f6b}
 .ed-check label{margin:0}
 #edPanel input[type=text],#edPanel textarea,#edPanel select{min-height:38px;padding:.4rem .6rem;font-size:15px}
 #edPanel textarea{min-height:4.5rem}
@@ -1060,8 +1060,8 @@ body:not(.sidebar) #edPanel>:not(#edStrip),body.sidebar #edStrip{display:none}
 .ed-probs{margin:0 0 .75rem;padding:0;list-style:none}
 .ed-probs:empty{display:none}
 .ed-probs li{color:#8c1d18;background:#fdecea;border-radius:4px;padding:.4rem .6rem;margin-bottom:.35rem;font-size:14px}
-.ed-link{background:none;border:0;padding:0;font:inherit;font-weight:700;color:#0052a5;text-decoration:underline;cursor:pointer;text-align:left}
-.ed-note{background:#e8f0fb;border-left:4px solid #0052a5;border-radius:4px;padding:.45rem .7rem;margin:0 0 .9rem;font-size:14px}
+.ed-link{background:none;border:0;padding:0;font:inherit;font-weight:700;color:#2b2f6b;text-decoration:underline;cursor:pointer;text-align:left}
+.ed-note{background:#ecebf6;border-left:4px solid #2b2f6b;border-radius:4px;padding:.45rem .7rem;margin:0 0 .9rem;font-size:14px}
 .ed-kind-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem;min-height:34px}
 .ed-block{margin:0 0 .75rem}
 .ed-opts{list-style:none;margin:0 0 .4rem;padding:0}
@@ -1071,13 +1071,13 @@ body:not(.sidebar) #edPanel>:not(#edStrip),body.sidebar #edStrip{display:none}
 .ed-consents{list-style:none;margin:0 0 .5rem;padding:0}
 .ed-consents li{margin-bottom:.75rem}
 .ed-consent-row{display:flex;justify-content:space-between;align-items:center;margin-top:.3rem}
-.ed-cond-box{border-top:1px solid #e3e7ec;padding-top:.8rem}
+.ed-cond-box{border-top:1px solid #ddd7cc;padding-top:.8rem}
 .ed-cond-line{display:grid;grid-template-columns:1fr;gap:.2rem;margin-top:.5rem;font-size:14px}
-.ed-actions{display:flex;flex-wrap:wrap;gap:.3rem;border-top:1px solid #e3e7ec;padding-top:.9rem;margin-top:.4rem}
+.ed-actions{display:flex;flex-wrap:wrap;gap:.3rem;border-top:1px solid #ddd7cc;padding-top:.9rem;margin-top:.4rem}
 .ed-actions .ed-btn{padding:.3rem .45rem}
 [data-fid]{scroll-margin-top:64px}
 .ed-bad{outline:2px solid #b3261e;outline-offset:4px;border-radius:6px}
-.ed-sel{outline:3px solid #0052a5;outline-offset:4px;border-radius:6px}
+.ed-sel{outline:3px solid #2b2f6b;outline-offset:4px;border-radius:6px}
 body:not(.sidebar) .ed-sel:not(.ed-bad){outline:none}  /* collapsed: the selection is remembered, not shown */
 body:not(.sidebar) .ed-sel.ed-bad{outline:2px solid #b3261e}
 .ed-prob{color:#b3261e;font-weight:600;font-size:13px;margin:.3rem 0 0}
@@ -1086,6 +1086,6 @@ body:not(.sidebar) .ed-sel.ed-bad{outline:2px solid #b3261e}
 body.ed-on .stepper li{display:flex;align-items:center}
 @media (max-width:560px){  /* a phone-wide frame: the open sidebar becomes a sheet at the bottom */
   body.ed-on.sidebar{padding-right:0;padding-bottom:55vh}
-  body.sidebar #edPanel{top:auto;left:0;width:auto;height:55vh;border-left:0;border-top:1px solid #c5ccd6}
+  body.sidebar #edPanel{top:auto;left:0;width:auto;height:55vh;border-left:0;border-top:1px solid #ddd7cc}
 }
 `;
