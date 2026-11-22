@@ -97,7 +97,7 @@ Trzy dokumenty: formularz 3 PDF (1 strona), formularz 7 JPG (skan, 2 strony) i f
 
 ## Jak z tego korzystać
 
-1. **Wgraj plik** na http://localhost:8000: upuść go gdziekolwiek na stronie albo wybierz z dysku. Kilka plików naraz strona przetwarza po kolei, a „Pobierz wszystkie” daje ZIP z JSON-ami wszystkich gotowych plików z historii. Gotowy JSON e-usługi otwiera „Wgraj JSON”, od zera zaczyna „+ Zacznij od pustego formularza”.
+1. **Wgraj plik** na http://localhost:8000: upuść go gdziekolwiek na stronie albo wybierz z dysku. Kilka plików naraz strona przetwarza po kolei. Gotowy JSON e-usługi otwiera „Wgraj JSON”, od zera zaczyna „Zacznij od pustego formularza”.
 2. **Porównaj.** Z lewej oryginał, z prawej e-usługa tak, jak zobaczy ją obywatel, w układzie formularzy e-usług państwowych: kroki u góry, białe karty na szarym tle, „Wstecz” i „Dalej” na dole. Wszystkie kroki przeklikasz bez wypełniania pól.
 3. **Sprawdź.** Pod polem z dokumentu jest jego cytat i warunek, który je pokazuje. „Źródło” rozwija wycinek oryginału z ramką na tym cytacie, a klik w wycinek pokazuje całą stronę.
 4. **Popraw.** Ołówek przy elemencie otwiera panel „Edycja” obok podglądu: etykieta, typ, opcje, „wymagane”, warunek „pokaż, gdy…”, dodawanie i usuwanie pól, sekcji, stron i oświadczeń, „Cofnij”. Każdą zmianę sprawdzają reguły COI: z problemem nie da się pobrać JSON-a, a usunięcie, które zepsułoby import, jest wyłączone i podaje powód.
@@ -105,7 +105,7 @@ Trzy dokumenty: formularz 3 PDF (1 strona), formularz 7 JPG (skan, 2 strony) i f
 
 Do tego:
 - **Słowniki** (bonus II). Zakładka „Słowniki” przy wyniku pokazuje propozycje nowych słowników dla pól formularza. „Dodaj” zapisuje słownik w katalogu na stronie `/slowniki` i podpina go pod pole.
-- **Bez dokumentu.** Gotowy JSON e-usługi (np. z innego systemu) albo „+ Zacznij od pustego formularza” otwiera się od razu w edytorze, bez modelu.
+- **Bez dokumentu.** Gotowy JSON e-usługi (np. z innego systemu) albo „Zacznij od pustego formularza” otwiera się od razu w edytorze, bez modelu.
 - **Sam podgląd** dowolnego JSON-a COI: http://localhost:8000/preview.
 - **Historia** plików jest na serwerze, więc zostaje po odświeżeniu strony. `HISTORY_ENABLED=0` ją wyłącza, a razem z nią „Źródło”, bo wycinki serwer liczy z zapisanego oryginału.
 
