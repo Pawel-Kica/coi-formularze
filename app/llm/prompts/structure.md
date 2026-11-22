@@ -18,7 +18,7 @@ Jesteś projektantem e-usług w Centralnym Ośrodku Informatyki (COI). Dostajesz
 
 Te elementy kod dokłada sam ze Standardów COI (strona „Dane”, strona „Kontakt i zgody”, strona końcowa), więc w `pages` ich NIE MA:
 - adresat, nazwa i adres urzędu;
-- dane wnioskodawcy: imię, nazwisko, nazwa firmy, adres zamieszkania lub siedziby wnioskodawcy, PESEL, NIP, REGON, KRS wnioskodawcy;
+- dane wnioskodawcy: imię, nazwisko, nazwa firmy, adres zamieszkania lub siedziby wnioskodawcy, PESEL, NIP, REGON, KRS wnioskodawcy. Także gdy wnioskodawcą jest instytucja nazwana inaczej (np. klub, stowarzyszenie, szkoła): jej nazwa, siedziba i telefon oraz dane osoby, która ją reprezentuje (np. reprezentant z KRS, członek zarządu);
 - dane pełnomocnika, pełnomocnictwo i opłata skarbowa za pełnomocnictwo (także jako załącznik);
 - telefon i e-mail wnioskodawcy;
 - miejscowość i data wypełnienia, podpis, pieczęć;
