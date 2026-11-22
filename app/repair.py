@@ -13,7 +13,8 @@ what the model tends to get wrong and the paper text can settle:
   the next section when that one repeats the title and has fields of its own; the first stays, required
   if either was, conditions move to it;
 - a statement printed twice (the same words in two consent blocks of the paper) is kept once, required if
-  either was;
+  either was; an "Imię i nazwisko X" asked after "Imię X" and "Nazwisko X" (a consent block naming the
+  candidate again) goes, outside repeating sections;
 - a field of an address section that is not an address line (a choice, date, file...) moves to the section
   before it (or a section of its own there, with the address section's condition): the builder replaces an
   address section's fields with the Standards block and would lose it, e.g. the model's own "Czy adres do
@@ -180,6 +181,28 @@ def _dedupe_statements(plan: Plan, notes: list[str]) -> None:
     plan.statements = list(kept.values())
 
 
+_FULL_NAME = re.compile(r"^imię i nazwisko(.*)$")
+
+
+def _drop_repeated_full_name(plan: Plan, notes: list[str]) -> None:
+    """"Imię i nazwisko kandydata" after "Imię kandydata" and "Nazwisko kandydata": the paper names the person again."""
+    asked: set[str] = set()
+    for _, s in _sections(plan):
+        kept = []
+        for f in s.fields:
+            lab = normalize(f.label)
+            m = _FULL_NAME.match(lab)
+            if (m and not s.repeating and f.show_if is None and f.type == FieldType.TEXT_FIELD
+                    and {f"imię{m.group(1)}", f"nazwisko{m.group(1)}"} <= asked):
+                notes.append(f"duplicate: field {f.id} '{f.label}' asks again for a name already split into two fields, dropped")
+                continue
+            kept.append(f)
+            if not s.repeating:
+                asked.add(lab)
+        s.fields = kept
+    _drop_empty(plan)
+
+
 def _split_address_questions(plan: Plan, notes: list[str]) -> None:
     """Fields the Standards address block would swallow (anything but a text line) leave the address section."""
     for page in plan.pages:
@@ -275,6 +298,7 @@ def repair_plan(plan: Plan, text: str) -> list[str]:
     _dedupe_questions(plan, text, notes)
     _dedupe_fields(plan, notes)
     _dedupe_statements(plan, notes)
+    _drop_repeated_full_name(plan, notes)
     _split_address_questions(plan, notes)
     _correspondence_address(plan, text, notes)
     return notes

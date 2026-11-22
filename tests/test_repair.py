@@ -280,6 +280,16 @@ def test_a_statement_printed_twice_is_kept_once_but_a_different_one_stays():
     assert out.statements[0].required and any(n.startswith("duplicate: statement") for n in notes)
 
 
+def test_a_full_name_asked_again_after_its_two_split_fields_goes():
+    paper = PAPER + "Imię kandydata ____ Nazwisko kandydata ____\nZgoda: Ja niżej podpisany imię i nazwisko kandydata ____\n"
+    name = [f("f6", "Imię kandydata", "Imię kandydata"), f("f7", "Nazwisko kandydata", "Nazwisko kandydata")]
+    again = f("f8", "Imię i nazwisko kandydata", "imię i nazwisko kandydata")
+    other = f("f9", "Imię i nazwisko opiekuna", "imię i nazwisko kandydata")
+    out, notes = filter_plan(plan(sec("s1", name), sec("s2", [again, other], title="Zgoda")), paper)
+    assert "f8" not in fields_of(out) and "f9" in fields_of(out)
+    assert any(n.startswith("duplicate: field f8") for n in notes)
+
+
 def test_a_condition_over_every_option_of_a_required_single_choice_is_cleared():
     # "Opinia klubu" printed in every part of a paper joining request kinds: shown for each kind = always shown
     every = Condition(field="f5", options=["Budowa nowej sieci", "Roboty inne niż wymienione"], quote="3. Rodzaj robót")
