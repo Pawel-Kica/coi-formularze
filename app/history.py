@@ -13,8 +13,9 @@ word boxes are cached per record (the file never changes), so only the first req
 
 An office file (DOC/DOCX/ODS/XLS/XLSX) is shown as the real document: `GET /{id}/pdf` is its PDF made by LibreOffice
 headless once (cached on disk by the file's sha256 next to HISTORY_DB), and "Źródło" reads that PDF too, so office
-files get framed crops like a PDF. When LibreOffice fails or is missing, the page and "Źródło" use the text read
-from the file instead.
+files get framed crops like a PDF. When LibreOffice fails or is missing, or its PDF lost text of the file
+(`app.llm.transcribe.text_lost`, the planner's own test, so both fall back on the same files), the page and "Źródło"
+use the text read from the file instead.
 """
 
 import hashlib
@@ -37,17 +38,14 @@ from fastapi import APIRouter, Body, Depends, Form, HTTPException, Response, Upl
 from app import sources
 from app.headings import section_headings
 from app.config import settings
-from app.extract import UnsupportedFile, extract
-from app.llm.transcribe import office_convert
-from app.quotes import normalize
+from app.extract import UnsupportedFile
+from app.llm.transcribe import file_text, office_convert, text_lost
 from app.security import current_user
 from app.upload import check_name, validate_upload
 
 OFFICE_EXTS = ("doc", "docx", "odt", "ods", "xls", "xlsx")
 SHEET_EXTS = ("ods", "xls", "xlsx")
 _SOFFICE = threading.Lock()  # one LibreOffice at a time: it is heavy and the Mac is at its memory limit
-MIN_RECALL = 0.95  # share of the file's words the PDF must hold; LibreOffice loses text boxes of some DOCX (measured
-                   # on 72 office forms: form 2 DOCX 0.55 and form 8 DOCX 0.80, the rest 0.98 or more)
 log = logging.getLogger(__name__)
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS uploads (  -- not "history": that name had per-field columns in the first version
@@ -143,14 +141,14 @@ def office_pdf(name: str, data: bytes) -> bytes | None:
         cached.parent.mkdir(parents=True, exist_ok=True)
         try:
             pdf = _to_pdf(data, name)
-            recall = _recall(data, name, pdf)
+            lost = text_lost(file_text(data, name), pdf)  # the planner's own test: both fall back on the same files
         except (UnsupportedFile, OSError, subprocess.SubprocessError) as e:
             log.warning("office file %s not shown as PDF: %s", name, e)
             failed.write_text(str(e))
             return None
-        if recall < MIN_RECALL:
-            log.warning("office file %s not shown as PDF: it holds %.0f%% of the file's words", name, recall * 100)
-            failed.write_text(f"recall {recall:.3f}")
+        if lost:
+            log.warning("office file %s not shown as PDF: LibreOffice lost text of the file", name)
+            failed.write_text("text lost")
             return None
         cached.write_bytes(pdf)
         return pdf
@@ -180,14 +178,6 @@ def _fit_width(ods: bytes) -> bytes:
                 body = re.sub(r"<style:page-layout-properties[^>]*>", fit, body.decode()).encode()
             dst.writestr(item, body, compress_type=item.compress_type)
     return out.getvalue()
-
-
-def _recall(data: bytes, name: str, pdf: bytes) -> float:
-    """Share of the file's words (3+ letters, as `/api/forms/text` reads them) that the PDF's paper holds."""
-    def words(text: str) -> list[str]:
-        return [w for w in normalize(text).split() if len(w) >= 3]
-    src, got = words(extract(data, name).text), set(words(sources.read_paper(pdf, f"{name}.pdf").text))
-    return sum(w in got for w in src) / len(src) if src else 1.0
 
 
 def _shown(item_id: int) -> tuple[str, bytes]:

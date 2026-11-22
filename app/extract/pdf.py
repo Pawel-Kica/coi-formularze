@@ -3,12 +3,16 @@ garbage (scans, broken font encodings, including fonts without a Unicode map who
 out: the pipeline reads every page as an image (`app.llm.transcribe`) and "Źródło" OCRs them (`app.sources`)."""
 
 import re
+import threading
 
 import pypdfium2 as pdfium
 
 POLISH = set("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ")
 VOWELS = set("aeiouyąęó")
 OCR_DPI = 300  # page render for Tesseract in `app.sources`
+# pdfium is not thread-safe (parallel calls crash the process): every pdfium call in `app` runs under this one lock
+# (here, `app.sources`, `app.llm.transcribe`). Reentrant, so a locked caller may call another locked reader.
+PDFIUM = threading.RLock()
 # What a font without a Unicode map gives instead of words: control characters, and letters glued
 # together by symbols real words never hold inside (gov.pl "Zgłoszenie pobytu" -> `=JÊRV]HQLHSRE\WX`).
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
@@ -17,19 +21,26 @@ _GLUED = re.compile(r"[^\W\d_][;|=\[\]\\<>{}^~][^\W\d_]")
 
 def read_pdf(data: bytes, warnings: list[str]) -> str:
     """The text layer of every page that has a usable one."""
-    pdf = pdfium.PdfDocument(data)
-    try:
-        texts = []
-        for page in pdf:
-            textpage = page.get_textpage()
-            texts.append(textpage.get_text_range())
-            textpage.close()
-        good = [t for t in texts if _looks_like_text(t)]
-        if len(good) < len(texts):
-            warnings.append(f"{len(texts) - len(good)} of {len(texts)} PDF pages have no usable text layer, left out")
-        return "\n".join(good)
-    finally:
-        pdf.close()
+    texts = page_texts(data)
+    good = [t for t in texts if _looks_like_text(t)]
+    if len(good) < len(texts):
+        warnings.append(f"{len(texts) - len(good)} of {len(texts)} PDF pages have no usable text layer, left out")
+    return "\n".join(good)
+
+
+def page_texts(data: bytes) -> list[str]:
+    """The raw text layer of every page (empty for a page without one), under PDFIUM."""
+    with PDFIUM:
+        pdf = pdfium.PdfDocument(data)
+        try:
+            texts = []
+            for page in pdf:
+                textpage = page.get_textpage()
+                texts.append(textpage.get_text_range())
+                textpage.close()
+            return texts
+        finally:
+            pdf.close()
 
 
 def _looks_like_text(text: str) -> bool:

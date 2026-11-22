@@ -216,3 +216,18 @@ def test_zip_that_is_not_office():
 
 def test_unsupported_is_value_error():
     assert issubclass(UnsupportedFile, ValueError)
+
+
+def test_docx_hidden_text_is_left_out():
+    w = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+    body = (f'<w:document {w}><w:body><w:p>'
+            '<w:r><w:t>Imię i nazwisko</w:t></w:r>'
+            '<w:r><w:rPr><w:vanish/></w:rPr><w:t> UKRYTA NOTATKA</w:t></w:r>'
+            '<w:r><w:rPr><w:vanish w:val="0"/></w:rPr><w:t> widoczne</w:t></w:r>'
+            '</w:p></w:body></w:document>')
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("[Content_Types].xml", "<Types/>")
+        z.writestr("word/document.xml", body)
+    text = extract(buf.getvalue(), "hidden.docx").text
+    assert "UKRYTA" not in text and "Imię i nazwisko" in text and "widoczne" in text

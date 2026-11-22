@@ -4,8 +4,8 @@
     doc = extract(data, filename)   # doc.text, doc.method, doc.warnings
 
 The office text the upload page shows (`/api/forms/text`) and code that needs a file's own words
-(`app.sources`, `app.history`, bench). The pipeline does not read through here: it reads page images
-(`app.llm.transcribe`). Formats: DOCX, legacy DOC (own binary parser), ODS (and ODT), XLSX, legacy XLS
+(`app.sources`, `app.history`, bench). The pipeline reads page images (`app.llm.transcribe`) and comes here only for
+an office file whose LibreOffice PDF lost text or failed (method "office-text"). Formats: DOCX, legacy DOC (own binary parser), ODS (and ODT), XLSX, legacy XLS
 (xlrd), PDF (text layer only; pages without one are left out). Images have no text here (UnsupportedFile).
 The format is sniffed from the bytes; the extension is only a tiebreaker (real files
 lie: some `.DOC` here are DOCX). Everything stays in memory.
@@ -32,7 +32,8 @@ class UnsupportedFile(ValueError):
 @dataclass
 class Document:
     text: str
-    method: str  # "pdf-text", "docx", "doc", "ods", "odt", "xlsx", "xls"; "vlm-md" = Markdown of `app.llm.transcribe`
+    method: str  # "pdf-text", "docx", "doc", "ods", "odt", "xlsx", "xls"; from `app.llm.transcribe`: "vlm-md" = Markdown
+    # of the page images, "office-text" = an office file's own text (its LibreOffice PDF lost text or failed)
     warnings: list[str] = field(default_factory=list)
     pages: list[str] = field(default_factory=list)  # per-page text when the reader keeps it (transcription), for `app.headings`
 

@@ -14,7 +14,6 @@ the same walk as the paper headings (`app.headings`), so "W dokumencie: ..., str
 """
 
 import io
-import threading
 from dataclasses import dataclass, field
 from functools import cached_property
 
@@ -23,7 +22,7 @@ import pytesseract
 from PIL import Image, ImageOps
 
 from app.extract import extract
-from app.extract.pdf import OCR_DPI, _looks_like_text
+from app.extract.pdf import OCR_DPI, PDFIUM, _looks_like_text
 from app.extract.scan import split_pages
 from app.quotes import _paper_lines, normalize, place_quotes, span_lines
 
@@ -31,7 +30,6 @@ Box = tuple[float, float, float, float]  # x0, y0, x1, y1 as fractions of the pa
 PAGE_WIDTH = 1600  # px of a served page image
 IMAGE_EXTS = ("jpg", "jpeg", "jpe", "png")
 _COND = "#warunek"  # key suffix of a condition's quote in the walk
-_PDFIUM = threading.Lock()  # pdfium is not thread-safe: the page images of one form are requested in parallel
 
 
 @dataclass
@@ -90,7 +88,7 @@ def _image_pages(data: bytes) -> list[Image.Image]:
 
 
 def _pdf_paper(data: bytes) -> Paper:
-    with _PDFIUM:
+    with PDFIUM:
         return _pdf_paper_locked(data)
 
 
@@ -279,7 +277,7 @@ def page_png(data: bytes, filename: str, n: int) -> bytes | None:
     (or a format without pages)."""
     ext = filename.lower().rsplit(".", 1)[-1]
     if data[:5] == b"%PDF-" or ext == "pdf":
-        with _PDFIUM:
+        with PDFIUM:
             pdf = pdfium.PdfDocument(data)
             try:
                 if not 1 <= n <= len(pdf):
