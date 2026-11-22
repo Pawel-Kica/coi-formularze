@@ -1,6 +1,6 @@
 # COI API in Docker. Settings and secrets come from .env (copy .env.example) at runtime only; EDENAI_API_KEY is the
-# only one that must be set (README, "Uruchomienie aplikacji"):
-#   docker compose up -d --build
+# only one that must be set (README, "Quick start"):
+#   docker compose up -d --build --wait
 services:
   api:
     build:

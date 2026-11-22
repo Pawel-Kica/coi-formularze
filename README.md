@@ -20,6 +20,7 @@ backend/                 Python 3.14, FastAPI, uv
     storage/             SQLite: upload history, dictionary catalog
     core/                settings (.env), the Plan contract, text helpers
   tests/                 pytest, no network; fixtures/plans = hand-made plans of the 9 COI forms
+examples/                two sample blank forms to try the API with
 frontend/                static pages, no build step; they call the API on the same origin
   index.html             upload page: history, original next to the e-service, JSON, dictionaries
   preview.html           the e-service as a citizen sees it, with the clerk's layer (quotes, conditions, "Źródło")
@@ -48,6 +49,19 @@ file -> page images -> Markdown -> Plan -> quote filter + repairs -> builder -> 
 
 The model understands the paper; code owns the COI format.
 
+## Quick start (Docker)
+
+```sh
+echo "EDENAI_API_KEY=your-key" > .env      # the only setting that must be set (see .env.example)
+docker compose up -d --build --wait         # first build: about 3 minutes (LibreOffice in the image)
+curl -X POST http://localhost:8000/api/forms/convert -F "file=@examples/formularz-3.jpeg" -o formularz-3.json
+```
+
+After about 20 s `formularz-3.json` holds the COI JSON of a scanned "Wniosek o wydanie zaświadczenia"; a second
+sample is `examples/formularz-2.pdf` (judges counted 0 clerk corrections on both). The clerk's page is
+http://localhost:8000. Compose passes `.env` to the container at start (`env_file`); it is never copied into the
+image. After changing the key: `docker compose up -d`. Stop: `docker compose down`.
+
 ## Run locally
 
 Requires [uv](https://docs.astral.sh/uv/) (it fetches Python 3.14+), an Eden AI key, LibreOffice for office formats
@@ -64,7 +78,6 @@ uv run uvicorn app.main:app --reload --port 8000
 Open http://localhost:8000 (upload page) or http://localhost:8000/docs (API). Each conversion calls Eden AI (one call
 per page plus two planner calls) and costs money.
 
-Docker: `docker compose up -d --build` from the repo root (one image with the API and the pages, on :8000).
 
 ## REST API
 
