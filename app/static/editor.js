@@ -1083,7 +1083,7 @@ body:not(.sidebar) .ed-sel.ed-bad{outline:2px solid #b3261e}
 .ed-prob{color:#b3261e;font-weight:600;font-size:13px;margin:.3rem 0 0}
 .card>.ed-prob{margin:-.6rem 0 1rem}
 .ed-dot{color:#b3261e;font-size:12px;margin-left:.15rem}
-.stepper .ed-dot{position:absolute;top:-6px;left:calc(50% + 7px);margin:0;font-size:11px;line-height:1}
+.stepper .ed-dot{position:absolute;top:-5px;left:calc(50% + 6px);margin:0;font-size:12px;line-height:1}
 @media (max-width:560px){  /* a phone-wide frame: the open sidebar becomes a sheet at the bottom */
   body.ed-on.sidebar{padding-right:0;padding-bottom:55vh}
   body.sidebar #edPanel{top:auto;left:0;width:auto;height:55vh;border-left:0;border-top:1px solid #ddd7cc}

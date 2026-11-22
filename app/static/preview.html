@@ -11,7 +11,7 @@
    cards, 2 px controls); the clerk's layer on top of it (quotes, conditions, pencils, "Źródło") keeps the app's own colors */
 :root{--gov:#2251a2;--gov-dark:#183d7d;--gov-tint:#e9eef8;--ink:#111416;--txt:#202327;--line:#767676;--ctrl:#818792;
   --page:#f1f5fa;--div:#e8eaed;--ro:#f4f5f7;--muted:#4b5563}
-body{margin:0;font:16px/1.5 "Open Sans","Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--txt);background:var(--page)}
+body{margin:0;font:16px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--txt);background:var(--page)}
 :focus-visible{outline:3px solid var(--gov);outline-offset:2px}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 a{color:var(--gov)}
@@ -48,29 +48,29 @@ a{color:var(--gov)}
 /* e-service: stepper on top, the form title, white cards on the grey page, a bottom bar "Przerwij wypełnianie" |
    "Wstecz" "Dalej" (measured on the public form-viewer: 744 px column, 20 px card padding, 48 px controls) */
 .wrap{max-width:776px;margin:0 auto;padding:2rem 1rem 4rem}
-h1{font-size:1.375rem;line-height:1.3;margin:0 0 1.6rem;color:var(--ink);font-weight:700}
-h1:has(+.legend:not(:empty)){margin-bottom:.5rem}
+h1{font-size:1.5rem;line-height:1.3;margin:0 0 1.75rem;color:var(--ink);font-weight:700}
+body.notes h1:has(+.legend:not(:empty)){margin-bottom:.5rem}  /* the legend only shows with the quotes */
 /* circles on a line, the label under each; done = a check, the current one = a dot and a bold label; every step is a
    button (a preview opens any step); many steps scroll sideways with the current one kept in view */
 .stepper{list-style:none;display:flex;padding:6px 0 .25rem;margin:0 0 1.6rem;overflow-x:auto;scrollbar-width:thin;position:relative}
 .stepper li{position:relative;flex:1 1 0;min-width:96px;max-width:150px;text-align:center}
-.stepper.over{-webkit-mask:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent);mask:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
+.stepper.over{-webkit-mask:linear-gradient(to right,transparent,#000 48px,#000 calc(100% - 48px),transparent);mask:linear-gradient(to right,transparent,#000 48px,#000 calc(100% - 48px),transparent)}
 .stepper.over li{min-width:124px}
 .stepper li:first-child{margin-left:auto}
 .stepper li:last-child{margin-right:auto}
-.stepper li::before{content:"";position:absolute;top:9px;left:0;right:0;height:3px;background:var(--line)}
+.stepper li::before{content:"";position:absolute;top:8.5px;left:0;right:0;height:4px;background:var(--line)}
 .stepper li:first-child::before{left:50%}
 .stepper li:last-child::before{right:50%}
 .stepper li:only-child::before{display:none}
-.stepper li>*{position:relative;display:flex;flex-direction:column;align-items:center;gap:.6rem;width:100%;padding:0 .4rem;background:none;border:0;font:inherit;font-size:16px;line-height:1.3;color:var(--txt)}
-.stepper.over li>*{font-size:15px}
+.stepper li>:first-child{position:relative;display:flex;flex-direction:column;align-items:center;gap:1.45rem;width:100%;padding:0 .4rem;background:none;border:0;font:inherit;font-size:16px;line-height:1.3;color:var(--txt)}
+.stepper.over li>:first-child{font-size:15px}
 .stepper button{cursor:pointer}
 .stepper button:hover .lbl{text-decoration:underline}
 .stepper button:focus-visible{outline-offset:-1px;border-radius:6px}
 .stepper .dot{flex:none;width:21px;height:21px;border-radius:50%;border:2px solid var(--line);background:#fff}
 .stepper .cur .dot{border-color:var(--gov);background:radial-gradient(circle,var(--gov) 0 4px,#fff 4.6px)}
 .stepper .done .dot{border-color:var(--gov);background:var(--gov) var(--check) center/11px no-repeat}
-.stepper .lbl{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:break-word;hyphens:auto}
+.stepper .lbl{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:break-word}
 .stepper .cur .lbl{font-weight:700;color:var(--ink)}
 :root{--check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpath d='M1 5.2 4.4 8.5 11 1.5' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --chevron:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 8'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%232251a2' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -81,7 +81,7 @@ h1:has(+.legend:not(:empty)){margin-bottom:.5rem}
 body:not(.notes):not(.conds) #pageHeading{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .grid{display:grid;gap:1rem 1rem}
 .card .grid{gap:1.35rem 1rem}
-.card{background:#fff;border-radius:10px;padding:1.25rem 1.25rem 1.5rem;box-shadow:0 1px 2px rgba(17,20,22,.07)}
+.card{background:#fff;border-radius:12px;padding:1.25rem 1.25rem 1.5rem;box-shadow:0 1px 4px rgba(17,20,22,.08)}
 .card h3{font-size:1.1875rem;line-height:1.35;margin:.1rem 0 1.25rem;color:var(--ink);font-weight:700}
 .card h4{font-size:1rem;margin:0 0 .75rem;color:var(--ink)}
 .cell>label,.group>legend{display:block;margin-bottom:.5rem;font-size:16px;line-height:1.4;padding:0;color:var(--txt)}
@@ -94,12 +94,12 @@ input.ro,textarea.ro,select:disabled{background-color:var(--ro);background-image
 .group{border:0;padding:0;margin:0;min-width:0}
 .group>legend{margin-bottom:.35rem}
 /* round radios and square checkboxes, 2 px grey; chosen = gov navy */
-.choice{display:flex;align-items:flex-start;gap:.6rem;margin:.6rem 0}
-.choice input{appearance:none;-webkit-appearance:none;flex:none;width:20px;height:20px;margin:.13rem 0 0;border:2px solid var(--ctrl);background:#fff;cursor:pointer}
+.choice{display:flex;align-items:flex-start;gap:.6rem;margin:.9rem 0}
+.choice input{appearance:none;-webkit-appearance:none;flex:none;width:20px;height:20px;margin:.13rem 0 0;border:2px solid var(--line);background:#fff;cursor:pointer}
 .choice input[type=radio]{border-radius:50%}
 .choice input[type=checkbox]{border-radius:3px}
 .choice input:hover:not(:disabled){border-color:var(--gov)}
-.choice input[type=radio]:checked{border-color:var(--gov);background:radial-gradient(circle,var(--gov) 0 5px,#fff 5.6px)}
+.choice input[type=radio]:checked{border-color:var(--gov);background:radial-gradient(circle,var(--gov) 0 6px,#fff 6.6px)}
 .choice input[type=checkbox]:checked{border-color:var(--gov);background:var(--gov) var(--check) center/12px no-repeat}
 .choice input:disabled{opacity:.55;cursor:default}
 .choice label{cursor:pointer}
@@ -109,6 +109,7 @@ input.ro,textarea.ro,select:disabled{background-color:var(--ro);background-image
 .hint p,.textblock p,.info p{margin:.2rem 0 .5rem}
 .textblock{color:var(--txt)}
 .caption{font-size:13px;color:var(--muted);margin:.35rem 0 0}
+body:not(.notes) .caption.reg{display:none}  /* the citizen sees the grey read-only value only; aria-describedby still reads it */
 .dict-empty{color:#9a4d00}
 body:not(.notes) .dict-empty{display:none}  /* an admin hint: not in the citizen's view */
 .dict-empty a{color:#2b2f6b;font-weight:600}
@@ -226,7 +227,7 @@ body.techmode .tech{display:block}
   .wrap{padding-top:1.25rem}
   h1{font-size:1.2rem;margin-bottom:1.1rem}
   .stepper{margin-bottom:1.1rem}
-  .stepper li>*{font-size:14px}
+  .stepper li>:first-child{font-size:14px}
 }
 @media (max-width:640px){
   .grid{grid-template-columns:1fr!important}
@@ -1122,7 +1123,7 @@ function renderField(cell, ctx) {
   let caption = null;
   if (f.defaultValueType === "EXTERNAL_SYSTEM" && f.defaultValue) {
     const src = String(Array.isArray(f.defaultValue) ? f.defaultValue[0] : f.defaultValue).split(".")[0] || "rejestr";
-    caption = h("p", {class: "caption", id: uid()}, f.readOnly ? `Dane z rejestru (${src})` : `Uzupełnione z rejestru (${src}), możesz zmienić`);
+    caption = h("p", {class: f.readOnly ? "caption reg" : "caption", id: uid()}, f.readOnly ? `Dane z rejestru (${src})` : `Uzupełnione z rejestru (${src}), możesz zmienić`);
   }
   const described = [hint && hint.id, caption && caption.id, errId].filter(Boolean).join(" ");
   const set = v => { st[tn] = v; clearErr(wrap); refreshStates(); };
@@ -1301,7 +1302,10 @@ function renderPage() {
   // "Przerwij wypełnianie" in a preview: the answers are cleared and the first step opens
   page.append(h("div", {class: "nav"},
     h("button", {type: "button", class: "btn-link", title: "W podglądzie: wyczyść odpowiedzi i wróć do pierwszego kroku", onclick: () => {
-      resetAnswers(); go(0); $("#live").textContent = "Odpowiedzi wyczyszczone, krok 1";
+      const given = answers;  // the drawn page writes into these very objects: kept as they are when the clerk says no
+      resetAnswers();
+      if (JSON.stringify(given) !== JSON.stringify(answers) && !confirm("Wyczyścić odpowiedzi w podglądzie i wrócić do pierwszego kroku?")) { answers = given; return; }
+      go(0); $("#live").textContent = "Odpowiedzi wyczyszczone, krok 1";
     }}, "Przerwij wypełnianie"),
     h("span", {class: "spacer"}),
     pageIdx > 0 && h("button", {type: "button", class: "btn-outline", onclick: () => go(pageIdx - 1)}, "Wstecz"),
