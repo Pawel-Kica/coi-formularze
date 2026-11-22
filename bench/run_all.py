@@ -23,6 +23,7 @@ from pathlib import Path
 
 from app.builder import build
 from app.config import settings
+from app.llm import client
 from app.llm.planner import make_plan
 from app.llm.transcribe import transcribe
 from app.plan import Plan
@@ -73,6 +74,19 @@ def setup() -> dict:
             "transcribe_side": settings.transcribe_side}
 
 
+# $ per 1M tokens (input, output), Eden catalog GET /v3/models 22.11; unknown models are priced 0
+PRICE_PER_M = {"deepinfra/zai-org/GLM-5.2": (0.75, 2.40), "deepinfra/Qwen/Qwen3.5-397B-A17B": (0.45, 3.00)}
+
+
+def priced(calls: list[dict]) -> dict:
+    """Tokens and $ of one file's model calls (a slice of `client.CALLS`)."""
+    cost = sum((c.get("prompt_tokens") or 0) * PRICE_PER_M.get(c["model"], (0, 0))[0]
+               + (c.get("output_tokens") or 0) * PRICE_PER_M.get(c["model"], (0, 0))[1] for c in calls) / 1e6
+    return {"usd": round(cost, 4), "calls": len(calls),
+            "tokens_in": sum(c.get("prompt_tokens") or 0 for c in calls),
+            "tokens_out": sum(c.get("output_tokens") or 0 for c in calls)}
+
+
 def run_file(form: str, path: Path, out: Path, rebuild: bool = False) -> dict:
     """One file through the pipeline, or from its cached plan/COI. `<ext>.meta.json` keeps the
     quote drops and seconds of the model run, so a cached row still has them."""
@@ -93,7 +107,7 @@ def run_file(form: str, path: Path, out: Path, rebuild: bool = False) -> dict:
         else:
             coi = json.loads(coi_path.read_text())
     else:
-        t = time.time()
+        t, n0 = time.time(), len(client.CALLS)
         try:
             data = path.read_bytes()
             doc = transcribe(data, path.name)
@@ -106,7 +120,7 @@ def run_file(form: str, path: Path, out: Path, rebuild: bool = False) -> dict:
         plan_path.parent.mkdir(parents=True, exist_ok=True)
         plan_path.write_text(plan.model_dump_json(indent=1))
         coi_path.write_text(json.dumps(coi, ensure_ascii=False, indent=1))
-        meta = {"dropped": dropped, "s": round(time.time() - t)}
+        meta = {"dropped": dropped, "s": round(time.time() - t)} | priced(client.CALLS[n0:])
         meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=1))
         row |= meta
     row |= {"ok": True, "problems": check(coi), "fields": sum(len(s.fields) for p in plan.pages for s in p.sections)}
