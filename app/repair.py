@@ -14,8 +14,9 @@ what the model tends to get wrong and the paper text can settle:
   if either was, conditions move to it;
 - a statement printed twice (the same words in two consent blocks of the paper) is kept once, required if
   either was; one whose paper line the plan already asks as a Tak/Nie question ("Oświadczam, że nieruchomość
-  wyposażona jest w kompostownik" as both) goes: a required consent would make everyone declare it; an "Imię i nazwisko X" asked after "Imię X" and "Nazwisko X" (a consent block naming the
-  candidate again) goes, outside repeating sections;
+  wyposażona jest w kompostownik" as both) goes: a required consent would make everyone declare it;
+- an "Imię i nazwisko X" asked after "Imię X" and "Nazwisko X" (a consent block naming the candidate again)
+  goes, outside repeating sections;
 - a field of an address section that is not an address line (a choice, date, file...) moves to the section
   before it (or a section of its own there, with the address section's condition): the builder replaces an
   address section's fields with the Standards block and would lose it, e.g. the model's own "Czy adres do
