@@ -8,7 +8,26 @@ Wgrywasz pusty formularz urzędowy w dowolnym formacie (PDF, skan JPG/PNG, DOC, 
 
 ![Schemat: plik → odczyt stron → plan z cytatami → kod buduje i sprawdza JSON COI → urzędnik poprawia w przeglądarce](docs/img/prosty.png)
 
-[Wyniki](#wyniki) · [Szybki start](#szybki-start) · [Jak z tego korzystać](#jak-z-tego-korzystać) · [Co z zadania jest zrobione](#co-z-zadania-jest-zrobione) · [Architektura](#architektura) · [Docker](#budowanie-obrazu-docker) · [Uruchomienie](#uruchomienie-aplikacji) · [Konfiguracja](#konfiguracja) · [REST API](#rest-api) · [Wdrożenie](#wdrożenie) · [Znane ograniczenia](#znane-ograniczenia)
+[Jak uruchomić](#jak-uruchomić) · [Wyniki](#wyniki) · [Jak z tego korzystać](#jak-z-tego-korzystać) · [Co z zadania jest zrobione](#co-z-zadania-jest-zrobione) · [Architektura](#architektura) · [Docker](#budowanie-obrazu-docker) · [Uruchomienie](#uruchomienie-aplikacji) · [Konfiguracja](#konfiguracja) · [REST API](#rest-api) · [Wdrożenie](#wdrożenie) · [Znane ograniczenia](#znane-ograniczenia)
+
+## Jak uruchomić
+
+Potrzebujesz Dockera 23+ z Compose 2.24+ i klucza Eden AI (od organizatorów zadania albo z własnego konta Eden AI). Trzeba podać tylko klucz, bo reszta ustawień ma gotowe wartości domyślne ([Konfiguracja](#konfiguracja)).
+
+```bash
+git clone https://github.com/Pawel-Kica/eFormatka-HackNation.git && cd eFormatka-HackNation
+echo "EDENAI_API_KEY=twój-klucz" > .env
+docker compose up -d --build --wait     # pierwsza budowa: około 3 minut (LibreOffice w obrazie)
+curl -X POST http://localhost:8000/api/forms/convert -F "file=@przyklady/formularz-3.jpeg" -o formularz-3.json
+```
+
+Po około 20 sekundach `formularz-3.json` zawiera JSON e-usługi COI gotowy do importu. Powstał ze skanu „Wniosku o wydanie zaświadczenia”, na którym sędziowie nie policzyli żadnej poprawki urzędnika. Nasz wynik dla tego pliku leży w `output/api/formularz-3.json`, a drugi przykład to `przyklady/formularz-2.pdf`. Własny plik podajesz tak samo: `-F "file=@ścieżka/do/pliku.pdf"`.
+
+- Strona dla urzędnika jest pod http://localhost:8000. Wgraj tam ten sam plik, a zobaczysz go obok e-usługi z edytorem.
+- OpenAPI: http://localhost:8000/docs. Stan: http://localhost:8000/health (`"llm": "ok"` oznacza, że klucz jest wczytany).
+- Jeden formularz trwa od kilkunastu sekund do około dwóch minut, dłużej, gdy Eden zwalnia. Klient, który nie może tyle czekać, korzysta z [zadania w tle](#zadanie-w-tle).
+- Bez klucza działa wszystko oprócz odczytu nowego pliku: edytor, podgląd, pusty formularz, wgrany JSON e-usługi, sprawdzanie reguł i katalog słowników. Konwersja i propozycje słowników odpowiadają wtedy 503.
+- Zatrzymanie: `docker compose down`. Uruchomienie bez Dockera opisuje sekcja [Natywnie](#natywnie-macos-linux).
 
 ## Wyniki
 
@@ -73,27 +92,6 @@ Trzy dokumenty: formularz 3 PDF (1 strona), formularz 7 JPG (skan, 2 strony) i f
 
 - `output/api/formularz-<N>.json`: główny wynik, surowy JSON z API, ten sam, który mierzą tabele wyżej.
 - `output/formularz-<N>.json`: ta sama e-usługa z naniesionymi przez nas poprawkami, które wskazali sędziowie. Ile ich było na każdym formularzu, mówi `output/POPRAWKI.md`.
-
-## Szybki start
-
-Docker 23+ i klucz Eden AI (od organizatorów zadania albo z własnego konta Eden AI):
-
-```bash
-cp .env.example .env          # wpisz EDENAI_API_KEY, to jedyny wymagany sekret
-docker compose up -d --build
-curl -X POST http://localhost:8000/api/forms/convert -F "file=@wniosek.pdf" -o wniosek.json
-```
-
-Bez Dockera: Python 3.14+, [uv](https://docs.astral.sh/uv/) i LibreOffice ([szczegóły](#natywnie-macos-linux)):
-
-```bash
-cp .env.example .env && uv sync
-uv run uvicorn app.api:app --port 8000
-```
-
-Strona dla urzędnika: http://localhost:8000. OpenAPI: http://localhost:8000/docs. Stan: http://localhost:8000/health. Jeden formularz trwa od kilkunastu sekund do około dwóch minut, dłużej, gdy Eden zwalnia. Gdy klient nie może tyle czekać, jest [zadanie w tle](#zadanie-w-tle).
-
-Bez klucza działa wszystko poza odczytem nowego pliku: edytor, podgląd, pusty formularz, wgrany JSON e-usługi, sprawdzanie reguł i katalog słowników. Konwersja i propozycje słowników odpowiadają wtedy 503.
 
 ## Jak z tego korzystać
 
@@ -256,12 +254,12 @@ Strony: `/` (urzędnik), `/preview` (sam podgląd), `/slowniki` (katalog słowni
 
 ```bash
 # AUTH_ENABLED=0 (domyślnie)
-curl -X POST http://localhost:8000/api/forms/convert -F "file=@wniosek.pdf" -o wniosek.json
+curl -X POST http://localhost:8000/api/forms/convert -F "file=@przyklady/formularz-3.jpeg" -o formularz-3.json
 
 # AUTH_ENABLED=1: najpierw token
 TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/token -H 'Content-Type: application/json' \
   -d '{"username": "admin", "password": "haslo"}' | jq -r .access_token)
-curl -X POST http://localhost:8000/api/forms/convert -H "Authorization: Bearer $TOKEN" -F "file=@wniosek.pdf" -o wniosek.json
+curl -X POST http://localhost:8000/api/forms/convert -H "Authorization: Bearer $TOKEN" -F "file=@przyklady/formularz-3.jpeg" -o formularz-3.json
 ```
 
 ### Zadanie w tle
@@ -270,12 +268,12 @@ Wyślij plik, potem pytaj o adres wyniku, aż przestanie odpowiadać 404:
 
 ```bash
 BASE=http://localhost:8000
-JOB=$(curl -s -X POST $BASE/api/forms/jobs -F "file=@wniosek.pdf")
+JOB=$(curl -s -X POST $BASE/api/forms/jobs -F "file=@przyklady/formularz-3.jpeg")
 RESULT=$(echo "$JOB" | jq -r '.result_url // empty')   # puste = plik odrzucony od razu, powód w $JOB
 for i in $(seq 240); do   # do 20 minut
   [ -z "$RESULT" ] && { echo "$JOB"; break; }
-  CODE=$(curl -s -o wniosek.json -w '%{http_code}' "$BASE$RESULT"); [ "$CODE" != 404 ] && break; sleep 5
-done; echo "$CODE"         # 200 = JSON COI, inny kod = błąd opisany w wniosek.json, pusto = plik odrzucony
+  CODE=$(curl -s -o formularz-3.json -w '%{http_code}' "$BASE$RESULT"); [ "$CODE" != 404 ] && break; sleep 5
+done; echo "$CODE"         # 200 = JSON COI, inny kod = błąd opisany w formularz-3.json, pusto = plik odrzucony
 ```
 
 Zadanie, którego nie ma (nieznane albo wygasłe), też daje 404 na adresie wyniku. Odróżnisz je przez `status_url`: tam 404 znaczy właśnie to, a liczące się zadanie odpowiada `pending`.
