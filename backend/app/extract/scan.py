@@ -10,12 +10,8 @@ OVERLAP = 0.04  # share of a page height each cut page also takes from its neigh
 
 
 def split_pages(img: Image.Image) -> list[Image.Image]:
-    """A tall image that is n A4 pages stacked (a common way to 'scan' a multi-page form into one
-    file) -> n page images, cut at the whitest row near each expected page boundary. Each page
-    reaches OVERLAP past its cuts (its edge at the whitest row of the last half of that), so a line
-    a cut runs through is whole on one side: pages that are not quite A4 (cropped margins) shift the
-    cuts into the text. A line read twice may give the model a field twice; `app.grounding.repair` keeps one
-    when the citizen could not tell the two apart."""
+    """A tall image that is n A4 pages stacked (a common way to 'scan' a multi-page form into one file) -> n page
+    images, cut at the whitest row near each expected page boundary, each reaching OVERLAP past its cuts."""
     w, h = img.size
     n = round(h / (w * A4))
     if n < 2:
@@ -28,6 +24,10 @@ def split_pages(img: Image.Image) -> list[Image.Image]:
         lo, hi = max(cuts[-1] + 1, target - int(page_h * 0.05)), min(h - 1, target + int(page_h * 0.05))
         cuts.append(max(range(lo, hi), key=lambda y: (rows[y], -abs(y - target))) if hi > lo else target)
     cuts.append(h)
+    # Pages that are not quite A4 (cropped margins) shift the cuts into the text: each page reaches OVERLAP past its
+    # cuts (its edge at the whitest row of the last half of that), so a line a cut runs through is whole on one side.
+    # A line read twice may give the model a field twice; `app.grounding.repair` keeps one when the citizen could not
+    # tell the two apart.
     pad = int(page_h * OVERLAP)
     white = lambda lo, hi: max(range(max(0, lo), min(h, hi) + 1), key=lambda y: rows[min(y, h - 1)])  # whitest row
     return [img.crop((0, white(a - pad, a - pad // 2) if a else 0, w, white(b + pad // 2, b + pad) if b < h else h))

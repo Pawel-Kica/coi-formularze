@@ -194,17 +194,11 @@ def _elided_span(quote: str, joined: str, cursor: int) -> tuple[int, int] | None
 
 
 def place_quotes(items: list[tuple[str, str | None, bool]], text: str) -> dict[str, tuple[int, int]]:
-    """Where each quote sits on the paper, read in form order: one place per key, as a span of
-    `_paper_lines(text)`'s joined string (`span_lines` turns it into lines). The one walk behind both the paper
-    headings ("W dokumencie: ...", `app.document.headings`) and the crops of the paper ("Źródło", `app.document.sources`), so the two
-    never disagree.
-
-    `items` = (key, quote, moves) in form order. A label printed many times ("Miejscowość", "Numer lokalu") resolves
-    to its first occurrence after the previous quote (the cursor), else the last one before it; a line that is
-    exactly the quote, a few lines on, beats a longer line that only contains it. No exact occurrence: a quote the model
-    shortened with an ellipsis by its parts (`_elided_span`), else the best fuzzy match (OCR) after the cursor, else
-    anywhere. `moves=False` (a condition's quote) is looked up without moving the
-    cursor. Quotes not on paper, or too short to prove anything, get no key."""
+    """`items` = (key, quote, moves) in form order -> key: span of the quote in `_paper_lines(text)`'s joined string
+    (`span_lines` turns it into lines); quotes not on paper or too short get no key. The one walk behind both the paper
+    headings (`app.document.headings`) and "Źródło" (`app.document.sources`), so the two never disagree."""
+    # A label printed many times ("Miejscowość", "Numer lokalu") resolves to its first occurrence after the previous
+    # quote (the cursor), else the last one before it. `moves=False` (a condition's quote) leaves the cursor alone.
     joined, starts = _paper_lines(text)
     out, cursor = {}, 0
     for key, quote, moves in items:
@@ -219,10 +213,11 @@ def place_quotes(items: list[tuple[str, str | None, bool]], text: str) -> dict[s
                 a, b = span_lines(h, text)
                 if a - first > _NEAR:
                     break
+                # a line that is exactly the quote, a few lines on, beats a longer line that only contains it
                 if a == b and h[0] == starts[a] and h[1] == (starts[a + 1] - 1 if a + 1 < len(starts) else len(joined)):
                     pick = h  # the whole line is the quote
                     break
-        else:
+        else:  # not exact: a quote shortened with an ellipsis by its parts, else fuzzy (OCR) ahead, else anywhere
             pick = _elided_span(quote, joined, cursor)
             if pick is None:
                 for base in [cursor, 0] if cursor else [0]:
@@ -266,10 +261,9 @@ def _norm_lines(text: str) -> tuple[str, ...]:
 
 
 def _under_heading(q: str, target_line: int, text: str) -> bool:
-    """A paper joining parts lists them first ("I. Wniosek o stypendium", "II. Wniosek o nagrodę") and prints each
-    again as the heading of its part. True when the line that is or starts with `q` (3+ words) is printed again after
-    that list and is the nearest such heading above the target: the nearest later printing of it or of a list
-    neighbour is its own."""
+    """A paper joining parts lists them first ("I. Wniosek o stypendium", "II. Wniosek o nagrodę"), then prints each as
+    the heading of its part. True when the line that is or starts with `q` (3+ words) is, after that list, the nearest
+    such heading (it or a list neighbour) above the target."""
     lines = _norm_lines(text)
 
     def hit(line: str) -> bool:
@@ -290,14 +284,11 @@ def _under_heading(q: str, target_line: int, text: str) -> bool:
 
 
 def _supported(c, trig, target, text: str, next_section: bool | None) -> bool:
-    """Is the condition backed by more than the trigger itself? The model likes to hang fields on an
-    unrelated question and "prove" it with that question's own line. Supported when the quote
-    - has a conditional word, or is some other paper line than the trigger's question / the chosen option;
-    - or repeats the trigger, but the target sits on the chosen option's paper line ("[ ] tatuaż ____"),
-      for a Tak/Nie trigger up to 2 lines below the question, or (a section) right after the trigger's
-      section, or in the part of the paper the quote heads (`_under_heading`).
-    `next_section`: for a section target, whether it directly follows the trigger's section; else None.
-    A quote we cannot place on the paper counts as supported."""
+    """Is the condition backed by more than the trigger itself? The model likes to hang fields on an unrelated question
+    and "prove" it with that question's own line. `next_section`: for a section target, whether it directly follows
+    the trigger's section; else None."""
+    # Supported: a conditional word, or another paper line than the trigger's question / chosen option, or a quote we
+    # cannot place. A quote repeating the trigger needs the target right there (checked below).
     if _CONDITIONAL.search(unicodedata.normalize("NFKC", c.quote).lower()):
         return True
     q = normalize(c.quote)
@@ -309,6 +300,8 @@ def _supported(c, trig, target, text: str, next_section: bool | None) -> bool:
     )
     if not repeats or not quote_at or next_section:
         return True
+    # repeats the trigger: the target is in the part of the paper the quote heads, or on the chosen option's line
+    # ("[ ] tatuaż ____"), for a Tak/Nie trigger up to 2 lines below the question
     target_at = quote_lines(target.quote if next_section is None else target.fields[0].quote, text)
     if target_at and _under_heading(q, target_at[0][0], text):
         return True
@@ -345,10 +338,8 @@ def _drop_vacuous(plan: Plan, dropped: list[str]) -> None:
 
 def _hoist_triggers(plan: Plan, ok, dropped: list[str]) -> None:
     """A trigger that comes after its target ("E.3 amount" shown by "Czy dołączasz załącznik A?" on the last page)
-    moves right before the target, instead of the condition being dropped: before the target field in its section,
-    or for a section target to the end of the section before it on the same page (or a new section there titled like
-    the trigger's old one). Only an unconditional choice field with options outside repeating sections moves, and only
-    for a condition whose quote is on paper and whose options exist; sections left empty go."""
+    moves right before the target instead of the condition being dropped. Only an unconditional choice field outside
+    repeating sections moves, for a condition whose quote is on paper and whose options exist; empty sections go."""
     for _ in range(50):  # one move per round, the order changes
         order = {t.id: n for n, (_, t, _) in enumerate(_targets(plan))}
         home = {f.id: sec for sec, f, is_sec in _targets(plan) if not is_sec}
@@ -371,7 +362,7 @@ def _hoist_triggers(plan: Plan, ok, dropped: list[str]) -> None:
         page = next(p for p in plan.pages if any(s is sec for s in p.sections))
         if not is_sec:
             sec.fields.insert(next(i for i, f in enumerate(sec.fields) if f is t), trig)
-        else:
+        else:  # to the end of the section before it on the page, or a new section titled like the trigger's old one
             i = next(i for i, s in enumerate(page.sections) if s is sec)
             prev = page.sections[i - 1] if i else None
             if prev and prev is not src and not prev.repeating and not prev.address and prev.show_if is None:

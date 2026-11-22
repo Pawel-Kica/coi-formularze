@@ -55,11 +55,10 @@ def _looks_like_text(text: str) -> bool:
 
 
 def _garbled(text: str, letters: list[str]) -> bool:
-    """A shifted-cipher text layer (fonts without a ToUnicode map) is mostly ASCII, so the check
-    above lets it through. Two signs: letters in impossible tokens (see _CONTROL, _GLUED), and,
-    for a cipher of letters only, too few vowels. Measured on 122 good pages (9 COI packs, 25 BIP
-    and 30 Drive forms): impossible-token share <= 0.025, vowels >= 0.38; the garbled gov.pl
-    pages: share 0.19 (half-garbled page) and 0.80."""
+    """A shifted-cipher text layer (fonts without a ToUnicode map) is mostly ASCII, so `_looks_like_text` lets it
+    through. Two signs: letters in impossible tokens (_CONTROL, _GLUED) or, for a cipher of letters only, few vowels."""
+    # Thresholds measured on 122 good pages (9 COI packs, 25 BIP and 30 Drive forms): impossible-token share <= 0.025,
+    # vowels >= 0.38; the garbled gov.pl pages: share 0.19 (half-garbled page) and 0.80.
     tokens = [t for t in text.split() if any(c.isalpha() for c in t)]
     bad = [t for t in tokens if _CONTROL.search(t) or _GLUED.search(t)]
     if len(bad) >= 3 and sum(c.isalpha() for t in bad for c in t) / len(letters) >= 0.08:

@@ -181,11 +181,9 @@ def _is_office(data: bytes) -> bool:
 
 
 def transcribe_page(img: Image.Image, n: int = 1, total: int = 1, side: int | None = None) -> str:
-    """One page image -> its Markdown (fill-in runs collapsed to `______`). One plain try; an answer cut off by
-    max_tokens or a read timeout means the page loops (form 5 DOC page 1: an empty table row `| | | …` copied until
-    max_tokens; form 5 DOCX: the same loop past TRANSCRIBE_TIMEOUT_S; the same call again looped once more), so it
-    gets one retry with RETRY_FREQUENCY_PENALTY and more room (2 HTTP tries). A rate limit, 5xx or broken connection
-    is no loop: the same plain call again after the client's backoff (`_plain`)."""
+    """One page image -> its Markdown (fill-in runs collapsed to `______`). One plain try (`_plain`: a rate limit,
+    5xx or broken connection is retried as is); a cut-off answer or read timeout means a looping page: one retry with
+    RETRY_FREQUENCY_PENALTY and more room."""
     url = data_url(img, side or settings.transcribe_side)
     note = PAGE_NOTE.format(n=n, total=total)
     call = dict(model=settings.transcribe_model, images=[url], presence_penalty=PRESENCE_PENALTY,
@@ -193,6 +191,8 @@ def transcribe_page(img: Image.Image, n: int = 1, total: int = 1, side: int | No
     try:
         raw = _plain(note, n, call)
     except (LLMError, httpx.ReadTimeout) as e:
+        # form 5 DOC page 1 copied an empty table row `| | | …` until max_tokens; form 5 DOCX the same loop past
+        # TRANSCRIBE_TIMEOUT_S, and the same call again looped once more
         log.warning("page %d looped (%s), retrying with frequency_penalty", n, e)
         raw = chat_text(system_prompt(), note, max_tokens=16000, frequency_penalty=RETRY_FREQUENCY_PENALTY,
                         tries=2, **call).raw

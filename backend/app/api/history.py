@@ -88,11 +88,9 @@ def history_pdf(item_id: int) -> Response:
 
 @router.post("/{item_id}/sources")
 def paper_sources(item_id: int, body: Annotated[dict, Body()]) -> dict:
-    """Where on the paper each element came from ("Źródło" in the preview). Body: `{"coi", "evidence"}` as the page
-    holds them now. -> `{"pages": [{"aspect": height / width}], "sources": {element id: place or null},
-    "headings": {paper heading: page}}`, a place
-    being `{page, pages, boxes}` (boxes as fractions of the page image; office files through their PDF) or
-    `{lines, text}` for an office file LibreOffice could not convert, see `app.document.sources.locate`."""
+    """Where on the paper each element came from ("Źródło"). Body `{"coi", "evidence"}` as the page holds them ->
+    `{"pages": [{"aspect": h / w}], "sources": {element id: place or null}, "headings": {paper heading: page}}`; a place
+    is `{page, pages, boxes}` or, for an office file without a PDF, `{lines, text}` (`app.document.sources.locate`)."""
     try:
         paper = _paper(str(settings.history_db), item_id)
     except HTTPException:

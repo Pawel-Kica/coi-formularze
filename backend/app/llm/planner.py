@@ -222,10 +222,9 @@ def _applicant(a) -> dict:
 
 
 def draft_to_plan(d: dict) -> Plan:
-    """Pass-1 JSON -> Plan, repaired: ids s1../f1.. in plan order, cleaned labels/options,
-    duplicate fields within a section and empty sections/pages dropped, title normalized,
-    `address` kept only on sections whose fields are all address lines. Never crashes on provider garbage (dicts or nulls where strings belong, wrong containers):
-    such values are treated as missing, items left without a label or text are dropped."""
+    """Pass-1 JSON -> Plan: ids s1../f1.. in plan order, labels/options cleaned, duplicate fields and empty sections or
+    pages dropped, `address` only on all-address sections. Provider garbage (dicts or nulls where strings belong, wrong
+    containers) counts as missing, never crashes; items left without a label or text are dropped."""
     n_sec = n_field = 0
     pages = []
     for p in _dicts(d.get("pages")):
@@ -354,12 +353,8 @@ def _conditions_system() -> str:
 
 
 def apply_conditions(plan: Plan, answer: dict) -> Plan:
-    """Insert synthesized trigger questions, then attach conditions (first one per target wins).
-    Such questions are marked `synthesized`; the quote filter drops the ones no condition uses in the end.
-
-    Structural checks (trigger before target, options exist...) are done again by
-    `app.grounding.quotes.filter_plan`; here we only skip what cannot be attached at all.
-    """
+    """Insert synthesized trigger questions (marked `synthesized`), then attach conditions, first one per target wins.
+    Only what cannot be attached at all is skipped: `app.grounding.quotes.filter_plan` does the structural checks."""
     plan = plan.model_copy(deep=True)
     n_field = sum(len(s.fields) for p in plan.pages for s in p.sections)
     n_sec = sum(len(p.sections) for p in plan.pages)
@@ -403,11 +398,8 @@ def apply_conditions(plan: Plan, answer: dict) -> Plan:
 
 
 def make_plan(text: str, model: str | None = None) -> Plan:
-    """Paper form text -> Plan, not yet quote-filtered. Deterministic: temperature 0, fixed seed.
-
-    Pass 1 is retried once with a frequency penalty when its answer is cut off or unusable
-    (a looping model); a failed pass 2 leaves the plan without conditions.
-    """
+    """Paper form text -> Plan, not yet quote-filtered. Deterministic: temperature 0, fixed seed. Pass 1 is retried
+    once with a frequency penalty (a looping model); a failed pass 2 leaves the plan without conditions."""
     form_text = f"Tekst formularza:\n```\n{prepare_text(text)}\n```\n\n"
     sys1 = _structure_system()
     user1 = form_text + TASK

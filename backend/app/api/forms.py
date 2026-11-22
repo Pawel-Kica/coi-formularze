@@ -21,11 +21,9 @@ router = APIRouter(prefix="/api/forms", tags=["forms"], dependencies=[Depends(cu
 
 @router.post("/convert", openapi_extra=FILE_BODY, response_description="Konfiguracja e-usługi COI gotowa do importu")
 async def convert(request: Request, evidence: bool = False) -> JSONResponse:
-    """One blank form (multipart field `file`) in, the COI JSON out, nothing wrapped around it.
-
-    `?evidence=1` (the upload page's editor) wraps it instead: `{"coi": <COI JSON>, "evidence":
-    {<element id>: {"source": "paper" | "model" | "code", "quote", "page", ...}}}`, where each
-    element of the e-service came from (the quote from the paper for fields)."""
+    """One blank form (multipart field `file`) in, the COI JSON out, nothing wrapped around it. `?evidence=1` (the
+    editor) returns `{"coi", "evidence": {element id: {"source": "paper" | "model" | "code", "quote", "page", ...}}}`
+    instead: where each element came from."""
     filename, data = await read_single_file(request, settings.max_file_size_bytes)
     validate_upload(filename, data)
     try:  # through the module, so tests can monkeypatch it

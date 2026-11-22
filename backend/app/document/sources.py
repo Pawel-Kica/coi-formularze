@@ -186,11 +186,9 @@ def quote_items(coi: dict | None, evidence: dict) -> list[tuple[str, str | None,
 
 
 def locate(paper: Paper, coi: dict | None, evidence: dict) -> dict[str, dict | None]:
-    """Element id -> where its quote is on paper, for every element with a quote:
-    {page (1-based), pages, boxes: one [x0, y0, x1, y1] per text line of the quote, fractions of the page}, or for
-    text formats {lines: [first, last] in the extracted text's lines, text: those lines}, or None = not found.
-    An element whose SHOW condition has its own quote gets that place too, as `condition` (same shape, or None).
-    A section without a quote gets the place of its paper heading (`_heading_places`)."""
+    """Element id -> where its quote is on paper: `{page (1-based), pages, boxes}` (one [x0, y0, x1, y1] per line, page
+    fractions), `{lines: [first, last], text}` for text formats, or None. A SHOW condition's own quote adds
+    `condition` (same shape); a section without a quote gets its paper heading's place (`_heading_places`)."""
     items = quote_items(coi, evidence)
     places = place_quotes(items, paper.text)
     keys = {key for key, _, _ in items}

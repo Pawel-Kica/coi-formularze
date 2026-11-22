@@ -95,13 +95,8 @@ MLPZ_ADDRESS = {k: f"MLPZ.{k}" for k in
 def address_section(ctx: Ctx, title: str, section_tech: str, suffix: str, *,
                     registry: dict[str, str] | None, query: str | None, tab_title: str = DANE,
                     description: str = "", register: bool = True) -> dict:
-    """Address block per Standards: Kraj, then foreign or Polish fields by country.
-
-    `registry` (the applicant's own address) maps each Standards field to one registry
-    attribute (`MLPZ_ADDRESS`, or `registry.PERMANENT_ADDRESS` for "Dane zameldowania"); every
-    field is then read-only, so the address cannot be half-edited. TERYT gets only the
-    voivodeship, so a read-only Polish "Miejscowość" is added. A source without a country
-    (a registered address is always Polish) fixes Kraj to "Polska" and drops the foreign fields.
+    """Address block per Standards: Kraj, then foreign or Polish fields by country. `registry` (the applicant's own
+    address) maps each Standards field to a registry attribute (`MLPZ_ADDRESS` or `registry.PERMANENT_ADDRESS`).
     `register=False` when the caller already reserved `section_tech` via ctx.tech."""
     if register:
         section_tech = ctx.tech(section_tech)
@@ -109,7 +104,7 @@ def address_section(ctx: Ctx, title: str, section_tech: str, suffix: str, *,
     poland = chosen("Polska", answer_path(tab_title, section_tech, kraj))
     abroad = negate(poland)
     reg = (lambda attr: registry.get(attr)) if registry else (lambda attr: None)
-    ro = bool(registry)  # Dane inicjalne: fields fed from a registry are read-only
+    ro = bool(registry)  # Dane inicjalne: a registry address is read-only as a whole, so it cannot be half-edited
 
     def select_default(attr, plain):  # SELECT prefill: registry attribute or a plain default
         if reg(attr):
@@ -121,6 +116,7 @@ def address_section(ctx: Ctx, title: str, section_tech: str, suffix: str, *,
             "dictionaryName": "Kraje", "multiLevelTree": False, "searchEnabled": True,
             **select_default("country", ["Polska"])}),
     ]
+    # a registry source without a country (a registered address is always Polish) has no foreign fields
     if not registry or reg("country"):
         fields += [
             _text(ctx, "Miejscowość", f"miejscowosc{suffix}_zagranica", required=True,
@@ -136,7 +132,7 @@ def address_section(ctx: Ctx, title: str, section_tech: str, suffix: str, *,
                   "dictionaryName": "TERYT_4G_DOWODOWY", "multiLevelTree": True,
                   "searchEnabled": True, **select_default("voivodeship", [])}),
     ]
-    if registry:
+    if registry:  # the registry fills TERYT only to the voivodeship: the place goes in its own read-only field
         fields.append(_text(ctx, "Miejscowość", f"miejscowosc{suffix}", required=True,
                             registry=reg("place"), read_only=ro, query=poland))
     fields += [
@@ -160,10 +156,9 @@ def _who_options(a: Applicant) -> list[str]:
 
 
 def own_filing(a: Applicant) -> tuple[bool, str | None]:
-    """Whether the logged-in person's registry data may feed a subject-page field about the
-    applicant: (False, None) never (only an entity files), (True, None) always (the person
-    always files in their own name), (True, query) only while "Wybierz, w czyim imieniu
-    wnioskujesz" is "Swoim" (`query` = that SHOW condition)."""
+    """May the logged-in person's registry data feed a subject-page field about the applicant? (False, None) never
+    (only an entity files), (True, None) always (only in their own name), (True, query) only while "Wybierz, w czyim
+    imieniu wnioskujesz" is "Swoim" (`query` = that SHOW condition)."""
     who_opts = _who_options(a)
     if SELF not in who_opts:
         return False, None

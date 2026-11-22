@@ -307,12 +307,9 @@ def _ev(source: str, quote: str | None = None, *, plan_id: str | None = None,
 
 
 def _evidence(coi: dict, plan: Plan, known: dict[str, dict]) -> dict[str, dict]:
-    """Every COI element id (tab, section, field) -> where it came from, in COI order:
-    - "paper": built from a Plan field (or the addressee), `quote` = its verbatim fragment of the paper;
-      a SHOW condition built from the paper adds `condition_quote`;
-    - "model": a page or section of the Plan (a grouping the model chose; the paper has no quote for it);
-    - "code": added by code from the COI Standards (pages Dane, Kontakt i zgody, finish, address blocks).
-    The CONSENT_SECTION entry lists `consent_quotes`, one per consent (None for the RODO clause)."""
+    """Every COI element id (tab, section, field) -> where it came from, in COI order: "paper" (a Plan field or the
+    addressee: its `quote`, plus `condition_quote` for a SHOW condition from paper), "model" (a Plan page or section,
+    no quote) or "code" (Standards pages and address blocks). CONSENT_SECTION gets `consent_quotes` (None = RODO)."""
     out = {}
     for t in coi["tabs"]:
         out[t["id"]] = known.get(t["id"]) or _ev("code")
