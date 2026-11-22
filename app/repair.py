@@ -13,7 +13,8 @@ what the model tends to get wrong and the paper text can settle:
   the next section when that one repeats the title and has fields of its own; the first stays, required
   if either was, conditions move to it;
 - a statement printed twice (the same words in two consent blocks of the paper) is kept once, required if
-  either was; an "Imię i nazwisko X" asked after "Imię X" and "Nazwisko X" (a consent block naming the
+  either was; one whose paper line the plan already asks as a Tak/Nie question ("Oświadczam, że nieruchomość
+  wyposażona jest w kompostownik" as both) goes: a required consent would make everyone declare it; an "Imię i nazwisko X" asked after "Imię X" and "Nazwisko X" (a consent block naming the
   candidate again) goes, outside repeating sections;
 - a field of an address section that is not an address line (a choice, date, file...) moves to the section
   before it (or a section of its own there, with the address section's condition): the builder replaces an
@@ -37,7 +38,7 @@ from functools import lru_cache
 from rapidfuzz import fuzz
 
 from app.plan import Condition, FieldType, Page, Plan, PlanField, Section
-from app.quotes import CHOICE_TYPES, MIN_QUOTE_CHARS, THRESHOLD_OCR, normalize, quote_found, quote_lines
+from app.quotes import CHOICE_TYPES, MIN_QUOTE_CHARS, THRESHOLD_OCR, _overlap, normalize, quote_found, quote_lines
 
 YES_NO = {"tak", "nie"}
 _CORRESPONDENCE = re.compile(r"adres\w* (do )?korespondenc|do korespondencji")
@@ -170,15 +171,25 @@ def _dedupe_fields(plan: Plan, notes: list[str]) -> None:
         _drop_empty(plan)
 
 
-def _dedupe_statements(plan: Plan, notes: list[str]) -> None:
-    """The same statement twice ("Znam regulamin ..." in the adult's and the minor's consent block) is one checkbox."""
+def _dedupe_statements(plan: Plan, text: str, notes: list[str]) -> None:
+    """The same statement twice ("Znam regulamin ..." in the adult's and the minor's consent block) is one checkbox;
+    a statement whose paper line is a Tak/Nie question of the plan is that question's "Tak", not a consent."""
     kept: dict[str, object] = {}
     for st in plan.statements:
         first = kept.setdefault(normalize(st.text), st)
         if first is not st:
             first.required = first.required or st.required
             notes.append(f"duplicate: statement '{st.text[:60]}' repeats an earlier one, dropped")
-    plan.statements = list(kept.values())
+    asked = [quote_lines(f.quote, text) for _, s in _sections(plan) for f in s.fields
+             if f.type in CHOICE_TYPES and {normalize(o) for o in f.options} == YES_NO]
+    out = []
+    for st in kept.values():
+        at = quote_lines(st.quote, text)
+        if at and any(q and _overlap(at, q) for q in asked):
+            notes.append(f"duplicate: statement '{st.text[:60]}' is already a Tak/Nie question, dropped")
+        else:
+            out.append(st)
+    plan.statements = out
 
 
 _FULL_NAME = re.compile(r"^imię i nazwisko(.*)$")
@@ -297,7 +308,7 @@ def repair_plan(plan: Plan, text: str) -> list[str]:
     _clean_options(plan, text, notes)
     _dedupe_questions(plan, text, notes)
     _dedupe_fields(plan, notes)
-    _dedupe_statements(plan, notes)
+    _dedupe_statements(plan, text, notes)
     _drop_repeated_full_name(plan, notes)
     _split_address_questions(plan, notes)
     _correspondence_address(plan, text, notes)

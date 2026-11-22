@@ -278,6 +278,16 @@ def test_a_statement_printed_twice_is_kept_once_but_a_different_one_stays():
     out, notes = filter_plan(p, PAPER)
     assert [st.text for st in out.statements] == ["Znam regulamin przyznawania stypendiów.", "Znam regulamin przyznawania nagród."]
     assert out.statements[0].required and any(n.startswith("duplicate: statement") for n in notes)
+    # a statement the plan already asks as a Tak/Nie question goes; next to another kind of question it stays
+    paper = PAPER + "Oświadczam, że nieruchomość wyposażona jest w kompostownik.\n"
+    ask = f("f8", "Czy nieruchomość ma kompostownik?", "nieruchomość wyposażona jest w kompostownik", FieldType.RADIO, ["Tak", "Nie"])
+    p = plan(sec("s1", [ask]))
+    p.statements = [Statement(text="Nieruchomość ma kompostownik.", quote="Oświadczam, że nieruchomość wyposażona jest w kompostownik")]
+    out, notes = filter_plan(p, paper)
+    assert out.statements == [] and any("already a Tak/Nie question" in n for n in notes)
+    p.pages[0].sections[0].fields[0] = ask.model_copy(update={"options": ["Mam", "Nie mam", "Nie wiem"]})
+    out, _ = filter_plan(p, paper)
+    assert len(out.statements) == 1
 
 
 def test_a_full_name_asked_again_after_its_two_split_fields_goes():
