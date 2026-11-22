@@ -202,12 +202,21 @@ def test_correspondence_address_the_model_already_gates_gets_no_second_question(
     own = f("f9", "Czy adres do korespondencji jest inny niż adres zamieszkania?", "jeżeli adres do korespondencji jest inny",
             FieldType.RADIO, ["Tak", "Nie"])
     gated = f("f3", "Ulica", "Ulica", show_if=Condition(field="f9", options=["Tak"], quote="jeżeli adres do korespondencji jest inny"))
-    # the model's question sits inside the address section and gates its fields
+    # the model's question sits inside the address section and gates its fields: the Standards block would swallow
+    # both, so the question moves to the section before and gates the whole address
     p = plan(sec("s1", [f("f1", "Nazwa inwestycji", "Nazwa inwestycji")]),
              sec("s2", [own, gated, f("f4", "Miejscowość", "Miejscowość")], title="Adres do korespondencji", address=True))
-    out, _ = filter_plan(p, paper)
+    out, notes = filter_plan(p, paper)
     labels = [x.label for x in fields_of(out).values()]
-    assert CORRESPONDENCE_QUESTION not in labels and out.pages[0].sections[1].show_if is None
+    s1, s2 = out.pages[0].sections
+    assert CORRESPONDENCE_QUESTION not in labels and [x.id for x in s1.fields] == ["f1", "f9"]
+    assert s2.show_if.field == "f9" and s2.show_if.options == ["Tak"] and any(n.startswith("address:") for n in notes)
+    # the address section's own condition on it: the question gets a section of its own, ungated
+    gate = Condition(field="f9", options=["Tak"], quote="jeżeli adres do korespondencji jest inny")
+    p = plan(sec("s2", [own, f("f4", "Miejscowość", "Miejscowość")], title="Adres do korespondencji", address=True, show_if=gate))
+    out, _ = filter_plan(p, paper)
+    s1, s2 = out.pages[0].sections
+    assert [x.id for x in s1.fields] == ["f9"] and s1.show_if is None and s2.show_if.field == "f9"
     # its own wording earlier, not a plain Tak/Nie: left to the model too
     kind = f("f9", "Adres do korespondencji", "jeżeli adres do korespondencji jest inny", FieldType.RADIO,
              ["Taki sam jak zamieszkania", "Inny"])

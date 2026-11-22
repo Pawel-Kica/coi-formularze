@@ -12,6 +12,10 @@ what the model tends to get wrong and the paper text can settle:
   once: an identical field (label, type, options, hint, condition) later in the same section, or opening
   the next section when that one repeats the title and has fields of its own; the first stays, required
   if either was, conditions move to it;
+- a field of an address section that is not an address line (a choice, date, file...) moves to the section
+  before it (or a section of its own there, with the address section's condition): the builder replaces an
+  address section's fields with the Standards block and would lose it, e.g. the model's own "Czy adres do
+  korespondencji jest inny?" put inside the address it gates;
 - an applicant's "Adres do korespondencji" section without a condition: when the paper says it is
   filled only if it differs ("inny niż", "różni się") a Tak/Nie question is added before it and the
   section shows on "Tak" (none is added when the model already gates it with its own question);
@@ -163,6 +167,28 @@ def _dedupe_fields(plan: Plan, notes: list[str]) -> None:
         _drop_empty(plan)
 
 
+def _split_address_questions(plan: Plan, notes: list[str]) -> None:
+    """Fields the Standards address block would swallow (anything but a text line) leave the address section."""
+    for page in plan.pages:
+        out: list[Section] = []
+        for sec in page.sections:
+            odd = [f for f in sec.fields if f.type != FieldType.TEXT_FIELD] if sec.address and not sec.repeating else []
+            if odd and len(odd) < len(sec.fields):
+                sec.fields = [f for f in sec.fields if f not in odd]
+                # the moved fields keep the section's condition, unless one of them is its trigger
+                cond = sec.show_if if sec.show_if and sec.show_if.field not in {f.id for f in odd} else None
+                prev = out[-1] if out else None
+                if prev and cond is None and not prev.address and not prev.repeating and prev.show_if is None:
+                    prev.fields += odd
+                else:
+                    out.append(Section(id=f"s{odd[0].id}", title=sec.title, fields=odd,
+                                       show_if=cond.model_copy() if cond else None))
+                notes.append(f"address: fields {[f.id for f in odd]} of section {sec.id} '{sec.title}' are not address "
+                             "lines, moved before it")
+            out.append(sec)
+        page.sections = out
+
+
 def _asks_correspondence(f: PlanField) -> bool:
     """A choice question the model wrote about the correspondence address ("Czy adres do korespondencji jest inny…")."""
     return f.type in (FieldType.RADIO, FieldType.SELECT, FieldType.CHECKBOX) and "korespondenc" in normalize(f.label)
@@ -180,7 +206,8 @@ def _correspondence_address(plan: Plan, text: str, notes: list[str]) -> None:
             title = normalize(sec.title)
             if sec.show_if is not None or sec.repeating or not _CORRESPONDENCE.search(title):
                 out.append(sec)
-            elif rule and (any(_asks_correspondence(f) or f.show_if for f in sec.fields)
+            # field conditions inside an address section do not gate it: the Standards block replaces its fields
+            elif rule and (any(_asks_correspondence(f) or (f.show_if and not sec.address) for f in sec.fields)
                            or any(_asks_correspondence(f) and {normalize(o) for o in f.options} != YES_NO for f in prior)):
                 out.append(sec)  # the model already gates it (its own question inside, or its own wording earlier)
             elif rule:
@@ -234,5 +261,6 @@ def repair_plan(plan: Plan, text: str) -> list[str]:
     _clean_options(plan, text, notes)
     _dedupe_questions(plan, text, notes)
     _dedupe_fields(plan, notes)
+    _split_address_questions(plan, notes)
     _correspondence_address(plan, text, notes)
     return notes
