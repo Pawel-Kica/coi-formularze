@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8">
+<meta name="render" content="1800x840">
+<!-- Pełna architektura (README, „Architektura”). Render: python3 docs/img/render.py architektura (liczby z liczby.json). -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1800px;background:#faf8f4;font-family:-apple-system,"Helvetica Neue",Helvetica,sans-serif;color:#1c1f4d;padding:36px 40px 40px}
+h1{font-size:30px;font-weight:700;letter-spacing:-.3px}
+.sub{font-size:16px;color:#5b5f7a;margin-top:6px}
+.legend{display:flex;gap:20px;font-size:13.5px;color:#3b3f5c;margin-top:14px}
+.legend span{display:flex;align-items:center;gap:6px}
+.sw{width:16px;height:12px;border-radius:3px;border:1.5px solid}
+.lane{margin-top:24px}
+.lanelabel{font-size:12.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#7d7a8c;margin-bottom:12px}
+.row{display:flex;align-items:stretch}
+.box{background:#fff;border:1.5px solid #b9b2a6;border-radius:12px;padding:14px 14px 12px;flex:1 1 0}
+.box h3{font-size:15.5px;font-weight:700;margin-bottom:3px}
+.f{font-family:"SF Mono",Menlo,monospace;font-size:11px;color:#8a3f12;margin-bottom:8px}
+.box ul{list-style:none;font-size:13px;line-height:1.45;color:#2e3150}
+.box li{padding-left:11px;position:relative}
+.box li:before{content:"·";position:absolute;left:2px;color:#999;font-weight:900}
+.data{font-size:11.5px;font-weight:700;color:#2b2f6b;background:#e3e5f7;border-radius:6px;padding:3px 7px;margin-top:9px;display:inline-block}
+.llm{border-color:#c2662d;background:#fbefe6}
+.code{border-color:#2b2f6b;background:#eceefb}
+.io{border-color:#b9b2a6;background:#f1ede6}
+.arrow{flex:0 0 30px;display:flex;align-items:center;justify-content:center;color:#8e8aa0;font-size:22px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.big{font-size:17px;font-weight:700;color:#1c1f4d}
+</style></head><body>
+
+<h1>Jak pusty formularz staje się JSON-em e-usługi COI</h1>
+<div class="sub">Python 3.14 + FastAPI. Model rozumie dokument, kod pilnuje formatu COI. Modele z otwartymi wagami na Eden AI, jedyny sekret to EDENAI_API_KEY.</div>
+<div class="legend">
+ <span><i class="sw" style="background:#f1ede6;border-color:#b9b2a6"></i>wejście / wyjście</span>
+ <span><i class="sw" style="background:#fbefe6;border-color:#c2662d"></i>wywołanie modelu (Eden AI, API zgodne z OpenAI)</span>
+ <span><i class="sw" style="background:#eceefb;border-color:#2b2f6b"></i>kod deterministyczny, z testami</span>
+ <span><i class="sw" style="background:#e3e5f7;border-color:#e3e5f7"></i>co idzie do następnego kroku</span>
+</div>
+
+<div class="lane">
+ <div class="lanelabel">Główna ścieżka: POST /api/forms/convert (app/pipeline.py)</div>
+ <div class="row">
+  <div class="box io"><h3>Upload</h3><div class="f">app/upload.py, security.py</div>
+   <ul><li>jeden plik, tylko w pamięci</li><li>limit rozmiaru, nazwa, rozszerzenie, sygnatura bajtów</li><li>JWT przy AUTH_ENABLED=1</li></ul>
+   <div class="data">bajty + nazwa</div></div>
+  <div class="arrow">→</div>
+  <div class="box llm"><h3>1. Odczyt stron</h3><div class="f">app/llm/transcribe.py</div>
+   <ul><li>każdy format → obrazy stron (PDFium; pliki biurowe przez LibreOffice)</li><li>Qwen3.5-397B-A17B: jedno wywołanie na stronę, 4 naraz</li><li>wynik w pamięci podręcznej po sha256</li></ul>
+   <div class="data">Markdown stron</div></div>
+  <div class="arrow">→</div>
+  <div class="box llm"><h3>2a. Planer, przebieg 1</h3><div class="f">app/llm/planner.py</div>
+   <ul><li>GLM-5.2 czyta sam Markdown</li><li>strony, sekcje, pola, opcje, oświadczenia, adresat, kto składa</li><li>odpowiedź wymuszona schematem JSON</li><li>każdy element niesie <b>cytat</b></li></ul>
+   <div class="data">szkic planu</div></div>
+  <div class="arrow">→</div>
+  <div class="box llm"><h3>2b. Planer, przebieg 2</h3><div class="f">app/llm/planner.py</div>
+   <ul><li>warunki „pokaż, gdy…”</li><li>schemat dopuszcza tylko istniejące pola i opcje</li><li>może dodać pytanie Tak/Nie z cytatem</li></ul>
+   <div class="data">plan + warunki</div></div>
+  <div class="arrow">→</div>
+  <div class="box code"><h3>3. Filtr cytatów, naprawy</h3><div class="f">app/quotes.py, repair.py</div>
+   <ul><li>cytatu nie ma w Markdownie → element wypada</li><li>opcje spoza dokumentu, podwójne pola i pytania</li><li>warunek bez oparcia → wypada, pole zostaje</li></ul>
+   <div class="data">czysty plan</div></div>
+  <div class="arrow">→</div>
+  <div class="box code"><h3>4. Builder</h3><div class="f">app/builder/</div>
+   <ul><li>plan → JSON COI, bez modelu</li><li>strony ze Standardów: Dane (MLPZ), Kontakt i zgody, końcowa</li><li>SHOW w JSONata, walidatory, słowniki</li></ul>
+   <div class="data">JSON COI + cytaty</div></div>
+  <div class="arrow">→</div>
+  <div class="box code"><h3>5. Reguły COI</h3><div class="f">app/rules.py</div>
+   <ul><li>schemat JSON COI</li><li>„Reguły techniczne”</li><li>jakikolwiek problem → <b>422</b>, nigdy zły JSON</li></ul>
+   <div class="data">200: JSON COI</div></div>
+ </div>
+</div>
+
+<div class="lane">
+ <div class="grid3">
+  <div class="box llm"><h3>Modele na Eden AI (otwarte wagi)</h3><div class="f">app/llm/client.py, LLM_MODEL i TRANSCRIBE_MODEL w konfiguracji</div>
+   <ul><li>odczyt: Qwen3.5-397B-A17B (wizyjny, Apache-2.0)</li><li>planer: GLM-5.2 (tekstowy, MIT), 2 wywołania na formularz, myślenie wyłączone</li><li>na formularz: <b>{{CZAS_FORMULARZ}}</b>, <b>{{KOSZT_FORMULARZ}}</b></li><li>te same wagi można postawić u siebie: LLM_BASE_URL</li></ul></div>
+  <div class="box llm"><h3>Propozycje słowników (bonus II)</h3><div class="f">POST /api/dictionaries/proposals, app/dictionaries.py</div>
+   <ul><li>strona wysyła plik naraz do konwersji i tutaj</li><li>ten sam odczyt stron, bez drugiego płacenia</li><li>model proponuje słownik, kod zostawia tylko wartości z dokumentu</li><li>„Dodaj” zapisuje go w katalogu i podpina pod pole</li></ul></div>
+  <div class="box io"><h3>Strona dla urzędnika (bonusy IV, V, VI)</h3><div class="f">app/static/index.html, preview.html, editor.js</div>
+   <ul><li>historia plików, kilka plików naraz, ZIP wszystkich JSON-ów</li><li>oryginał obok e-usługi, jak zobaczy ją obywatel</li><li>cytat i „Źródło” pod polem, panel „Edycja”</li><li>każda zmiana → POST /api/forms/check, z problemem nie da się pobrać JSON-a</li></ul></div>
+ </div>
+</div>
+
+<div class="lane">
+ <div class="lanelabel">Pętla jakości (tylko przy tworzeniu, nie w produkcie)</div>
+ <div class="row">
+  <div class="box io"><h3>Wejście</h3><ul><li>9 formularzy COI z zadania we wszystkich formatach (69 plików)</li><li>prawdziwe puste formularze z BIP-ów gmin, których nie stroiliśmy</li></ul></div>
+  <div class="arrow">→</div>
+  <div class="box code"><h3>bench/run_all.py</h3><div class="f">--forms, --formats, --rebuild</div><ul><li>czy JSON powstał, problemy z regułami, czas, koszt w $</li><li>gold= : plan wobec naszego wzorca (szybka miara)</li></ul></div>
+  <div class="arrow">→</div>
+  <div class="box code"><h3>Panel 3 sędziów AI</h3><div class="f">bench/JUDGE-POPRAWKI.md</div><ul><li>widzi dokument i nasz wynik, wypisuje każdą poprawkę urzędnika</li><li>poprawka liczy się, gdy wypisze ją 2 z 3</li><li>kalibracja na podrzuconych błędach: {{KALIBRACJA}}</li></ul></div>
+  <div class="arrow">→</div>
+  <div class="box io"><h3>Wynik</h3><ul><li>średnio <span class="big">{{POPRAWKI_SREDNIO}}</span> poprawek urzędnika na formularz</li><li><span class="big">0</span> problemów z regułami COI</li><li>zmiana wchodzi, gdy poprawek nie przybywa</li></ul></div>
+ </div>
+</div>
+
+</body></html>

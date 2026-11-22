@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8">
+<meta name="render" content="1600x1000">
+<!-- Kroki 1-3 w szczegółach (README, „Architektura”). Render: python3 docs/img/render.py odczyt -->
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#faf8f4;font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;color:#1c1f4d}
+  .wrap{width:1600px;padding:44px 56px 40px}
+  h1{margin:0 0 6px;font-size:32px}
+  .sub{margin:0 0 26px;font-size:18px;color:#5b5f7a}
+  .grid{display:grid;grid-template-columns:1fr 370px;gap:0 28px}
+  .step{display:flex;gap:16px;align-items:flex-start}
+  .n{flex:none;width:44px;height:44px;border-radius:50%;background:#1c1f4d;color:#fff;font-weight:700;font-size:22px;display:flex;align-items:center;justify-content:center;margin-top:4px}
+  .body{flex:1}
+  .title{font-size:22px;font-weight:700;margin:8px 0 10px}
+  .chips{display:flex;gap:10px;flex-wrap:wrap}
+  .chip{background:#f1ede6;border:2px solid #b9b2a6;border-radius:12px;padding:9px 15px;font-size:17px}
+  .note{font-size:15px;color:#5b5f7a;margin-top:8px;line-height:1.4}
+  .down{font-size:28px;color:#8e8aa0;margin:4px 0 4px 10px}
+  .lanes{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .lane{border-radius:14px;padding:14px 16px;border:2px solid}
+  .lane h3{margin:0 0 4px;font-size:19px}
+  .tag{font-size:13.5px;font-weight:700;padding:2px 8px;border-radius:6px;display:inline-block;margin-bottom:10px}
+  .code{background:#eceefb;border-color:#2b2f6b}.code .tag{background:#d9dcf5;color:#2b2f6b}
+  .ai{background:#fbefe6;border-color:#c2662d}.ai .tag{background:#f6d9c4;color:#8a3f12}
+  .r{display:flex;gap:8px;font-size:16px;line-height:1.38;margin:7px 0}
+  .r .k{flex:none;width:150px;font-weight:600}
+  .r .v{flex:1}
+  .out{display:inline-block;background:#1c1f4d;color:#fff;border-radius:10px;padding:8px 14px;font-size:16px;margin-top:12px}
+  .side{border:2px dashed #2b2f6b;border-radius:16px;padding:18px;background:#fff;align-self:start;margin-top:64px}
+  .side h3{margin:0 0 10px;font-size:20px}
+  .side p{margin:0 0 10px;font-size:15.5px;line-height:1.42}
+  .pass{display:flex;gap:12px;margin-top:4px}
+  .pass div{flex:1;background:#fbefe6;border:2px solid #c2662d;border-radius:12px;padding:10px 14px;font-size:16px;line-height:1.42}
+</style></head><body><div class="wrap">
+  <h1>Kroki 1-3: jak plik staje się planem formularza</h1>
+  <p class="sub">Granatowe = kod (zawsze tak samo). Miedziane = model z otwartymi wagami na Eden AI. Jedna ścieżka odczytu dla każdego formatu.</p>
+  <div class="grid">
+   <div>
+    <div class="step"><div class="n">1</div><div class="body">
+      <div class="title">Plik</div>
+      <div class="chips">
+        <div class="chip">PDF z tekstem</div><div class="chip">PDF ze skanem</div>
+        <div class="chip">Skan JPG / PNG</div><div class="chip">DOC / DOCX / ODS / XLS / XLSX</div>
+      </div>
+      <div class="note">Format poznajemy po bajtach, nie po rozszerzeniu (gminy publikują DOCX z końcówką „.doc”). Wysoki skan z kilkoma stronami jedna pod drugą kod tnie na strony A4.</div>
+    </div></div>
+    <div class="down">↓</div>
+
+    <div class="step"><div class="n">2</div><div class="body">
+      <div class="title">Odczyt: plik → Markdown, który przeczyta planer</div>
+      <div class="lanes">
+        <div class="lane code">
+          <h3>2a. Plik → obrazy stron</h3>
+          <span class="tag">kod, narzędzia open source</span>
+          <div class="r"><span class="k">PDF</span><span class="v">strony renderuje PDFium (pypdfium2), także PDF ze skanem</span></div>
+          <div class="r"><span class="k">DOC, DOCX, ODS, XLS, XLSX</span><span class="v">LibreOffice bez okna → PDF → obrazy stron</span></div>
+          <div class="r"><span class="k">JPG, PNG</span><span class="v">obraz tak, jak jest; wysoki skan cięty na strony</span></div>
+          <div class="r"><span class="k">każda strona</span><span class="v">zmniejszona do 1024 px na dłuższym boku, najwyżej 30 stron</span></div>
+        </div>
+        <div class="lane ai">
+          <h3>2b. Obraz strony → Markdown</h3>
+          <span class="tag">Qwen3.5-397B-A17B na Eden AI</span>
+          <div class="r"><span class="k">każda strona</span><span class="v">osobno do modelu wizyjnego, 4 strony naraz; krótkie odpowiedzi, więc nic się nie ucina</span></div>
+          <div class="r"><span class="k">wynik</span><span class="v">nagłówki, pola, kratki i tabele; wykropkowanie to <code>______</code>; strony sklejone w kolejności</span></div>
+          <div class="note">Ten sam odczyt, bez drugiego wywołania, czytają też propozycje słowników (bonus II).</div>
+        </div>
+      </div>
+      <div class="out">→ jeden tekst formularza: Markdown wszystkich stron</div>
+    </div></div>
+    <div class="down">↓</div>
+
+    <div class="step"><div class="n">3</div><div class="body">
+      <div class="title">Planer GLM-5.2 na Eden AI: Markdown → plan formularza, 2 przebiegi</div>
+      <div class="pass">
+        <div><b>Przebieg 1: struktura</b><br>strony, sekcje, pola z typami i opcjami, oświadczenia, adresat, kto składa wniosek. Każdy element ma <b>cytat</b> z dokumentu.</div>
+        <div><b>Przebieg 2: warunki</b><br>„pokaż, gdy…” (np. „Numer mikroprocesora” tylko przy oznakowaniu psa „mikroprocesor”), też z cytatem. Schemat odpowiedzi dopuszcza tylko istniejące pola i opcje.</div>
+      </div>
+      <div class="out">→ plan; filtr cytatów wyrzuca wszystko, czego cytatu nie ma w Markdownie z kroku 2, potem naprawy w kodzie</div>
+    </div></div>
+   </div>
+
+   <div class="side">
+     <h3>Tesseract? Tylko do „Źródła”</h3>
+     <p><b>Qwen3.5</b> z kroku 2 mówi, <b>co</b> jest na stronie. To czyta planer.</p>
+     <p><b>Tesseract</b> mówi tylko, <b>gdzie</b> to jest: ramka każdego słowa na stronie. Model go nie widzi.</p>
+     <p>Po co: <b>„Źródło”</b> pod polem (wycinek oryginału z ramką na cytacie) i nagłówek <b>„W dokumencie: …, str. N”</b>.</p>
+     <p>Kiedy działa: tylko skany i strony PDF bez warstwy tekstu. Zwykły PDF i pliki biurowe (PDF z LibreOffice) mają ramki słów w warstwie tekstu.</p>
+     <p style="color:#5b5f7a;margin:0">Tryb „rozproszony tekst” (psm 11): każda etykieta komórki tabeli to osobna linia, więc cytat łatwo znaleźć.</p>
+   </div>
+  </div>
+</div></body></html>
