@@ -443,8 +443,17 @@ xychart-beta
 
 ### 6. Dowód od pliku do JSON-a
 
-<!-- E2E-GLM -->
-Tu będzie świeży przebieg formularza 7 przez API z GLM-5.2 jako planerem.
+Formularz 7 (skan JPG) przez działające API, w końcowej konfiguracji (Qwen3.5 czyta strony, GLM-5.2 planuje, myślenie wyłączone). Strona wysyła plik naraz do konwersji i do propozycji słowników, a oba zapytania dzielą jeden odczyt stron.
+
+| Krok | Wynik |
+|---|---|
+| `POST /api/forms/convert?evidence=1` | HTTP 200 po 28 s |
+| `POST /api/forms/check` na tym JSON-ie | 0 problemów z regułami COI |
+| Zawartość | 4 kroki, 16 sekcji, 58 pól (w tym 7 list, 6 pól wyboru, 4 załączniki), sekcja powtarzalna dla kolejnych psów, 27 warunków pokazania |
+| `POST /api/dictionaries/proposals` | HTTP 200 po 37 s: „Rasy psów”, „Płci psów”, „Sposoby oznakowania zwierząt” |
+| `GET /health` | `"llm": "ok"`, GLM-5.2 i Qwen3.5 |
+
+Ten sam obraz Dockera (z LibreOffice) wstaje z samym `EDENAI_API_KEY` w `.env`, odpowiada na `/health` i zamienia DOCX formularza 9 na 24 obrazy stron w 1,3 s, bez wywołania modelu.
 
 Wcześniejszy test przez API (22.11, planerem był jeszcze Qwen3.5, nie GLM-5.2): 13 z 14 plików dało JSON bez żadnego problemu z regułami COI, w tym DOC, DOCX, XLS, XLSX, ODS, JPG, PNG i PDF, także w Dockerze. Czasy od 27 s (DOC) do 267 s (formularz 8 jako PNG). Jedyny błąd to zeskanowany PDF spoza zadania, który przekroczył limit czasu (504 po 363 s).
 
