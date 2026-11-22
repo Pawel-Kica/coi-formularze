@@ -142,7 +142,7 @@ Kroki skleja `backend/app/services/pipeline.py`, a REST jest w `backend/app/api/
 
 ![Architektura: upload, odczyt stron, planer w 2 przebiegach, filtr cytatów, builder, reguły COI; modele na Eden AI, słowniki, strona dla urzędnika; pętla jakości](docs/img/architektura.png)
 
-**Dlaczego plan, a nie JSON od razu?** Gdy model sam pisze JSON COI (podejście A), zgaduje identyfikatory i warunki: 20-64 problemów z regułami COI na 3 formularzach. U nas (podejście B) model pisze plan z cytatami, a JSON buduje kod: 0 problemów na tych samych 3, a każde pole da się sprawdzić w dokumencie ([Porównanie podejść](#porównanie-podejść)).
+**Dlaczego plan, a nie JSON od razu?** Gdy model sam pisze JSON COI (podejście A), zgaduje identyfikatory i warunki: 11-64 problemów z regułami COI na 3 formularzach. U nas (podejście B) model pisze plan z cytatami, a JSON buduje kod: 0 problemów na tych samych 3, a każde pole da się sprawdzić w dokumencie ([Porównanie podejść](#porównanie-podejść)).
 
 Dlaczego tak:
 - **Jedna ścieżka odczytu dla każdego formatu.** Każdy plik staje się obrazami stron, a Qwen3.5 przepisuje każdą stronę do Markdown. Skan, PDF i Word idą tą samą drogą, bez osobnego kodu na skany. Jedyny wyjątek to plik biurowy, któremu LibreOffice zgubi tekst przy zamianie na PDF: wtedy planer dostaje tekst z samego pliku. W pomiarze obrazy wyraźnie wygrały na skanach, a na PDF z warstwą tekstu zysk był mniejszy (remis na formularzach 3 i 8, +0,10 na formularzu 7) ([historia](#jak-doszliśmy-do-tej-architektury)).
@@ -246,7 +246,7 @@ Zmienne środowiskowe albo plik `.env` w katalogu głównym repo (`backend/app/c
 | `EDENAI_API_KEY` | brak | **Jedyne wymagane ustawienie.** Klucz Eden AI do każdego wywołania modelu. Tylko w `.env` albo w zmiennej środowiskowej, nigdy w repo ani w obrazie, nie trafia do logów |
 | `MAX_FILE_SIZE_MB` | `10` | Maksymalny rozmiar pliku (MiB) |
 | `AUTH_ENABLED` | `0` | `0` = API otwarte, strony bez logowania. `1` = każde wywołanie `/api/...` wymaga tokenu `Bearer` JWT, strony pokazują logowanie |
-| `JWT_SECRET` | brak | Klucz podpisu tokenów, min. 32 znaki (`openssl rand -hex 32`). Bez niego API losuje klucz na czas życia procesu i ostrzega w logu |
+| `JWT_SECRET` | brak | Klucz podpisu tokenów, min. 32 znaki (`openssl rand -hex 32`). Bez niego API losuje klucz na czas życia procesu (przy `AUTH_ENABLED=1` ostrzega o tym w logu) |
 | `JWT_ALGORITHM` | `HS256` | Algorytm podpisu (z `JWT_JWKS_URL` np. `RS256`) |
 | `JWT_ISSUER`, `JWT_AUDIENCE` | `coi-formularze` | Wymagane `iss` i `aud` w tokenie |
 | `JWT_TTL_MINUTES` | `60` | Ważność wydanego tokenu |
@@ -260,6 +260,7 @@ Zmienne środowiskowe albo plik `.env` w katalogu głównym repo (`backend/app/c
 | `TRANSCRIBE_WORKERS` | `4` | Ile stron przepisywanych naraz |
 | `TRANSCRIBE_TIMEOUT_S` | `180` | Limit czasu jednego wywołania modelu dla strony (s). Strona ucięta albo po limicie dostaje jedną ponowną próbę z karą za powtórzenia |
 | `SOFFICE` | `soffice` | Program LibreOffice (na macOS kod sprawdza też ścieżkę aplikacji) |
+| `FRONTEND_DIR` | `frontend/`, w Dockerze `/app/frontend` | Katalog stron, które serwuje aplikacja |
 | `LOG_LEVEL` | `INFO` | `INFO` = jedna linia na krok konwersji, wywołanie modelu i zadanie w tle, z nazwą pliku. `DEBUG` dodaje każdy element, który odrzucił filtr cytatów. `WARNING` = tylko problemy |
 | `HISTORY_ENABLED` | `1` | `0` = serwer nie zapisuje wgranych plików ani wyników, `/api/history` odpowiada 404, a strona działa bez „Źródła”. W pamięci procesu zostają tylko wynik zadania w tle (1 h) i odczyt 16 ostatnich plików ([Przechowywanie plików](#przechowywanie-plików)). Katalog słowników zostaje, bo trzyma tylko nazwy i wartości |
 | `HISTORY_DB` | `backend/history.sqlite3`, w Dockerze `/tmp/history.sqlite3` | Plik SQLite z historią strony i katalogiem słowników; obok niego katalog `<nazwa>-pdf` z PDF-ami plików biurowych |
