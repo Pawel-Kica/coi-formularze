@@ -16,12 +16,17 @@ without values is a blank closed-set field ("Rasa psa: ____"): kept with
 "wartości do uzupełnienia przez urząd/COI", unless its label is plainly free text.
 """
 
+import logging
 import re
+import time
 import unicodedata
 
+from app.core.logging import file_context
 from app.grounding.quotes import THRESHOLD, normalize, quote_found
 from app.llm.dictionaries import ask_candidates
 from app.llm.transcribe import transcribe
+
+log = logging.getLogger(__name__)
 
 TO_FILL = "Wartości do uzupełnienia przez urząd/COI."
 FROM_FORM = "Wartości przepisane z formularza."
@@ -138,6 +143,10 @@ def filter_candidates(candidates: list[dict], text: str, threshold: float = THRE
 def propose(data: bytes, filename: str) -> dict:
     """Bytes of one blank form -> dictionary proposals, read like the main pipeline (page images -> Markdown,
     `app.llm.transcribe`). Raises like the main pipeline on unreadable input."""
-    doc = transcribe(data, filename)
-    proposals, dropped = filter_candidates(ask_candidates(doc.text), doc.text)
-    return {"source": filename, "proposals": proposals, "dropped": dropped}
+    with file_context(filename):
+        started = time.monotonic()
+        doc = transcribe(data, filename)
+        proposals, dropped = filter_candidates(ask_candidates(doc.text), doc.text)
+        log.info("dictionary proposals in %.1f s: %d kept, %d rejected", time.monotonic() - started,
+                 len(proposals), len(dropped))
+        return {"source": filename, "proposals": proposals, "dropped": dropped}

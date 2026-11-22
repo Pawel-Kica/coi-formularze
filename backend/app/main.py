@@ -3,11 +3,19 @@
 Run from `backend/`: `uv run uvicorn app.main:app --reload`. Docs at /docs, upload page at /.
 """
 
+import logging
+
 from fastapi import FastAPI, Request, status
 from fastapi.responses import FileResponse, JSONResponse
 
 from app.api import router
 from app.core.config import settings
+from app.core.logging import setup as setup_logging
+from app.llm.client import health as llm_health
+from app.llm.transcribe import soffice_path
+
+setup_logging(settings.log_level)
+log = logging.getLogger(__name__)
 
 app = FastAPI(
     title="COI Cyfryzacja Formularzy",
@@ -15,6 +23,12 @@ app = FastAPI(
     version="0.1.0",
 )
 app.include_router(router)
+log.info("starting: planner %s, reader %s, API key %s, auth %s, history %s, LibreOffice %s",
+         settings.llm_model, settings.transcribe_model, llm_health(), "on" if settings.auth_enabled else "off",
+         settings.history_db if settings.history_enabled else "off",
+         soffice_path() or "not found (office files are read as their own text)")
+if settings.auth_enabled and settings.jwt_secret_random:
+    log.warning("JWT_SECRET not set: tokens are signed with a random per-process secret and die with it")
 
 # The frontend's pages, served from the same origin as the API (the pages call /api/... relative to it).
 PAGES = {

@@ -201,9 +201,14 @@ def _chat(system, user, model, max_tokens, seed, frequency_penalty, images, resp
         body["frequency_penalty"] = frequency_penalty
     if presence_penalty:
         body["presence_penalty"] = presence_penalty
+    started = time.monotonic()
     out = _post(f"{settings.llm_base_url.rstrip('/')}/chat/completions", body, timeout, tries).json()
     choice = (out.get("choices") or [{}])[0]
     raw = (choice.get("message") or {}).get("content") or ""
+    usage = out.get("usage") or {}
+    log.info("model call: %s%s %.1f s, %s+%s tokens, %s", model, f" ({len(images)} image)" if images else "",
+             time.monotonic() - started, usage.get("prompt_tokens", "?"), usage.get("completion_tokens", "?"),
+             choice.get("finish_reason"))
     return raw, choice.get("finish_reason")
 
 

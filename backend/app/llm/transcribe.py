@@ -46,6 +46,7 @@ import pypdfium2 as pdfium
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.core.config import settings
+from app.core.logging import bound
 from app.extract import Document, UnsupportedFile, extract
 from app.extract.pdf import PDFIUM, page_texts
 from app.extract.scan import split_pages
@@ -91,11 +92,13 @@ def transcribe(data: bytes, filename: str = "") -> Document:
     with _lock:
         if key in _cache:
             _cache.move_to_end(key)
+            log.info("transcription reused from the cache")
             return _cache[key]
         running = _inflight.get(key)
         if running is None:
             mine = _inflight[key] = Future()
     if running is not None:
+        log.info("waiting for the same file's transcription already running")
         return running.result()  # the other request's Document, or its exception
     try:
         doc = _transcribe(data, filename)
@@ -135,8 +138,10 @@ def _transcribe(data: bytes, filename: str) -> Document:
         if text_lost(own, office_pdf):
             log.warning("%s: the LibreOffice PDF lost text of the file, reading the file's own text", filename)
             return Document(text=own, method="office-text", pages=[own])
-    with ThreadPoolExecutor(max(1, settings.transcribe_workers)) as pool:
-        texts = list(pool.map(lambda i: transcribe_page(pages[i], i + 1, len(pages)), range(len(pages))))
+    log.info("transcribing %d pages with %s", len(pages), settings.transcribe_model)
+    with ThreadPoolExecutor(max(1, settings.transcribe_workers)) as pool:  # bound: page logs name the file too
+        futures = [pool.submit(bound(transcribe_page), page, i + 1, len(pages)) for i, page in enumerate(pages)]
+        texts = [f.result() for f in futures]
     return Document(text="\n\n".join(texts), method="vlm-md", pages=texts)
 
 
@@ -256,6 +261,11 @@ def pdf_pages(data: bytes) -> list[Image.Image]:
             pdf.close()
 
 
+def soffice_path() -> str | None:
+    """The LibreOffice binary: SOFFICE on PATH, else the macOS app; None when there is none."""
+    return shutil.which(settings.soffice) or (MAC_SOFFICE if Path(MAC_SOFFICE).exists() else None)
+
+
 def office_to_pdf(data: bytes, filename: str) -> bytes:
     """DOC/DOCX/ODS/ODT/XLS/XLSX bytes -> PDF bytes with LibreOffice headless."""
     return office_convert(data, filename, "pdf")
@@ -264,7 +274,7 @@ def office_to_pdf(data: bytes, filename: str) -> bytes:
 def office_convert(data: bytes, filename: str, to: str) -> bytes:
     """Office file bytes -> bytes of format `to` ("pdf", "ods", ...) with LibreOffice headless, in a temp dir with
     its own LibreOffice profile (parallel conversions do not lock each other out)."""
-    soffice = shutil.which(settings.soffice) or (MAC_SOFFICE if Path(MAC_SOFFICE).exists() else None)
+    soffice = soffice_path()
     if not soffice:
         raise UnsupportedFile("LibreOffice (soffice) is not installed: office files cannot become page images")
     suffix = Path(filename).suffix.lower() or ".bin"

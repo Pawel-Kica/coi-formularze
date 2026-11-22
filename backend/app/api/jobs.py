@@ -11,6 +11,7 @@ ends; a restart forgets every job. Jobs run on their own pool of JOB_WORKERS thr
 MAX_PENDING not finished (running + queued).
 """
 
+import logging
 import time
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -24,15 +25,20 @@ from app.api.errors import conversion_error
 from app.api.security import current_user
 from app.api.upload import FILE_BODY, read_single_file, validate_upload
 from app.core.config import settings
+from app.core.logging import file_context
 from app.services import pipeline
 
 JOB_WORKERS = 2
 MAX_PENDING = 20
 JOB_TTL = 3600  # seconds a finished job's result stays
 RETRY_AFTER = "5"  # seconds, hint on a pending result
+log = logging.getLogger(__name__)
+
 
 @dataclass
 class Job:
+    filename: str = ""
+    created: float = field(default_factory=time.monotonic)
     finished: float | None = None  # time.monotonic() when it ended; None = still running
     result: dict | None = None
     error: HTTPException | None = field(default=None, repr=False)
@@ -53,7 +59,7 @@ def _run(data: bytes, filename: str, evidence: bool) -> dict:
     return pipeline.convert(data, filename)
 
 
-def _finish(job: Job, future: Future) -> None:
+def _finish(job_id: str, job: Job, future: Future) -> None:
     """Done callback: keep the result or the mapped error. Nothing keeps the future, and the error drops its
     traceback (whose frames hold the upload), so the file bytes are freed as soon as the job ends."""
     try:
@@ -62,6 +68,9 @@ def _finish(job: Job, future: Future) -> None:
         job.error = conversion_error(error)
         job.error.__traceback__ = None
     job.finished = time.monotonic()
+    with file_context(job.filename):
+        outcome = f"failed with {job.error.status_code}" if job.error else "done"
+        log.info("job %s %s, %.1f s after it was queued", job_id, outcome, job.finished - job.created)
 
 
 def _expire() -> None:
@@ -88,12 +97,16 @@ async def create_job(request: Request, response: Response, evidence: bool = Fals
     validate_upload(filename, data)
     _expire()
     with _lock:
-        if sum(job.finished is None for job in _jobs.values()) >= MAX_PENDING:
+        pending = sum(job.finished is None for job in _jobs.values())
+        if pending >= MAX_PENDING:
+            log.warning("job refused: %d jobs pending (MAX_PENDING)", pending)
             raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Za dużo zadań w kolejce. Spróbuj za chwilę.")
         job_id = uuid.uuid4().hex
-        job = _jobs[job_id] = Job()
+        job = _jobs[job_id] = Job(filename)
         future = _executor.submit(_run, data, filename, evidence)
-    future.add_done_callback(lambda done: _finish(job, done))
+    with file_context(filename):
+        log.info("job %s queued, %d jobs pending before it", job_id, pending)
+    future.add_done_callback(lambda done: _finish(job_id, job, done))
     urls = {"status_url": f"/api/forms/jobs/{job_id}", "result_url": f"/api/forms/jobs/{job_id}/result"}
     response.headers["Location"] = urls["result_url"]
     return {"id": job_id, **urls}

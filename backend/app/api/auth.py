@@ -1,5 +1,7 @@
 """`/api/auth`: whether a token is needed, and the local login that issues one (`app.api.security`)."""
 
+import logging
+
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
 
@@ -7,6 +9,7 @@ from app.api.security import authenticate, issue_token, local_login_enabled
 from app.core.config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+log = logging.getLogger(__name__)
 
 
 class Credentials(BaseModel):
@@ -46,7 +49,10 @@ async def login(request: Request) -> Token:
     except ValueError:  # bad JSON or missing fields (pydantic ValidationError is a ValueError)
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Podaj username i password.")
     if not authenticate(credentials.username, credentials.password):
+        log.warning("failed login for user %r from %s", credentials.username[:64],
+                    request.client.host if request.client else "?")
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED, "Błędny login lub hasło.", headers={"WWW-Authenticate": "Bearer"}
         )
+    log.info("user %r logged in", credentials.username)
     return Token(access_token=issue_token(credentials.username), expires_in=settings.jwt_ttl_minutes * 60)
