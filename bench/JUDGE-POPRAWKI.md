@@ -59,7 +59,7 @@ Wszystko z `/tmp/loop-<name>` albo `~/coi-formularze`, bez sieci i bez Edena (s�
 
 1. **Kit.** Pliki z przebiegu `bench.run_all` (papier = PDF formularza z `data/coi/<N>. .../` dla każdego formatu):
    ```
-   uv run python -I bench/poprawki.py kit /Users/main/coi-formularze/bench/runs/<run> --files 3/pdf,8/pdf --out /Users/main/coi-formularze/bench/runs/<run>/poprawki
+   uv run python -I bench/poprawki.py kit bench/runs/<run> --files 3/pdf,8/pdf --out bench/runs/<run>/poprawki
    ```
    Jeden COI JSON (ramię porównania podejść, kalibracja): `... kit <plik.coi.json> --form 3 --out <kit_dir>`. Przebieg `bench.run_dir` (BIP, Drive): `--files <nazwa pliku>`, papier = sam plik źródłowy.
 2. **Panel.** Na każdy folder kitu `<kit_dir>/<id>/` trzech sędziów AI równolegle (N=1 i N=2: dwa niezależne wywołania tego samego mocnego modelu, N=3: inny model), każdy jako osobny agent bez wspólnego kontekstu. Prompt (podstaw ścieżkę bezwzględną folderu i N):

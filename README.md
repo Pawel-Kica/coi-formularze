@@ -16,10 +16,10 @@ Mierzymy to, co obchodzi urzędnika: ile poprawek musi zrobić w edytorze, zanim
 
 | Miara | Wynik |
 |---|---|
-| Poprawki urzędnika | średnio **1,9** na formularz: 13 na 7 formularzach (przed końcową pętlą jakości 19, więcej o tym pod tabelą). Formularz ma średnio 24 pola z dokumentu (razem ze stronami standardowymi COI około 70 pól i tekstów); szczegóły w tabeli niżej |
+| Poprawki urzędnika | średnio **1,9** na formularz: 13 na 7 formularzach (przed końcową pętlą jakości 19, więcej o tym pod tabelą formularzy). Formularz ma średnio 24 pola z dokumentu (razem ze stronami standardowymi COI około 70 pól i tekstów); szczegóły w tabeli niżej |
 | Pliki, z których powstał JSON | **54** z 54: 7 formularzy do cyfryzacji z zadania w każdym formacie, w jakim przyszły (PDF, DOC, DOCX, ODS, XLSX, JPEG, JPG, JPE, PNG). Formularze 1 i 5 to materiał referencyjny COI z gotowym JSON-em |
 | Problemy z regułami COI | **0** w każdym z tych JSON-ów. API nie wypuszcza JSON-a, który łamie schemat COI albo „Reguły techniczne”, tylko odpowiada 422; taki plik liczy się jako porażka w wierszu wyżej |
-| Czas i koszt | średnio **50 s** i **0,025 $** na formularz według cennika Eden AI (od 19 s i 0,012 $ za 1 stronę do 98 s i 0,051 $ za 6-stronicową deklarację). Koszt zależy od liczby stron (jedno wywołanie odczytu na stronę) i od wielkości planu (dwa przebiegi planera): 16-stronicowy formularz 9 kosztuje 0,048 $, mniej niż 6-stronicowa deklaracja |
+| Czas i koszt | średnio **50 s** i **0,025 $** na formularz według cennika Eden AI (od 19 s i 0,012 $ za 1 stronę do 98 s i 0,051 $ za 6-stronicową deklarację). Koszt zależy od liczby stron (jedno wywołanie odczytu na stronę) i od wielkości planu (dwa przebiegi planera): formularz 9 (16 stron) kosztuje 0,048 $, mniej niż 6-stronicowa deklaracja |
 | Kalibracja sędziów | z 10 błędów podrzuconych do poprawnej e-usługi znaleźli 10 (formularz 8) i 9 (formularz 7), a na formularzu 3: 4 z 4 w elementach z papieru; zmyślonych poprawek 0 |
 
 **Jak liczymy poprawki** (przepis: `bench/JUDGE-POPRAWKI.md`):
@@ -63,11 +63,11 @@ Trzy dokumenty: formularz 3 PDF (1 strona), formularz 7 JPG (skan, 2 strony) i f
 | 4. To samo z trybem myślenia | GLM-5.2 | 0 / 1 / 21 | 22 | 11 | 605 s | 0,184 $ |
 | **Nasze**: odczyt stron, plan w 2 przebiegach, JSON składa kod | Qwen3.5 + GLM-5.2 | 0 / 1 / 5 | **6** | **0** | 337 s | **0,087 $** |
 
-- Jeden model piszący cały JSON (3 i 4) dorównuje nam na krótkich formularzach, ale na 6-stronicowej deklaracji potrzebuje 19-21 poprawek wobec naszych 5. Na dłuższych formularzach jego JSON łamie reguły COI (4-52 problemów: powtórzone identyfikatory, warunki na opcjach, których nie ma). Kosztuje też ponad 2 razy więcej, bo pisze 7-20 tys. tokenów JSON-a, a nasz planer 1-6 tys. tokenów planu.
+- Jeden model piszący cały JSON (3 i 4) dorównuje nam na krótkich formularzach, ale na 6-stronicowej deklaracji potrzebuje 19-21 poprawek wobec naszych 5. Na formularzach 7 i 8 jego JSON łamie reguły COI (4-52 problemów: powtórzone identyfikatory, warunki na opcjach, których nie ma). Kosztuje też ponad 2 razy więcej, bo pisze 7-20 tys. tokenów JSON-a, a nasz planer 1-6 tys. tokenów planu.
 - Nasze bez filtra cytatów i napraw daje na tych 3 dokumentach prawie to samo (różnica jednego pola na formularzu 8), też bez problemów z regułami. Te reguły to siatka bezpieczeństwa na trudniejsze przypadki (na formularzu 9 poprawiają 3 warunki). Zero problemów z regułami daje builder: format COI pisze kod, nie model.
 - Nasz potok stroiliśmy na tych dokumentach, pozostałych podejść nie, więc porównanie działa na naszą korzyść.
 - Porównanie zrobiliśmy przed końcowymi poprawkami, więc nasze liczby różnią się trochę od tabeli wyżej. Nasze 267 s na formularzu 8 to wolny moment Edenu; spokojny przebieg trwa około 100 s.
-- Przepis i surowe liczby: `bench/ARMS.md`, kod: `bench/arms.py`.
+- Przepis i pełna tabela (z drugimi przebiegami): `bench/ARMS.md`, kod: `bench/arms.py`.
 
 ### JSON-y do oddania
 
@@ -333,7 +333,7 @@ Tabele, czasy, koszty i odrzucone pomysły są w [docs/historia.md](docs/histori
 - Do modeli idą tylko strony pustego formularza, bez danych obywateli.
 - Koszt płaci się raz na formularz, przy cyfryzacji, a nie przy każdym wniosku obywatela: średnio 0,025 $ za formularz, około 0,05 $ za najdłuższe formularze z zadania.
 - Integracja z innym systemem: REST, zadania w tle dla długich formularzy, a `POST /api/forms/check` sprawdza reguły COI w JSON-ie z dowolnego źródła.
-- Testy: ponad 400, bez sieci, `uv run pytest` w kilkanaście sekund.
+- Testy: ponad 500, bez sieci, `uv run pytest` w kilkanaście sekund.
 
 ## Znane ograniczenia
 
