@@ -18,6 +18,11 @@ The upload page sends one file to /api/forms/convert and /api/dictionaries/propo
 keeps the last CACHE_FILES results in memory keyed by (sha256 of the bytes, extension, TRANSCRIBE_MODEL,
 TRANSCRIBE_SIDE), and a second request for a file still being read waits for that reading instead of
 paying for its own. Failures are never cached (the next request tries again).
+
+LibreOffice loses the floating text boxes of some DOCX (forms 2 and 8 DOCX: whole pages render as empty boxes,
+and the reader then invents a form for them). When the office PDF holds less than MIN_RECALL of the file's own
+words (`app.extract` reads the file itself), the pages are not read: the planner gets the file's own text instead
+(method "office-text", no model call).
 """
 
 import base64
@@ -38,7 +43,7 @@ import pypdfium2 as pdfium
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.config import settings
-from app.extract import Document, UnsupportedFile
+from app.extract import Document, UnsupportedFile, extract
 from app.extract.scan import split_pages
 from app.llm.client import LLMError, chat_text
 
@@ -55,6 +60,7 @@ PAGE_NOTE = "Strona {n} z {total}. Przepisz tę stronę do Markdown."
 PRESENCE_PENALTY = 1.5
 FILL_RUN = re.compile(r"[.…_]{4,}")  # a dotted / underscored fill-in line, however the model copied it
 CACHE_FILES = 16  # transcriptions kept in memory, most recent first out last
+MIN_RECALL = 0.95  # share of an office file's words its LibreOffice PDF must hold (as app.history), else its own text is read
 
 _cache: OrderedDict[tuple, Document] = OrderedDict()
 _inflight: dict[tuple, Future] = {}
@@ -103,12 +109,44 @@ def clear_cache() -> None:
 
 
 def _transcribe(data: bytes, filename: str) -> Document:
-    pages = render_pages(data, filename)
+    pages, office_pdf = _render(data, filename)
     if not pages:
         raise UnsupportedFile(f"no pages to read in {filename or 'file'}")
+    if office_pdf:
+        own = _file_text(data, filename)
+        if own.strip() and recall(own, _pdf_text(office_pdf)) < MIN_RECALL:
+            log.warning("%s: the LibreOffice PDF lost text of the file, reading the file's own text", filename)
+            return Document(text=own, method="office-text", pages=[own])
     with ThreadPoolExecutor(max(1, settings.transcribe_workers)) as pool:
         texts = list(pool.map(lambda i: transcribe_page(pages[i], i + 1, len(pages)), range(len(pages))))
     return Document(text="\n\n".join(texts), method="vlm-md", pages=texts)
+
+
+def recall(file_text: str, paper_text: str) -> float:
+    """Share of the file's own words (3+ letters, normalized as quotes are) that the rendered paper holds."""
+    from app.quotes import normalize  # local: not needed for PDF and image files
+
+    def words(text: str) -> list[str]:
+        return [w for w in normalize(text).split() if len(w) >= 3]
+
+    src, got = words(file_text), set(words(paper_text))
+    return sum(w in got for w in src) / len(src) if src else 1.0
+
+
+def _file_text(data: bytes, filename: str) -> str:
+    try:
+        return extract(data, filename).text
+    except (UnsupportedFile, ValueError) as e:  # the file's own reader failed: the pages are all we have
+        log.warning("%s: no own text to check the office PDF against (%s)", filename, e)
+        return ""
+
+
+def _pdf_text(data: bytes) -> str:
+    pdf = pdfium.PdfDocument(data)
+    try:
+        return "\n".join(pdf[i].get_textpage().get_text_range() for i in range(len(pdf)))
+    finally:
+        pdf.close()
 
 
 def transcribe_page(img: Image.Image, n: int = 1, total: int = 1, side: int | None = None) -> str:
@@ -139,10 +177,16 @@ def data_url(img: Image.Image, side: int | None = None) -> str:
 
 def render_pages(data: bytes, filename: str = "") -> list[Image.Image]:
     """Every page of a PDF, image or office file as an RGB image (long side RENDER_SIDE px at most)."""
+    return _render(data, filename)[0]
+
+
+def _render(data: bytes, filename: str) -> tuple[list[Image.Image], bytes | None]:
+    """(page images, the LibreOffice PDF of an office file or None)."""
     if data[:5] == b"%PDF-" or (filename.lower().endswith(".pdf") and b"%PDF-" in data[:1024]):
-        return pdf_pages(data)
+        return pdf_pages(data), None
     if data[:4] == b"PK\x03\x04" or data[:8] == OLE_MAGIC:  # DOCX/XLSX/ODS/ODT, DOC/XLS
-        return pdf_pages(office_to_pdf(data, filename))
+        pdf = office_to_pdf(data, filename)
+        return pdf_pages(pdf), pdf
     try:
         img = Image.open(io.BytesIO(data))
         img.load()
@@ -151,7 +195,7 @@ def render_pages(data: bytes, filename: str = "") -> list[Image.Image]:
     pages = split_pages(ImageOps.exif_transpose(img).convert("RGB"))
     for p in pages:
         p.thumbnail((RENDER_SIDE, RENDER_SIDE), Image.Resampling.LANCZOS)
-    return pages[:MAX_PAGES]
+    return pages[:MAX_PAGES], None
 
 
 def pdf_pages(data: bytes) -> list[Image.Image]:

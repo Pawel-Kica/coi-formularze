@@ -187,3 +187,30 @@ def test_failure_is_not_cached(monkeypatch):
     with pytest.raises(LLMError):
         tr.transcribe(data, "f.pdf")
     assert tr.transcribe(data, "f.pdf").text == "ok"
+
+
+
+def test_recall_of_the_file_words_on_the_paper():
+    own = "Wniosek o zwrot opłaty\nImię i nazwisko\nInformacje o opłacie skarbowej"
+    assert tr.recall(own, own.replace("\n", " ")) == 1.0
+    assert tr.recall(own, "Wniosek o zwrot opłaty") < 0.5
+    assert tr.recall("", "anything") == 1.0
+
+
+def test_office_pdf_that_lost_text_is_read_from_the_file(monkeypatch):
+    calls = []
+    monkeypatch.setattr(tr, "chat_text", fake_chat(calls))
+    monkeypatch.setattr(tr, "office_to_pdf", lambda data, name: a4_pdf(1))  # a blank page: LibreOffice lost it all
+    monkeypatch.setattr(tr, "_file_text", lambda data, name: "Dane wnioskodawcy\nUzasadnienie wniosku")
+    doc = tr.transcribe(b"PK\x03\x04 fake docx", "form.docx")
+    assert (doc.text, doc.method, calls) == ("Dane wnioskodawcy\nUzasadnienie wniosku", "office-text", [])
+
+
+def test_office_pdf_that_holds_the_text_is_read_from_images(monkeypatch):
+    calls = []
+    monkeypatch.setattr(tr, "chat_text", fake_chat(calls))
+    monkeypatch.setattr(tr, "office_to_pdf", lambda data, name: a4_pdf(1))
+    monkeypatch.setattr(tr, "_pdf_text", lambda data: "Dane wnioskodawcy Uzasadnienie wniosku")
+    monkeypatch.setattr(tr, "_file_text", lambda data, name: "Dane wnioskodawcy\nUzasadnienie wniosku")
+    doc = tr.transcribe(b"PK\x03\x04 other docx", "form.docx")
+    assert (doc.text, doc.method, len(calls)) == ("## page 1", "vlm-md", 1)
