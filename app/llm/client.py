@@ -18,6 +18,7 @@ images the user message stays a plain string.
 """
 
 import copy
+import logging
 import json
 import time
 from dataclasses import dataclass, field
@@ -47,7 +48,9 @@ class ChatResult:
 
 # Per-call log (model, seconds, tokens) the bench reads. Cleared by the caller.
 CALLS: list[dict] = []
+log = logging.getLogger(__name__)
 MAX_TRIES = 3  # per call, for 429 / 5xx / transport errors
+CONNECT_TRIES = 6  # a dropped connection (venue Wi-Fi, DNS) often comes back within a minute: waits 2+4+8+16+32 s
 
 
 # Model name parts whose routes get `reasoning_effort: "none"`: thinking off, as every Eden number was measured.
@@ -103,7 +106,9 @@ def _post(url: str, body: dict, timeout: float | None = None, tries: int = MAX_T
     """POST with retries on 429/5xx/transport errors, without leaking the key: failures are
     re-raised outside the `except` block as fresh exceptions (no chained original, whose
     request carries the Authorization header)."""
-    for attempt in range(1, tries + 1):
+    attempt = 0
+    while True:
+        attempt += 1
         failure = None
         try:
             r = httpx.post(url, json=body, headers=_headers(), timeout=timeout or settings.llm_timeout_s)
@@ -114,9 +119,17 @@ def _post(url: str, body: dict, timeout: float | None = None, tries: int = MAX_T
         except httpx.TransportError as e:
             failure = ("transport", type(e))
         retryable = failure[0] == "transport" or failure[1].status_code == 429 or failure[1].status_code >= 500
-        if not retryable or attempt == tries:
+        # no connection at all (fails in milliseconds) gets a longer budget, also over a caller's smaller `tries`
+        # (transcribe's page retry then waits up to ~2 min per page while the network is down); every timeout,
+        # ConnectTimeout too, keeps `tries`: each attempt there costs the whole timeout
+        connect = failure[0] == "transport" and issubclass(failure[1], httpx.ConnectError)
+        limit = max(tries, CONNECT_TRIES) if connect else tries
+        if not retryable or attempt >= limit:
             break
-        time.sleep(_retry_wait(failure[1] if failure[0] == "status" else None, attempt))
+        wait = _retry_wait(failure[1] if failure[0] == "status" else None, attempt)
+        reason = f"HTTP {failure[1].status_code}" if failure[0] == "status" else failure[1].__name__
+        log.warning("model API call failed (%s), retry %d of %d in %.0f s", reason, attempt, limit - 1, wait)
+        time.sleep(wait)
     if failure[0] == "status":
         response = failure[1]
         raise httpx.HTTPStatusError(f"LLM API returned HTTP {response.status_code}",

@@ -22,6 +22,7 @@ def conversion_error(error: Exception) -> HTTPException:
         case httpx.TimeoutException() | TimeoutError():
             return HTTPException(status.HTTP_504_GATEWAY_TIMEOUT, "Model nie odpowiedział na czas. Spróbuj ponownie.")
         case httpx.TransportError() | ConnectionError():
+            log.warning("model unreachable: %s", type(error).__name__)  # the access log alone shows only the 503
             return HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Model językowy jest niedostępny.")
         # before ValueError: a missing key is the server's setup, not a bad form
         case MissingKeyError():

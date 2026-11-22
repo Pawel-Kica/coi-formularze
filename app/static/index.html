@@ -668,7 +668,7 @@ function renderNote(item) {
   const seconds = Math.round((Date.now() - item.started) / 1000);
   note.replaceChildren(...(item.status === "working"
     ? [el("p", "big", `Czytam formularz… ${seconds} s`),
-       el("p", "muted", "Model działa lokalnie na tym komputerze. Jeden formularz zajmuje zwykle 1-2 minuty, e-usługa pojawi się tutaj sama.")]
+       el("p", "muted", "Modele czytają i planują formularz na serwerach Eden AI. Zwykle trwa to od 20 sekund do 2 minut, e-usługa pojawi się tutaj sama.")]
     : [el("p", "big", "Plik czeka w kolejce"), el("p", "muted", "Zacznie się, gdy skończy się poprzedni plik.")]));
 }
 

@@ -130,3 +130,32 @@ def test_bad_request_is_not_retried(monkeypatch, remote):
     with pytest.raises(httpx.HTTPStatusError):
         client.chat_json("sys", "user", SCHEMA)
     assert len(calls) == 1
+
+
+def test_lost_connection_gets_the_longer_budget_and_timeouts_do_not(monkeypatch, remote):
+    """A dropped network (ConnectError) is tried CONNECT_TRIES times; a read timeout only MAX_TRIES."""
+    for error, expected in [(httpx.ConnectError, client.CONNECT_TRIES), (httpx.ReadTimeout, client.MAX_TRIES)]:
+        calls = []
+
+        def post(url, json=None, headers=None, timeout=None, error=error):
+            calls.append(1)
+            raise error("down", request=httpx.Request("POST", url))
+
+        monkeypatch.setattr(client.httpx, "post", post)
+        with pytest.raises(error):
+            client.chat_json("sys", "user", SCHEMA)
+        assert len(calls) == expected
+
+
+def test_network_back_within_the_budget_succeeds(monkeypatch, remote):
+    outcomes = [httpx.ConnectError] * 4 + [200]
+
+    def post(url, json=None, headers=None, timeout=None):
+        outcome = outcomes.pop(0)
+        if outcome != 200:
+            raise outcome("down", request=httpx.Request("POST", url))
+        body = {"choices": [{"message": {"content": '{"a": {"b": "x"}}'}, "finish_reason": "stop"}]}
+        return httpx.Response(200, json=body, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(client.httpx, "post", post)
+    assert client.chat_json("sys", "user", SCHEMA).data == {"a": {"b": "x"}}
