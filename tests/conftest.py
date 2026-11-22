@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from app.config import settings
+from app.llm import transcribe
 
 
 @pytest.fixture(autouse=True)
@@ -21,3 +22,9 @@ def no_network(monkeypatch):
         raise AssertionError(f"network call in a test: {url}")
 
     monkeypatch.setattr(httpx, "post", refuse)
+
+
+@pytest.fixture(autouse=True)
+def fresh_transcriptions():
+    """Every test reads its files anew: no transcription kept from another test's fake model."""
+    transcribe.clear_cache()

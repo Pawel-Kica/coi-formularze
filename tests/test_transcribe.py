@@ -148,3 +148,42 @@ def test_fill_in_runs_collapse_and_presence_penalty_sent(monkeypatch):
     monkeypatch.setattr(tr, "chat_text", chat)
     assert tr.transcribe(a4_pdf(1), "f.pdf").text == "Inny (jaki?) ______\n______"
     assert seen["pp"] == tr.PRESENCE_PENALTY > 0
+
+
+def test_same_bytes_reuse_one_transcription(monkeypatch):
+    calls = []
+    monkeypatch.setattr(tr, "chat_text", fake_chat(calls))
+    data = a4_pdf(2)
+    first = tr.transcribe(data, "f.pdf")
+    assert tr.transcribe(data, "other-name.pdf") is first and len(calls) == 2  # one call per page, once
+    monkeypatch.setattr(settings, "transcribe_side", 700)  # another reading setting = another transcription
+    tr.transcribe(data, "f.pdf")
+    assert len(calls) == 4
+
+
+def test_concurrent_requests_share_one_transcription(monkeypatch):
+    calls = []
+    monkeypatch.setattr(tr, "chat_text", fake_chat(calls, {1: 0.3}))
+    data, out = a4_pdf(1), []
+    threads = [threading.Thread(target=lambda: out.append(tr.transcribe(data, "f.pdf"))) for _ in range(3)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(calls) == 1 and len(out) == 3 and all(d is out[0] for d in out)
+
+
+def test_failure_is_not_cached(monkeypatch):
+    fails = {"left": 2}  # first try and its retry fail, the next request works
+
+    def chat(*a, **kw):
+        if fails["left"]:
+            fails["left"] -= 1
+            raise LLMError("down")
+        return ChatResult(data={}, raw="ok", seconds=0.0)
+
+    monkeypatch.setattr(tr, "chat_text", chat)
+    data = a4_pdf(1)
+    with pytest.raises(LLMError):
+        tr.transcribe(data, "f.pdf")
+    assert tr.transcribe(data, "f.pdf").text == "ok"

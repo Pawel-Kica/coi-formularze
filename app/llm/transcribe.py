@@ -13,16 +13,24 @@ One page per call keeps every answer short (nothing cut off by max_tokens, nothi
 answer); TRANSCRIBE_WORKERS pages run at once, each call capped at TRANSCRIBE_TIMEOUT_S with one more
 try. presence_penalty 1.5 stops Qwen copying a dotted fill-in line forever; runs of dots/underscores
 are collapsed to `______`. Pages are joined in order with a blank line.
+
+The upload page sends one file to /api/forms/convert and /api/dictionaries/proposals at once: `transcribe`
+keeps the last CACHE_FILES results in memory keyed by (sha256 of the bytes, extension, TRANSCRIBE_MODEL,
+TRANSCRIBE_SIDE), and a second request for a file still being read waits for that reading instead of
+paying for its own. Failures are never cached (the next request tries again).
 """
 
 import base64
+import hashlib
 import io
 import logging
 import re
 import shutil
 import subprocess
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
+import threading
+from collections import OrderedDict
+from concurrent.futures import Future, ThreadPoolExecutor
 from functools import cache
 from pathlib import Path
 
@@ -46,6 +54,11 @@ PAGE_NOTE = "Strona {n} z {total}. Przepisz tę stronę do Markdown."
 # tables (every "|" counts against it), presence_penalty is a flat, one-time push.
 PRESENCE_PENALTY = 1.5
 FILL_RUN = re.compile(r"[.…_]{4,}")  # a dotted / underscored fill-in line, however the model copied it
+CACHE_FILES = 16  # transcriptions kept in memory, most recent first out last
+
+_cache: OrderedDict[tuple, Document] = OrderedDict()
+_inflight: dict[tuple, Future] = {}
+_lock = threading.Lock()
 
 
 @cache
@@ -54,7 +67,42 @@ def system_prompt() -> str:
 
 
 def transcribe(data: bytes, filename: str = "") -> Document:
-    """Bytes of one form -> Document whose text is the Markdown of all its pages, in order."""
+    """Bytes of one form -> Document whose text is the Markdown of all its pages, in order. The same bytes
+    read again (or at the same time) reuse one transcription; treat the Document as read-only."""
+    key = (hashlib.sha256(data).hexdigest(), Path(filename).suffix.lower(),
+           settings.transcribe_model, settings.transcribe_side)
+    with _lock:
+        if key in _cache:
+            _cache.move_to_end(key)
+            return _cache[key]
+        running = _inflight.get(key)
+        if running is None:
+            mine = _inflight[key] = Future()
+    if running is not None:
+        return running.result()  # the other request's Document, or its exception
+    try:
+        doc = _transcribe(data, filename)
+    except BaseException as e:
+        with _lock:
+            del _inflight[key]
+        mine.set_exception(e)
+        raise
+    with _lock:
+        del _inflight[key]
+        _cache[key] = doc
+        while len(_cache) > CACHE_FILES:
+            _cache.popitem(last=False)
+    mine.set_result(doc)
+    return doc
+
+
+def clear_cache() -> None:
+    """Forget every kept transcription (tests)."""
+    with _lock:
+        _cache.clear()
+
+
+def _transcribe(data: bytes, filename: str) -> Document:
     pages = render_pages(data, filename)
     if not pages:
         raise UnsupportedFile(f"no pages to read in {filename or 'file'}")
