@@ -7,10 +7,14 @@
 <link rel="icon" href="data:,">
 <style>
 *{box-sizing:border-box}
-body{margin:0;font:16px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:#1d1c26;background:#f6f5fb}
-:focus-visible{outline:3px solid #2b2f6b;outline-offset:2px}
+/* the citizen's form is drawn like the public form-viewer of the state e-services (gov navy, light grey page, white
+   cards, 2 px controls); the clerk's layer on top of it (quotes, conditions, pencils, "Źródło") keeps the app's own colors */
+:root{--gov:#2251a2;--gov-dark:#183d7d;--gov-tint:#e9eef8;--ink:#111416;--txt:#202327;--line:#767676;--ctrl:#818792;
+  --page:#f1f5fa;--div:#e8eaed;--ro:#f4f5f7;--muted:#4b5563}
+body{margin:0;font:16px/1.5 "Open Sans","Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--txt);background:var(--page)}
+:focus-visible{outline:3px solid var(--gov);outline-offset:2px}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-a{color:#2b2f6b}
+a{color:var(--gov)}
 
 /* tool bar (not part of the e-service) */
 .toolbar{background:#1d2633;color:#fff;display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;padding:.5rem 1rem;font-size:14px;position:relative}
@@ -29,10 +33,7 @@ a{color:#2b2f6b}
 /* embed mode (/preview?embed=1, inside the upload page): the parent feeds the JSON, so no load buttons;
    one light strip with a single switch instead of the dark tool bar */
 .embed .tb-title,.embed #tbOpen,.embed #tbPaste,.embed #techLabel,.embed #tbReset{display:none}
-.embed .wrap{padding-top:1rem}
-.embed h1{font-size:1.25rem;margin-bottom:.6rem}
-.embed .stepper{margin-bottom:1rem}
-.embed .toolbar{background:#fff;color:#4b5563;border-bottom:1px solid #ddd7cc;position:sticky;top:0;z-index:5}
+.embed .toolbar{background:#fff;color:#4b5563;border-bottom:1px solid #dde3ea;box-shadow:0 1px 3px rgba(17,20,22,.05);position:sticky;top:0;z-index:5}
 .embed .toolbar label{color:#1d1c26;font-weight:600}
 .embed .toolbar :focus-visible{outline-color:#2b2f6b}
 .embed .issues summary{border-color:#b7791f;color:#6b2c00}
@@ -44,31 +45,70 @@ a{color:#2b2f6b}
 .drop p{margin:.25rem 0 1rem;font-size:1.15rem}
 .empty textarea{min-height:10rem;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace}
 
-/* e-service */
-.wrap{max-width:880px;margin:0 auto;padding:1.5rem 1rem 4rem}
-h1{font-size:1.6rem;line-height:1.25;margin:.25rem 0 1rem}
-.stepper{list-style:none;display:flex;flex-wrap:wrap;gap:.25rem .5rem;padding:0;margin:0 0 1.5rem}
-.stepper li>*{display:flex;align-items:center;gap:.4rem;font:inherit;font-size:14px;color:#4b5563;background:none;border:0;padding:.25rem .4rem;border-radius:4px}
-.stepper button{cursor:pointer;color:#2b2f6b;text-decoration:underline}
-.stepper .num{display:inline-grid;place-items:center;width:1.6rem;height:1.6rem;border-radius:50%;border:1px solid currentColor;font-weight:700;text-decoration:none}
-.stepper [aria-current]{color:#1d1c26;font-weight:700}
-.stepper [aria-current] .num{background:#1c1f4d;color:#fff;border-color:#1c1f4d}
-#pageHeading{font-size:1.3rem;margin:0 0 1rem}
-.grid{display:grid;gap:1rem 1.25rem}
-.card{background:#fff;border-radius:8px;padding:1.25rem 1.5rem;box-shadow:0 1px 3px rgba(16,24,40,.08)}
-.card h3{font-size:1.15rem;margin:0 0 1rem}
-.card h4{font-size:1rem;margin:0 0 .75rem}
-.cell>label,.group>legend{display:block;margin-bottom:.35rem;font-size:15px;padding:0}
-input[type=text],input[type=date],textarea,select{width:100%;font:inherit;padding:.55rem .75rem;border:1px solid #1d1c26;border-radius:4px;background:#fff;color:inherit;min-height:44px}
+/* e-service: stepper on top, the form title, white cards on the grey page, a bottom bar "Przerwij wypełnianie" |
+   "Wstecz" "Dalej" (measured on the public form-viewer: 744 px column, 20 px card padding, 48 px controls) */
+.wrap{max-width:776px;margin:0 auto;padding:2rem 1rem 4rem}
+h1{font-size:1.375rem;line-height:1.3;margin:0 0 1.6rem;color:var(--ink);font-weight:700}
+h1:has(+.legend:not(:empty)){margin-bottom:.5rem}
+/* circles on a line, the label under each; done = a check, the current one = a dot and a bold label; every step is a
+   button (a preview opens any step); many steps scroll sideways with the current one kept in view */
+.stepper{list-style:none;display:flex;padding:6px 0 .25rem;margin:0 0 1.6rem;overflow-x:auto;scrollbar-width:thin;position:relative}
+.stepper li{position:relative;flex:1 1 0;min-width:96px;max-width:150px;text-align:center}
+.stepper.over{-webkit-mask:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent);mask:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
+.stepper.over li{min-width:124px}
+.stepper li:first-child{margin-left:auto}
+.stepper li:last-child{margin-right:auto}
+.stepper li::before{content:"";position:absolute;top:9px;left:0;right:0;height:3px;background:var(--line)}
+.stepper li:first-child::before{left:50%}
+.stepper li:last-child::before{right:50%}
+.stepper li:only-child::before{display:none}
+.stepper li>*{position:relative;display:flex;flex-direction:column;align-items:center;gap:.6rem;width:100%;padding:0 .4rem;background:none;border:0;font:inherit;font-size:16px;line-height:1.3;color:var(--txt)}
+.stepper.over li>*{font-size:15px}
+.stepper button{cursor:pointer}
+.stepper button:hover .lbl{text-decoration:underline}
+.stepper button:focus-visible{outline-offset:-1px;border-radius:6px}
+.stepper .dot{flex:none;width:21px;height:21px;border-radius:50%;border:2px solid var(--line);background:#fff}
+.stepper .cur .dot{border-color:var(--gov);background:radial-gradient(circle,var(--gov) 0 4px,#fff 4.6px)}
+.stepper .done .dot{border-color:var(--gov);background:var(--gov) var(--check) center/11px no-repeat}
+.stepper .lbl{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:break-word;hyphens:auto}
+.stepper .cur .lbl{font-weight:700;color:var(--ink)}
+:root{--check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpath d='M1 5.2 4.4 8.5 11 1.5' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --chevron:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 8'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%232251a2' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --chevron-up:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 8'%3E%3Cpath d='M1 7l6-6 6 6' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+/* the page's own name is in the stepper; as a heading it shows only for the clerk (annotations on), with its pencil */
+#pageHeading{font-size:15px;font-weight:600;color:var(--muted);margin:0 0 .6rem}
+#pageHeading .pg-n{font-weight:400}
+body:not(.notes):not(.conds) #pageHeading{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.grid{display:grid;gap:1rem 1rem}
+.card .grid{gap:1.35rem 1rem}
+.card{background:#fff;border-radius:10px;padding:1.25rem 1.25rem 1.5rem;box-shadow:0 1px 2px rgba(17,20,22,.07)}
+.card h3{font-size:1.1875rem;line-height:1.35;margin:.1rem 0 1.25rem;color:var(--ink);font-weight:700}
+.card h4{font-size:1rem;margin:0 0 .75rem;color:var(--ink)}
+.cell>label,.group>legend{display:block;margin-bottom:.5rem;font-size:16px;line-height:1.4;padding:0;color:var(--txt)}
+input[type=text],input[type=date],textarea,select{width:100%;font:inherit;padding:.6rem .75rem;border:2px solid var(--ctrl);border-radius:4px;background-color:#fff;color:var(--ink);min-height:48px}
+:is(input,textarea,select)[aria-required=true]{border-color:var(--ink)}
+:is(input,textarea,select):hover:not(.ro):not(:disabled){border-color:var(--gov)}
+select{appearance:none;-webkit-appearance:none;padding-right:2.6rem;background:#fff var(--chevron) right .9rem center/14px 8px no-repeat;cursor:pointer}
 textarea{min-height:6rem}
-input.ro,textarea.ro,select:disabled{background:#f3f4f6;border-color:#f3f4f6;color:#1d1c26;opacity:1}
+input.ro,textarea.ro,select:disabled{background-color:var(--ro);background-image:none;border-color:var(--ro);color:var(--ink);opacity:1;cursor:default}
 .group{border:0;padding:0;margin:0;min-width:0}
-.choice{display:flex;align-items:flex-start;gap:.5rem;margin:.4rem 0}
-.choice input{width:20px;height:20px;margin:.15rem 0 0;accent-color:#2b2f6b;flex:none}
+.group>legend{margin-bottom:.35rem}
+/* round radios and square checkboxes, 2 px grey; chosen = gov navy */
+.choice{display:flex;align-items:flex-start;gap:.6rem;margin:.6rem 0}
+.choice input{appearance:none;-webkit-appearance:none;flex:none;width:20px;height:20px;margin:.13rem 0 0;border:2px solid var(--ctrl);background:#fff;cursor:pointer}
+.choice input[type=radio]{border-radius:50%}
+.choice input[type=checkbox]{border-radius:3px}
+.choice input:hover:not(:disabled){border-color:var(--gov)}
+.choice input[type=radio]:checked{border-color:var(--gov);background:radial-gradient(circle,var(--gov) 0 5px,#fff 5.6px)}
+.choice input[type=checkbox]:checked{border-color:var(--gov);background:var(--gov) var(--check) center/12px no-repeat}
+.choice input:disabled{opacity:.55;cursor:default}
+.choice label{cursor:pointer}
 .choice label p{margin:0}
-.hint{color:#4b5563;font-size:14px;margin:0 0 .5rem}
+.hint{color:var(--muted);font-size:15px;margin:0 0 .5rem}
+.card>.hint{color:var(--txt);font-size:16px;margin-bottom:1rem}  /* a section's own text, like the form-viewer's intro under a card title */
 .hint p,.textblock p,.info p{margin:.2rem 0 .5rem}
-.caption{font-size:13px;color:#4b5563;margin:.3rem 0 0}
+.textblock{color:var(--txt)}
+.caption{font-size:13px;color:var(--muted);margin:.35rem 0 0}
 .dict-empty{color:#9a4d00}
 body:not(.notes) .dict-empty{display:none}  /* an admin hint: not in the citizen's view */
 .dict-empty a{color:#2b2f6b;font-weight:600}
@@ -76,32 +116,43 @@ body:not(.notes) .dict-empty{display:none}  /* an admin hint: not in the citizen
 @keyframes flash{0%,40%{box-shadow:0 0 0 3px #c2662d;background:#f9e3d3}100%{box-shadow:0 0 0 3px transparent}}
 .err{color:#b3261e;font-size:14px;margin:.35rem 0 0;font-weight:600}
 [aria-invalid=true]{border-color:#b3261e!important;box-shadow:0 0 0 1px #b3261e}
-.errsum{border-left:4px solid #2b2f6b;background:#ecebf6;padding:.75rem 1rem;border-radius:4px;margin-bottom:1rem}
+.errsum{border-left:4px solid var(--gov);background:#fff;padding:.9rem 1.25rem;border-radius:8px;margin-bottom:1rem;box-shadow:0 1px 2px rgba(17,20,22,.07)}
 .errsum p{margin:0 0 .4rem}
-.errsum summary{cursor:pointer;color:#2b2f6b;font-weight:600}
+.errsum summary{cursor:pointer;color:var(--gov);font-weight:700}
 .errsum ul{margin:.5rem 0 0;padding-left:1.25rem;font-size:14px}
-.info{background:#ecebf6;border-left:4px solid #2b2f6b;padding:.75rem 1rem;border-radius:4px}
-.tip summary{cursor:pointer;color:#2b2f6b;font-size:14px;font-weight:600}
-.filebox{border:1px solid #8a94a6;border-radius:4px;padding:1rem;max-width:440px}
-.filebox.over{background:#ecebf6;border-color:#2b2f6b}
-.filebox .btn-outline{display:block;margin:0 auto .75rem}
-.filebox table{width:100%;font-size:12px;border-collapse:collapse;color:#4b5563}
-.filebox td{padding:.2rem 0;border-top:1px solid #ddd7cc}
-.filebox td+td{font-weight:700;color:#1d1c26}
+.info{background:var(--gov-tint);border-left:4px solid var(--gov);padding:.75rem 1rem;border-radius:4px}
+.tip summary{cursor:pointer;color:var(--gov);font-size:14px;font-weight:700}
+.filebox{border:2px solid var(--line);border-radius:4px;padding:1.25rem 1.25rem 1rem;max-width:480px}
+.filebox.over{background:var(--gov-tint);border-color:var(--gov)}
+.filebox .btn-outline{display:block;margin:0 auto 1rem}
+.filebox table{width:100%;font-size:13px;border-collapse:collapse;color:var(--txt)}
+.filebox td{padding:.3rem 0;border-top:1px solid var(--div)}
+.filebox tr:first-child td{border-top:0}
+.filebox td+td{font-weight:700;color:var(--ink)}
 .files{margin:.25rem 0 .5rem;padding-left:1.25rem;font-size:14px}
-.row-card{border:1px solid #ddd7cc;border-radius:8px;padding:1rem 1.25rem;margin-bottom:1rem}
-.row-head{display:flex;justify-content:space-between;align-items:center}
-.btn{background:#1c1f4d;color:#fff;border:1px solid #1c1f4d;border-radius:4px;padding:.6rem 1.25rem;font:inherit;font-weight:700;cursor:pointer;min-height:44px}
-.btn:hover{background:#002a5e}
-.btn-outline{background:#fff;color:#1c1f4d;border:1px solid #1c1f4d;border-radius:4px;padding:.55rem 1.1rem;font:inherit;font-weight:700;cursor:pointer;min-height:44px}
-.btn-link{background:none;border:0;color:#2b2f6b;font:inherit;font-weight:700;cursor:pointer;padding:.25rem}
+/* a repeating section: one foldable block per row ("Pozycja N" + a chevron), a line, then "Dodaj kolejną pozycję" */
+.rep-row{padding:0 1rem}
+.rep-row+.rep-row{border-top:2px solid var(--div)}
+.rep-head{display:flex;align-items:center;gap:.75rem;min-height:52px;cursor:pointer}
+.rep-head::after{content:"";flex:none;width:14px;height:8px;margin-right:.25rem;background:var(--txt);-webkit-mask:var(--chevron-up) center/contain no-repeat;mask:var(--chevron-up) center/contain no-repeat;transition:transform .15s}
+.rep-head:has([aria-expanded=false])::after{transform:rotate(180deg)}
+.rep-toggle{flex:1;background:none;border:0;padding:.5rem 0;font:inherit;font-weight:600;color:var(--txt);text-align:left;cursor:pointer}
+.rep-body{padding:.25rem 0 1.25rem}
+.rep-add{border-top:2px solid var(--div);padding-top:1.25rem;margin-top:.25rem}
+.rows:empty+.rep-add{border-top:0;padding-top:0}
+.btn{background:var(--gov);color:#fff;border:2px solid var(--gov);border-radius:4px;padding:.5rem 1rem;font:inherit;font-weight:700;cursor:pointer;min-height:48px}
+.btn:hover{background:var(--gov-dark);border-color:var(--gov-dark)}
+.btn-outline{background:transparent;color:var(--gov);border:2px solid var(--gov);border-radius:4px;padding:.5rem 1rem;font:inherit;font-weight:700;cursor:pointer;min-height:48px}
+.btn-outline:hover{background:var(--gov-tint)}
+.btn-link{background:none;border:0;color:var(--gov);font:inherit;font-weight:700;cursor:pointer;padding:.25rem 0}
+.btn-link:hover{text-decoration:underline}
 .danger{color:#b3261e}
-.nav{display:flex;align-items:center;flex-wrap:wrap;gap:.75rem;margin-top:1.5rem}
+.nav{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem;margin-top:1.25rem;padding-left:.65rem}
 .nav .spacer{flex:1}
 .status{margin:1rem 0 0;padding:.75rem 1rem;border-radius:6px;background:#e6f4ea;border:1px solid #1e7b34;color:#14532d;font-weight:600}
 .status:empty{display:none}
 .summary dl{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:.25rem 1rem;margin:0 0 1rem}
-.summary dt{color:#4b5563}
+.summary dt{color:var(--muted)}
 .summary dd{margin:0;word-break:break-word}
 .summary h4{margin:1rem 0 .5rem}
 .summary h5{margin:.5rem 0;font-size:.95rem}
@@ -157,7 +208,7 @@ body.embed.notes .srcbox:not([hidden]){display:block}
 /* a hidden element in annotation mode: one dashed line saying what would show it */
 body.ghosts .cond-hidden:has(>.ghost){display:block!important}
 body.ghosts .cond-hidden>:not(.ghost){display:none!important}
-body.ghosts .cond-hidden>.ghost{display:block;margin:0;padding:.45rem .75rem;border:1px dashed #8a94a6;border-radius:6px;background:#f8f6f2;color:#4b5563;font-size:13px;line-height:1.4}
+body.ghosts .cond-hidden>.ghost{display:block;margin:0;padding:.45rem .75rem;border:1px dashed #8a94a6;border-radius:6px;background:#fff;color:#4b5563;font-size:13px;line-height:1.4}
 body.ghosts section.card.cond-hidden{padding:0;background:none;box-shadow:none}
 @keyframes flash{from{background:#f9e3d3;box-shadow:0 0 0 6px #f9e3d3}to{background:transparent;box-shadow:0 0 0 6px transparent}}
 .flash{animation:flash 1.8s ease-out;border-radius:6px}
@@ -171,6 +222,12 @@ body.techmode .cond-hidden{display:block!important;opacity:.55;outline:2px dashe
 body.techmode .cond-hidden::before{content:"ukryte: warunek niespełniony";display:block;font:12px ui-monospace,Menlo,Consolas,monospace;color:#6b2c00}
 .tech{display:none;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;color:#5b3c00;background:#f9e3d3;padding:.15rem .4rem;border-radius:3px;margin:.3rem 0 0;word-break:break-word}
 body.techmode .tech{display:block}
+@media (max-width:600px){  /* a narrow pane (the sidebar open on a small screen): less room above the first card */
+  .wrap{padding-top:1.25rem}
+  h1{font-size:1.2rem;margin-bottom:1.1rem}
+  .stepper{margin-bottom:1.1rem}
+  .stepper li>*{font-size:14px}
+}
 @media (max-width:640px){
   .grid{grid-template-columns:1fr!important}
   .grid>*{grid-column:auto!important}
@@ -204,9 +261,9 @@ body.techmode .tech{display:block}
 </div>
 
 <main class="wrap" id="app" hidden>
+  <nav aria-label="Kroki wniosku" id="stepNav"></nav>
   <h1 id="formTitle"><button type="button" class="fix" id="titleFix" aria-label="Edytuj tytuł e-usługi" title="Edytuj"></button></h1>
   <p class="src legend" id="legend"></p>
-  <nav aria-label="Kroki wniosku" id="stepNav"></nav>
   <div id="page"></div>
 </main>
 <div class="sr-only" aria-live="polite" id="live"></div>
@@ -955,12 +1012,16 @@ function start(obj) {
   applyModes();
   $("#empty").hidden = true;
   $("#app").hidden = false;
-  $("#formTitle").replaceChildren(cfg.title || "Formularz bez tytułu", $("#titleFix"));
+  renderTitle();
   document.title = (cfg.title || "Formularz") + " | podgląd COI";
   go(0, false);
 }
 
 /* ---------- rendering ---------- */
+// The form title with its pencil (also after an edit in the sidebar, editor.js).
+const TITLE_FIX = $("#titleFix");
+const renderTitle = () => $("#formTitle").replaceChildren(cfg.title || "Formularz bez tytułu", TITLE_FIX);
+
 // Lays out cells in a CSS grid: columns = max(x+cols); only grid-column is set (rows follow the y,x order).
 function layoutGrid(cells, render) {
   const sorted = sortCells(cells);
@@ -1012,28 +1073,40 @@ function renderSection(tab, q) {
   return card;
 }
 
-// A card with N row sub-cards ("Pozycja N"), "Usuń" beyond the minimum and "Dodaj kolejny".
+// A card with one foldable block per row ("Pozycja N", a click on its head folds it), "Usuń" beyond the minimum, and
+// under a line "Dodaj kolejną pozycję".
+const foldedRows = new Set();  // "<section id>:<row>" the citizen folded; kept over re-renders, cleared by a new document
 function renderRepeating(tab, q) {
   const f = q.field, hid = uid(), hint = hintEl(f.description), min = minRows(q);
   const rows = answers[tab.title][f.techName];
   const list = h("div", {class: "rows"});
-  const addBtn = h("button", {type: "button", class: "btn-outline", onclick: () => {
+  const addBtn = h("button", {type: "button", class: "btn", onclick: () => {
     rows.push(rowDefaults(f)); drawRows(); refreshStates();
-    $("h4", list.lastElementChild).focus();
-  }}, "Dodaj kolejny");
+    $(".rep-toggle", list.lastElementChild).focus();
+  }}, "Dodaj kolejną pozycję");
+  const unfold = () => { for (const k of [...foldedRows]) if (k.startsWith(f.id + ":")) foldedRows.delete(k); };
   function drawRows() {
     list.replaceChildren(...rows.map((r, i) => {
-      const rh = uid();
-      return h("div", {class: "row-card", role: "group", "aria-labelledby": rh},
-        h("div", {class: "row-head"}, h("h4", {id: rh, tabindex: "-1"}, `Pozycja ${i + 1}`),
-          i >= min && h("button", {type: "button", class: "btn-link danger", "aria-label": `Usuń pozycję ${i + 1}`,
-            onclick: () => { rows.splice(i, 1); drawRows(); refreshStates(); addBtn.focus(); }}, "Usuń")),
+      const rh = uid(), key = `${f.id}:${i}`, open = !foldedRows.has(key);
+      const body = h("div", {class: "rep-body", id: rh + "-body", hidden: !open},
         layoutGrid(f.repeatingSectionGrid, c => renderField(c, {store: r, row: i, standard: isStandard(tab)})));
+      const toggle = h("button", {type: "button", class: "rep-toggle", id: rh, "aria-expanded": String(open), "aria-controls": body.id}, `Pozycja ${i + 1}`);
+      const flip = () => {
+        const now = body.hidden;
+        now ? foldedRows.delete(key) : foldedRows.add(key);
+        body.hidden = !now; toggle.setAttribute("aria-expanded", String(now));
+      };
+      return h("div", {class: "rep-row", role: "group", "aria-labelledby": rh},
+        h("div", {class: "rep-head", onclick: e => { if (!e.target.closest(".danger")) flip(); }}, toggle,
+          i >= min && h("button", {type: "button", class: "btn-link danger", "aria-label": `Usuń pozycję ${i + 1}`,
+            onclick: () => { rows.splice(i, 1); unfold(); drawRows(); refreshStates(); addBtn.focus(); }}, "Usuń")),
+        body);
     }));
   }
   drawRows();
   const card = h("section", {class: "card", "aria-labelledby": hid, "aria-describedby": hint && hint.id, "data-bound": true, "data-fid": f.id},
-    ghostOf(f, "section"), srcButton(f), h("h3", {id: hid}, labelOf(f), fixButton(f)), notesOf(f, "section", isStandard(tab)), srcBox(f), hint, techLines(f, q), list, addBtn);
+    ghostOf(f, "section"), srcButton(f), h("h3", {id: hid}, labelOf(f), fixButton(f)), notesOf(f, "section", isStandard(tab)), srcBox(f), hint, techLines(f, q),
+    list, h("div", {class: "rep-add"}, addBtn));
   card._entry = {field: f, row: null, controls: []};
   return card;
 }
@@ -1180,15 +1253,29 @@ function refreshStates(first = false) {
   if (top > innerHeight - 140 || top < 60) window.scrollTo({top: scrollY + top - innerHeight * 0.3, behavior: "smooth"});
 }
 
+// Circles on a line with the step names under them: steps before the current one are done (a check), the current one
+// has a dot. Every step is a button (a preview opens any step at any time). Too many to fit: the row scrolls sideways
+// and keeps the current step in view.
 function renderStepper() {
-  $("#stepNav").replaceChildren(h("ol", {class: "stepper"}, pages.map((p, i) => {
-    const cur = i === pageIdx;
-    const kids = [h("span", {class: "num", "aria-hidden": "true"}, i + 1), h("span", {class: "sr-only"}, `Krok ${i + 1}: `), p.title];
-    const inner = cur ? h("span", {}, kids) : h("button", {type: "button", onclick: () => go(i)}, kids);  // a preview: any step, any time
-    if (cur) inner.setAttribute("aria-current", "step");
-    return h("li", {}, inner);
-  })));
+  const ol = h("ol", {class: "stepper"}, pages.map((p, i) => {
+    const cur = i === pageIdx, done = i < pageIdx;
+    const kids = [h("span", {class: "dot", "aria-hidden": "true"}),
+      h("span", {class: "lbl"}, h("span", {class: "sr-only"}, `Krok ${i + 1}: `), p.title)];
+    const inner = cur ? h("span", {"aria-current": "step"}, kids) : h("button", {type: "button", onclick: () => go(i)}, kids);
+    return h("li", {class: cur ? "cur" : done ? "done" : null, title: p.title}, inner);
+  }));
+  $("#stepNav").replaceChildren(ol);
+  fitStepper();
 }
+// Steps that do not fit at their narrowest (96 px) get wider and scroll, with faded edges; the current one is centered.
+// Runs again when the frame changes width (the sidebar opens or the window is resized).
+function fitStepper() {
+  const ol = $("#stepNav .stepper"), at = ol && $(".cur", ol);
+  if (!ol) return;
+  ol.classList.toggle("over", ol.children.length * 96 > ol.clientWidth);
+  if (at && ol.classList.contains("over")) ol.scrollLeft = at.offsetLeft - (ol.clientWidth - at.offsetWidth) / 2;
+}
+new ResizeObserver(fitStepper).observe($("#stepNav"));
 
 // Shows page i: renders it, scrolls to top, moves focus to its heading and announces the step.
 function go(i, focus = true) {
@@ -1205,13 +1292,17 @@ function renderPage() {
   const page = $("#page");
   const standard = isStandard(tab) && hasEvidence() && h("p", {class: "src"}, standardNote(tab));
   page.replaceChildren(
-    h("h2", {id: "pageHeading", tabindex: "-1"}, tab.title, fixLink(tab.id, `strona ${tab.title}`)),
+    h("h2", {id: "pageHeading", tabindex: "-1"}, h("span", {class: "pg-n"}, `Krok ${pageIdx + 1} z ${pages.length}: `), tab.title, fixLink(tab.id, `strona ${tab.title}`)),
     ...[standard, ...notesOf(tab, "tab", isStandard(tab))].filter(Boolean),
     h("div", {id: "errsum"}),
     layoutGrid(tab.questions, q => renderQuestion(tab, q)));
   if (tab.type === "FINISH") page.append(renderSummary());
   // "Dalej" never checks anything: the preview is for looking at every step. Only "Wyślij wniosek" lists what a citizen would still have to fill in.
+  // "Przerwij wypełnianie" in a preview: the answers are cleared and the first step opens
   page.append(h("div", {class: "nav"},
+    h("button", {type: "button", class: "btn-link", title: "W podglądzie: wyczyść odpowiedzi i wróć do pierwszego kroku", onclick: () => {
+      resetAnswers(); go(0); $("#live").textContent = "Odpowiedzi wyczyszczone, krok 1";
+    }}, "Przerwij wypełnianie"),
     h("span", {class: "spacer"}),
     pageIdx > 0 && h("button", {type: "button", class: "btn-outline", onclick: () => go(pageIdx - 1)}, "Wstecz"),
     last ? h("button", {type: "button", class: "btn send", onclick: () => {
@@ -1380,7 +1471,7 @@ $("#techToggle").addEventListener("change", applyModes);
 $("#notesToggle").addEventListener("change", applyModes);
 $("#condsToggle").addEventListener("change", applyModes);
 $("#tbReset").addEventListener("click", () => { if (!cfg) return; resetAnswers(); go(0); });
-$("#titleFix").addEventListener("click", () => edOpen("__title"));
+TITLE_FIX.addEventListener("click", () => edOpen("__title"));
 window.addEventListener("dragover", e => { e.preventDefault(); document.body.classList.add("dragging"); });
 window.addEventListener("dragleave", e => { if (!e.relatedTarget) document.body.classList.remove("dragging"); });
 window.addEventListener("drop", e => {
@@ -1418,7 +1509,7 @@ if (EMBED) {
     }
     if (e.data?.type !== "coi-preview") return;
     const same = cfg && e.data.key !== undefined && e.data.key === shownKey;
-    if (!same) { paper = null; openSrc.clear(); }
+    if (!same) { paper = null; openSrc.clear(); foldedRows.clear(); }
     docKey = e.data.key; docN = e.data.doc;
     const step = same ? pageIdx : 0, kept = same ? answers : null;
     // the element at the top of the screen keeps its place
